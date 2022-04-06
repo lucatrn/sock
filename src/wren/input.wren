@@ -20,14 +20,11 @@ class Input {
 	}
 
 	static value(neg, pos) {
-		return value(neg) - value(pos);
+		return value(neg) - value(pos)
 	}
 
 	static value(negX, posX, negY, posY) {
-		return Vec2.new(
-			value(negX, posX),
-			value(negY, posY),
-		)
+		return Vec2.new(value(negX, posX), value(negY, posY))
 	}
 
 	static valuePressed(ids) {
@@ -35,17 +32,14 @@ class Input {
 	}
 
 	static valuePressed(neg, pos) {
-		var np = pressed(neg);
-		var pp = pressed(pos);
+		var np = pressed(neg)
+		var pp = pressed(pos)
 
-		return np == pp ? 0 : (pp ? 1 : -1);
+		return np == pp ? 0 : (pp ? 1 : -1)
 	}
 
 	static valuePressed(negX, posX, negY, posY) {
-		return Vec2.new(
-			valuePressed(negX, posX),
-			valuePressed(negY, posY),
-		)
+		return Vec2.new(valuePressed(negX, posX), valuePressed(negY, posY))
 	}
 
 	static held(ids) {
@@ -94,8 +88,8 @@ class Input {
 	}
 
 	static update_(negID, posID, value) {
-		update_(negID, value < 0 ? -value : 0);
-		update_(posID, value > 0 ?  value : 0);
+		update_(negID, value < 0 ? -value : 0)
+		update_(posID, value > 0 ?  value : 0)
 	}
 
 	static init_() {

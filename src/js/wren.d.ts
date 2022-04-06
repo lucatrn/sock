@@ -49,8 +49,11 @@ export class VM {
 	/**
 	 * Runs `source`, a string of Wren source code in a new fiber in the
 	 * context of resolved `moduleName`.
+	 * 
+	 * `source` can be provided as a UTF-8 array, which is copied directly into
+	 * Wasm memory.
 	 */
-	interpret(moduleName: string, source: string): InterpretResult;
+	interpret(moduleName: string, source: string | ArrayBuffer | Uint8Array | Uint8ClampedArray): InterpretResult;
 
 	/**
 	 * Creates a handle that can be used to invoke a method with [signature] on
@@ -147,12 +150,14 @@ export class VM {
 	setSlotBool(slot: number, value: boolean): void;
 	
 	/**
-	 * Stores the array `length` of `bytes` in `slot`.
+	 * Stores the array `bytes` in `slot`.
+	 * 
+	 * If `length` is provided only that many bytes are stored.
 	 * 
 	 * The bytes are copied to a new string within Wren's heap, so you can free
 	 * memory used by them after this is called.
 	 */
-	setSlotBytes(slot: number, bytes: Uint8Array | Uint8ClampedArray | Int8Array, length: number): void;
+	setSlotBytes(slot: number, bytes: ArrayBuffer | Uint8Array | Uint8ClampedArray | Int8Array, length?: number): void;
 	
 	/**
 	 * Stores the numeric `value` in `slot`.
@@ -194,8 +199,11 @@ export class VM {
 
 	/**
 	 * Stores the string `value` in `slot`.
+	 * 
+	 * `value` can be provided as a UTF-8 array, which is copied directly into
+	 * Wasm memory.
 	 */
-	setSlotString(slot: number, value: string): void;
+	setSlotString(slot: number, value: string | ArrayBuffer | Uint8Array | Uint8ClampedArray): void;
 
 	/**
 	 * Stores the value captured in `handle` in `slot`.

@@ -1,8 +1,12 @@
 import { callHandle_update_1, vm } from "../vm.js";
 
-vm.ensureSlots(1);
-vm.getVariable("~", "Time", 0);
-let handle_Time = vm.getSlotHandle(0);
+let handle_Time = 0;
+
+export function initTimeModule() {
+	vm.ensureSlots(1);
+	vm.getVariable("sock", "Time", 0);
+	handle_Time = vm.getSlotHandle(0);
+}
 
 /**
  * @param {number} frame

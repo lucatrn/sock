@@ -4,10 +4,10 @@
 //   rollup -c build-js-production.config.js
 
 export default {
-	input: "src/main.js",
+	input: "src/js/main.js",
 	output: {
 		format: "iife",
 		file: "tmp/sock.js",
-	},
-	sourcemap: true,
+		sourcemap: true,
+	}
 }

@@ -1,6 +1,3 @@
-
-//#include text
-
 import "meta" for Meta
 
 // Try to import [assets/main.wren].

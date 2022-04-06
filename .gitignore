@@ -1,3 +1,5 @@
 .DS_Store
 /tmp
 /dst
+/ignore
+/node_modules

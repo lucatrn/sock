@@ -8,7 +8,7 @@ import { VM } from "./wren.js";
  * @param {(vm: VM) => void} callback
  */
 export function addForeignMethod(moduleName, className, isStatic, signature, callback) {
-	foreignMethods[methodID(moduleName, className, isStatic, signature)] = callback;
+	foreignMethods[methodID(moduleName || "sock", className, isStatic, signature)] = callback;
 }
 
 /**

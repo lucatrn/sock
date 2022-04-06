@@ -14,5 +14,3 @@ class Cursor {
 		__hidden = false
 	}
 }
-
-Cursor.hidden = true

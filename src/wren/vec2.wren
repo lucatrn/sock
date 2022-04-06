@@ -43,7 +43,7 @@ class Vec2 {
 
 	normalizeRange(min, max) {
 		var len = length
-		if (len <= min) return Vec2.new();
+		if (len <= min) return Vec2.new()
 		len = ((len - min) / (max - min)).min(1) / len
 		return Vec2.new(_x * len, _y * len)
 	}

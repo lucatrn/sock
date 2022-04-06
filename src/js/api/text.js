@@ -1,7 +1,7 @@
 import { addForeignMethod } from "../foreign.js";
 import { callHandle_load_1, callHandle_path_get, vm } from "../vm.js";
 
-addForeignMethod("~", "Text", false, "load_()", async () => {
+addForeignMethod("", "Text", false, "load_()", async () => {
 	let obj = vm.getSlotHandle(0);
 	
 	vm.call(callHandle_path_get);
