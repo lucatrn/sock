@@ -53,6 +53,7 @@ class Vec2 {
 	- (v) { Vec2.new(_x - v.x, _y - v.y ) }
 	* (k) { Vec2.new(_x * k, _y * k ) }
 	/ (k) { Vec2.new(_x / k, _y / k ) }
+	== (v) { v is Vec2 && _x == v.x && _y == v.y }
 
 	dot(v) { _x*v.x + _y*v.y }
 

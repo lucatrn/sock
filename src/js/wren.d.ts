@@ -401,7 +401,7 @@ export let defaultConfig: VMConfiguration;
  * A pair of functions to the foreign methods used to allocate and
  * finalize the data for instances of a foreign class.
  */
-interface ForeignClassMethods {
+export interface ForeignClassMethods {
 	/**
 	 * Called when an object of the passed class is constructed, before the constructor is run.
 	 * 

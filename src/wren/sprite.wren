@@ -1,24 +1,38 @@
 
-class Sprite is Asset {
-	construct get(path) {
-		super(path)
-	}
+foreign class Sprite is Asset {
+	construct get(path) {}
 
-	id { _id }
+	resolution { Vec2.new(width, height) }
 
-	width { _width }
+	toString { "Sprite:%(path)" }
 
-	height { _height }
+	foreign path
 
-	size { Vec2.new(_width, _height) }
-	
-	toString { "Sprite:%(_id)" }
+	foreign width
+
+	foreign height
+
+	foreign loadProgress
+
+	foreign size
 
 	foreign load_()
-	
-	load_(id, width, height) {
-		_id = id
-		_width = width
-		_height = height
+
+	foreign beginBatch()
+
+	foreign endBatch()
+
+	foreign draw(x, y, w, h)
+
+	draw(x, y) {
+		draw(x, y, width, height)
 	}
+
+	foreign static defaultScaleFilter
+
+	foreign static defaultScaleFilter=(name)
+
+	foreign static defaultWrapMode
+
+	foreign static defaultWrapMode=(name)
 }

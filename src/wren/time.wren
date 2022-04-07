@@ -1,8 +1,11 @@
 
 class Time {
-	static frame { __frame }
+	static frame { __f }
 
-	static update_(frame) {
-		__frame = frame
+	static time { __t }
+
+	static update_(frame, t) {
+		__f = frame
+		__t = t
 	}
 }

@@ -1,10 +1,13 @@
 
-export function httpGET(path: string, type: "blob", progress?: ProgressObject): Promise<Blob>;
-export function httpGET(path: string, type: "arraybuffer", progress?: ProgressObject): Promise<ArrayBuffer>;
-export function httpGET(path: string, type: "document", progress?: ProgressObject): Promise<Document>;
-export function httpGET(path: string, type: "text", progress?: ProgressObject): Promise<string>;
-export function httpGET(path: string, type: XMLHttpRequestResponseType, progress?: ProgressObject): Promise<any>;
+export function httpGET(url: string, type: "blob", progress?: ProgressCallback): Promise<Blob>;
+export function httpGET(url: string, type: "arraybuffer", progress?: ProgressCallback): Promise<ArrayBuffer>;
+export function httpGET(url: string, type: "document", progress?: ProgressCallback): Promise<Document>;
+export function httpGET(url: string, type: "text", progress?: ProgressCallback): Promise<string>;
+export function httpGET(url: string, type: XMLHttpRequestResponseType, progress?: ProgressCallback): Promise<any>;
 
-interface ProgressObject {
-	progress: number;
-}
+/**
+ * Resolves to null if there was an error getting the image.
+ */
+export function httpGETImage(url: string): Promise<HTMLImageElement | null>;
+
+type ProgressCallback = (loaded: number, total: number) => void;

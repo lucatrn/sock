@@ -16,7 +16,7 @@ class Math {
 
 	static pulse(t) { wrap01(t) < 0.5 ? -1 : 1 }
 
-	static triangle(t) { (wrap01(t + 0.75) * 4 - 2).abs - 1 }
+	static tri(t) { (wrap01(t + 0.75) * 4 - 2).abs - 1 }
 
 	static lerp(a, b, t) { a + (b - a) * t.clamp(0, 1) }
 

@@ -4,11 +4,13 @@
 	"vec2",
 	"async",
 	"time",
+	"game",
 	"input",
 	"cursor",
 	"asset",
 	"text",
 	"graphics",
+	"polygon",
 	"sprite",
 	""
 ]

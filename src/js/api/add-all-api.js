@@ -4,3 +4,5 @@ import "./time.js";
 import "./graphics.js";
 import "./asset.js";
 import "./sprite.js";
+import "./game.js";
+import "./polygon.js";

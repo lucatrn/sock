@@ -1,8 +1,6 @@
 
 class Text is Asset {
-	construct get(path) {
-		super(path)
-	}
+	construct get(path) {}
 
 	text { _text }
 	

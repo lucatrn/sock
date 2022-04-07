@@ -1,35 +1,87 @@
-import { container } from "./container.js";
+import { canvas } from "./canvas.js";
 
 /**
  * The position of the container/canvas. `s` is the scale factor.
- * `sw` `sh` are screen width/height.
+ * - `sw` `sh`: screen width/height.
+ * - `rw` `rh`: Internal resolution width/height.
+ * - `x` `y`: top/left offsets of viewport due to fixed resolution
+ * - `w` `h`: width/height of viewport. May be smaller than screen width/height due to fixed resolution.
+ * - `s`: Scale factor of viewport (0, Infinite)
  */
-export let layout = { x: 0, y: 0, w: 1, h: 1, s: 1, sw: 0, sh: 0, };
-
-export let layoutOptions = {
-	pixelScaling: false,
-	resolution: [ 300, 400 ],
+export let computedLayout = {
+	rw: 0,
+	rh: 0,
+	sw: 0,
+	sh: 0,
+	x: 0,
+	y: 0,
+	w: 1,
+	h: 1,
+	s: 1,
 };
 
-export function redoLayout() {
-	let [ resx, resy ] = layoutOptions.resolution;
-	let sw = layout.sw = innerWidth;
-	let sh = layout.sh = innerHeight;
-	let sx = sw / resx;
-	let sy = sh / resy;
-	let s = Math.min(sx, sy);
-	if (layoutOptions.pixelScaling && s > 1) s = Math.floor(s);
-	let w = Math.floor(s * resx);
-	let h = Math.floor(s * resy);
-	let x = Math.floor((sw - w) / 2);
-	let y = Math.floor((sh - h) / 2);
-	layout.x = x;
-	layout.y = y;
-	layout.w = w;
-	layout.h = h;
-	layout.s = s;
-	container.style.left = x + "px";
-	container.style.top = y + "px";
-	container.style.width = w + "px";
-	container.style.height = h + "px";
+/**
+ * Used by client to configure internal resolution and computed layout.
+ */
+export let layoutOptions = {
+	pixelScaling: false,
+	resolution: null,
+	maxScale: Infinity,
+};
+
+
+let isLayoutQueued = false;
+
+export function queueLayout() {
+	isLayoutQueued = true;
 }
+
+export function finalizeLayout() {
+	if (isLayoutQueued) {
+		isLayoutQueued = false;
+		redoLayout();
+		return true;
+	}
+}
+
+export function redoLayout() {
+	let screenWidth = computedLayout.sw = canvas.width = innerWidth;
+	let screenHeight = computedLayout.sh = canvas.height = innerHeight;
+
+	let resx, resy, scale;
+	let res = layoutOptions.resolution;
+	if (res) {
+		resx = res[0];
+		resy = res[1];
+
+		// Determine scale factor.
+		let scaleX = screenWidth / resx;
+		let scaleY = screenHeight / resy;
+
+		scale = Math.min(scaleX, scaleY, layoutOptions.maxScale);
+
+		if (layoutOptions.pixelScaling && scale > 1) {
+			scale = Math.floor(scale);
+		}
+	} else {
+		resx = screenWidth;
+		resy = screenHeight;
+		scale = 1;
+	}
+
+	computedLayout.rw = resx;
+	computedLayout.rh = resy;
+	computedLayout.s = scale;
+	
+	let w = computedLayout.w = Math.floor(scale * resx);
+	let h = computedLayout.h = Math.floor(scale * resy);
+	computedLayout.x = Math.floor((screenWidth - w) / 2);
+	computedLayout.y = Math.floor((screenHeight - h) / 2);
+}
+
+addEventListener("resize", () => {
+	queueLayout();
+});
+
+computedLayout.rw = computedLayout.sw = computedLayout.w = canvas.width = innerWidth;
+computedLayout.rh = computedLayout.sh = computedLayout.h = canvas.height = innerHeight;

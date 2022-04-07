@@ -1,40 +1,56 @@
 
+// Abstract: implementers must have following methods:
+//   loadProgress: number
+//   size: number
+//   load_(): void
+//
+//
+// Implementers should also consider overiding the following methods:
+//   unload(): void
 class Asset {
-	construct new(path) {
-		_path = path
-		_progress = 0
-		Assets.add_(this)
+	isLoaded { loadProgress >= size }
+
+	loadRatio { loadProgress / size }
+
+	load() {
+		__loading.add(this)
+
+		load_()
+
+		return this
 	}
 
-	path { _path }
+	unload() {}
 
-	progress { _progress }
+	static init_() {
+		__loading = []
+	}
 
-	progress_=(progress) { _progress = progress }
+	static anyLoading { !__loading.isEmpty && !allLoaded }
 
-	loaded { _progress >= 1 }
-}
+	static allLoaded { __loading.all {|asset| asset.isLoaded } }
 
-class Assets {
-	static load() {
-		if (__queue) {
-			Async.resolve(load_(__queue, __update, Fiber.current))
-			__queue = null
+	static totalLoadSize { __loading.reduce(0) {|total, asset| total + asset.size } }
+
+	static totalLoadProgress { __loading.reduce(0) {|total, asset| total + asset.loadProgress } }
+
+	static totalLoadRatio {
+		if (__loading.isEmpty) {
+			return 1
+		} else {
+			var total = 0
+			var loaded = 0
+			for (asset in __loading) {
+				total = total + asset.size
+				loaded = loaded + asset.loadProgress
+			}
+			return loaded / total
 		}
 	}
 
-	static load(update) {
-		__update = update
-		load()
-	}
-
-	foreign static load_(queue, fn, fiber)
-
-	static add_(asset) {
-		if (__queue) {
-			__queue.add(asset)
-		} else {
-			__queue = [ asset ]
+	static update_() {
+		if (__loading.count > 0 && allLoaded) {
+			__loading.clear()
 		}
 	}
 }
