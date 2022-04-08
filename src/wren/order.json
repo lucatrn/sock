@@ -1,7 +1,7 @@
 [
 	"util",
 	"math",
-	"vec2",
+	"vector",
 	"async",
 	"time",
 	"game",
@@ -9,6 +9,7 @@
 	"cursor",
 	"asset",
 	"text",
+	"camera",
 	"graphics",
 	"polygon",
 	"sprite",

@@ -55,8 +55,8 @@ class Game {
 	foreign static layoutChanged_(x, y, fixed, pp, maxs)
 
 	static init_(sx, sy) {
-		__size = Vec2.new(sx, sy)
-		__screen = Vec2.new(sx, sy)
+		__size = Vector.new(sx, sy)
+		__screen = Vector.new(sx, sy)
 		__fixed = false
 		__maxs = Num.infinity
 		__pp = false
@@ -71,4 +71,31 @@ class Game {
 			__size.y = sy
 		}
 	}
+
+	static begin(fn) {
+		if (fn is Fn) {
+			if (fn.arity == 0) {
+				__fn = fn
+				ready_()
+			} else {
+				Fiber.abort("update function must have no arguments")
+			}
+		} else {
+			Fiber.abort("update function is %(fn.type), should be a Fn")
+		}
+	}
+
+	static update_() {
+		if (__fn) __fn.call()
+		ready_()
+	}
+
+	foreign static ready_()
+
+	static quit() {
+		quit_()
+		Fiber.suspend()
+	}
+
+	foreign static quit_()
 }

@@ -1,3 +1,4 @@
+import { getCameraMatrix } from "../api/camera.js";
 import { Color } from "../api/color.js";
 import { gl } from "./gl.js";
 import { Shader } from "./shader.js";
@@ -13,15 +14,15 @@ let shader = new Shader({
 		"v_color": "lowp vec4",
 		"v_uv": "highp vec2",
 	},
-	// vertUniforms: {
-	// 	"mat": "mat3",
-	// },
+	vertUniforms: {
+		"mat": "mat3",
+	},
 	vert: [
 		"v_uv = uv;",
 		"v_color = color;",
-		"gl_Position = vec4(vertex, 1.0);",
-		// "vec3 tv = mat * vec3(vertex.x, vertex.y, 1.0);",
-		// "gl_Position = vec4(tv.x, tv.y, vertex.z, 1.0);",
+		// "gl_Position = vec4(vertex, 1.0);",
+		"vec3 tv = mat * vec3(vertex.x, vertex.y, 1.0);",
+		"gl_Position = vec4(tv.x, tv.y, vertex.z, 1.0);",
 	],
 	fragUniforms: {
 		"tex": "sampler2D",
@@ -274,8 +275,8 @@ export class SpriteBatcher {
 			// Set shader texture.
 			shader.setUniformTexture("tex", this._texture.texture, 0);
 
-			// // Set shader matrix.
-			// shader.setUniformMatrix3("mat", camera2D.getMatrix());
+			// Set shader matrix.
+			shader.setUniformMatrix3("mat", getCameraMatrix());
 		
 			// Setup index buffer.
 			// Since we're always drawing quads, we only need to populate it whenever it needs resizing.

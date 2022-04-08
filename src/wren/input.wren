@@ -4,9 +4,9 @@ class Input {
 
 	static holdCutoff=(value) { __holdCutoff = value.clamp(0.001, 1) }
 
-	static mouse { Vec2.new(__mouseX, __mouseY) }
+	static mouse { Vector.new(__mouseX, __mouseY) }
 
-	static mouseDelta { Vec2.new(__mouseX - __mouseX0, __mouseY - __mouseY0) }
+	static mouseDelta { Vector.new(__mouseX - __mouseX0, __mouseY - __mouseY0) }
 
 	static updateMouse_(x, y) {
 		__mouseX0 = __mouseX
@@ -24,7 +24,7 @@ class Input {
 	}
 
 	static value(negX, posX, negY, posY) {
-		return Vec2.new(value(negX, posX), value(negY, posY))
+		return Vector.new(value(negX, posX), value(negY, posY))
 	}
 
 	static valuePressed(ids) {
@@ -39,7 +39,7 @@ class Input {
 	}
 
 	static valuePressed(negX, posX, negY, posY) {
-		return Vec2.new(valuePressed(negX, posX), valuePressed(negY, posY))
+		return Vector.new(valuePressed(negX, posX), valuePressed(negY, posY))
 	}
 
 	static held(ids) {

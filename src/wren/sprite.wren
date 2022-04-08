@@ -2,7 +2,7 @@
 foreign class Sprite is Asset {
 	construct get(path) {}
 
-	resolution { Vec2.new(width, height) }
+	resolution { Vector.new(width, height) }
 
 	toString { "Sprite:%(path)" }
 

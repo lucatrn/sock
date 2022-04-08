@@ -16,7 +16,66 @@ body {
 }
 canvas {
 	display: block;
-} 
+}
+pre {
+	margin: 0;
+}
+a {
+	color: inherit;
+}
+.quit {
+	cursor: not-allowed;
+	opacity: 0.4;
+}
+.error {
+	position: fixed;
+	display: flex;
+	flex-direction: column;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    margin: auto;
+    width: 80%;
+    height: 80%;
+	color: #f0f0f0;
+    background: #24272a;
+    overflow: auto;
+	border-radius: 4px;
+}
+.message {
+	padding: 0.6em 0.8em;
+    background: #cf0043;
+}
+.code {
+	display: flex;
+	line-height: 1.2;
+	overflow: auto;
+	padding: 0.3em;
+}
+.code-lines {
+	color: #808080;
+}
+.code-target {
+	position: relative;
+	color: #f0f0f0;
+}
+.code-target::before {
+	content: "\00A0";
+    background: #cf0043;
+    position: absolute;
+    top: -0.1em;
+    left: -0.2em;
+    width: calc(80vw - 3em);
+    height: 100%;
+    z-index: -1;
+    padding: .1em;
+	pointer-events: none;
+}
+.code-source {
+	padding-left: 1.3em;
+	tab-size: 4;
+}
 </style>
 <script src="sock.js" async defer></script>
 </head>

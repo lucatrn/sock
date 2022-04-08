@@ -140,7 +140,7 @@ export class Shader {
 
 	/**
 	 * @param {string} name
-	 * @param {number[]} matrix 
+	 * @param {Iterable<number>} matrix 
 	 */
 	setUniformMatrix3(name, matrix) {
 		let location = this.getUniformLocation(name);

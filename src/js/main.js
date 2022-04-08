@@ -1,15 +1,18 @@
 import Wren from "./wren.js";
 import "./api/add-all-api.js";
-import { callHandle_call_0, createWrenVM, vm } from "./vm.js";
+import { callHandle_call_0, createWrenVM, vm, wrenErrorString, wrenTypeToName } from "./vm.js";
 import { initCursorModule } from "./api/cursor.js";
 import { initTimeModule, updateTimeModule } from "./api/time.js";
 import { httpGET } from "./network/http.js";
-import { fps, initGameModule } from "./api/game.js";
+import { fps, gameIsReady, gameUpdate, initGameModule, quitFromAPI } from "./api/game.js";
 import { finalizeLayout } from "./layout.js";
 import { Shader } from "./gl/shader.js";
-import { Framebuffer, mainFramebuffer } from "./gl/framebuffer.js";
+import { mainFramebuffer } from "./gl/framebuffer.js";
 import { initAssetModule, updateAssetModule } from "./api/asset.js";
 import { canvas } from "./canvas.js";
+import { showError, showWrenError } from "./error.js";
+import { waitUntil } from "./async.js";
+import { initCameraModule } from "./api/camera.js";
 
 /** @type {number} */
 let prevTime = null;
@@ -17,7 +20,6 @@ let time = 0;
 let frame = 0;
 let remainingTime = 0;
 let quit = false;
-let handle_updateFn = 0;
 
 async function init() {
 	// Get scripts in parallel.
@@ -36,7 +38,7 @@ async function init() {
 	let result = vm.interpret("sock", sockScript);
 	
 	if (result !== 0) {
-		console.warn("sock.wren failed");
+		finalize();
 		return;
 	}
 
@@ -44,6 +46,7 @@ async function init() {
 	initTimeModule();
 	initAssetModule();
 	initCursorModule();
+	initCameraModule();
 	initGameModule();
 
 	// Init WebGL.
@@ -56,67 +59,79 @@ async function init() {
 
 	result = vm.interpret("/main", gameMainScript);
 	if (result !== 0) {
-		console.warn("game main.wren failed");
+		finalize();
 		return;
 	}
 
-	// Setup game loop.
-	vm.ensureSlots(1);
-	vm.getVariable("/main", "update", 0);
-	handle_updateFn = vm.getSlotHandle(0);
+	// Now we wait for Game.ready_() to be called!
+	if (!await waitUntil(100, 1000, () => gameIsReady)) {
+		finalize("took to long for Game.begin() to be called...");
+		return;
+	}
 
-
+	// Begin!
 	requestAnimationFrame(update);
 }
+
 
 function update() {
 	let now = performance.now() / 1000;
 	let delta = Math.min(4 / 60, prevTime == null ? 0 : now - prevTime);
 	prevTime = now;
-	remainingTime -= delta;
+	
+	if (gameIsReady) {
+		remainingTime -= delta;
+	
+		if (remainingTime <= 0) {
+			// Increment frame timer.
+			remainingTime += 1 / fps;
+	
+			// Update module state.
+			updateTimeModule(frame, time);
+			updateAssetModule();
 
-	if (remainingTime <= 0) {
-		// Increment frame timer.
-		remainingTime += 1 / fps;
+			frame++;
+			time += 1 / fps;
 
-		// Update module state.
-		updateTimeModule(frame, time);
-		updateAssetModule();
+			// Prepare WebGL.
+			let layoutChanged = finalizeLayout();
+			
+			if (layoutChanged) {
+				mainFramebuffer.updateResolution();
+			}
+	
+			mainFramebuffer.bind();
+	
+			// Do game update.
+			let result = gameUpdate();
+				
+			// Check result of call.
+			if (result !== 0) {
+				quit = true;
+			}
 
-		// Prepare WebGL.
-		let layoutChanged = finalizeLayout();
-		
-		if (layoutChanged) {
-			mainFramebuffer.updateResolution();
+			// Finalize WebGL.
+			mainFramebuffer.draw();
 		}
-
-		mainFramebuffer.bind();
-
-		// Do game update.
-		vm.ensureSlots(1);
-		vm.setSlotHandle(0, handle_updateFn);
-		let result = vm.call(callHandle_call_0);
-		if (result !== 0) {
-			console.warn("call to game update() failed");
-			quit = true;
-		}
-		
-		// Finalize WebGL.
-		mainFramebuffer.draw();
-
-		// Final state updates.
-		frame++;
 	}
 
-	time += delta;
-
-	if (quit) {
+	if (quit || quitFromAPI) {
 		// End the loop.
-		console.log("[Quit]");
-		canvas.style.cursor = "not-allowed";
-		canvas.style.opacity = "0.5";
+		canvas.classList.add("quit");
+		finalize();
 	} else {
 		requestAnimationFrame(update);
+	}
+}
+
+/**
+ * @param {string|null} [error]
+ */
+function finalize(error) {
+	if (error) {
+		showError(error);
+	} else if (wrenErrorString) {
+		showWrenError();
 	}
 }
 

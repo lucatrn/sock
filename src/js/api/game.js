@@ -1,15 +1,16 @@
 import { addClassForeignStaticMethods } from "../foreign.js";
 import { glFilterStringToNumber } from "../gl/api.js";
 import { mainFramebuffer } from "../gl/framebuffer.js";
-import { gl } from "../gl/gl.js";
 import { computedLayout, layoutOptions, queueLayout } from "../layout.js";
-import { callHandle_init_2, callHandle_update_2, vm } from "../vm.js";
+import { callHandle_init_2, callHandle_update_0, callHandle_update_2, vm } from "../vm.js";
 
 // Wren -> JS
 
 let title = document.title;
 
 export let fps = 60;
+export let quitFromAPI = false;
+export let gameIsReady = false;
 
 addClassForeignStaticMethods("sock", "Game", {
 	"title"() {
@@ -47,6 +48,12 @@ addClassForeignStaticMethods("sock", "Game", {
 	"fps=(_)"() {
 		fps = vm.getSlotDouble(1);
 	},
+	"quit_()"() {
+		quitFromAPI = true;
+	},
+	"ready_()"() {
+		gameIsReady = true;
+	},
 });
 
 
@@ -68,4 +75,12 @@ export function updateGameModuleResolution(callHandle) {
 	vm.setSlotDouble(1, computedLayout.sw);
 	vm.setSlotDouble(2, computedLayout.sh);
 	vm.call(callHandle || callHandle_update_2);
+}
+
+export function gameUpdate() {
+	gameIsReady = false;
+	
+	vm.ensureSlots(1);
+	vm.setSlotHandle(0, handle_Game);
+	return vm.call(callHandle_update_0);
 }

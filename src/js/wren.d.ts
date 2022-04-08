@@ -49,11 +49,8 @@ export class VM {
 	/**
 	 * Runs `source`, a string of Wren source code in a new fiber in the
 	 * context of resolved `moduleName`.
-	 * 
-	 * `source` can be provided as a UTF-8 array, which is copied directly into
-	 * Wasm memory.
 	 */
-	interpret(moduleName: string, source: string | ArrayBuffer | Uint8Array | Uint8ClampedArray): InterpretResult;
+	interpret(moduleName: string, source: CStringSource): InterpretResult;
 
 	/**
 	 * Creates a handle that can be used to invoke a method with [signature] on
@@ -315,7 +312,7 @@ export interface VMConfiguration {
 	 * 
 	 * By default {@link VM} just returns the `name` as is.
 	 */
-	resolveModuleFn: (importer: string, name: string) => (string | null | undefined);
+	resolveModuleFn: (importer: string, name: string) => (CStringSource | null | undefined);
 	
 	/**
 	 * The callback Wren uses to load a module's source code.
@@ -336,7 +333,7 @@ export interface VMConfiguration {
 	 * 
 	 * By default {@link VM} does not handle importing modules.
 	 */
-	loadModuleFn: (name: string) => (string | null | undefined | Promise<string | null | undefined | void>);
+	loadModuleFn: (name: string) => (CStringSource | null | undefined | Promise<CStringSource | null | undefined | void>);
 
 	/**
 	 * The callback Wren uses to find a foreign method and bind it to a class.
@@ -467,6 +464,14 @@ export enum Type {
  * garbage collector will not reclaim the object it references.
  */
 export type Handle = number;
+
+/**
+ * A string that is passed to C/Wasm.
+ * 
+ * If provided as an array, it is interpreted as a UTF-8 byte array, which is copied directly into Wasm memory.
+ * This avoids the overhead of converting a JavaScript string to UTF-8.
+ */
+export type CStringSource = string | ArrayBuffer | Uint8Array | Uint8ClampedArray;
 
 /**
  * Default export that has all exported JavaScript APIs.
