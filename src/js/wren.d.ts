@@ -21,8 +21,10 @@ export class VM {
 
 	/**
 	 * The Emscripten module.
+	 * 
+	 * Used to read/write directly to C memory.
 	 */
-	readonly Module: any;
+	readonly Module: WrenEmscriptenModule;
 
 	/**
 	 * The Emscripten heap.
@@ -115,7 +117,7 @@ export class VM {
 	 * while in your foreign method, but cannot keep a pointer to it after the
 	 * function returns, since the garbage collector may reclaim it.
 	 */
-	getSlotBytes(slot: number, length: number): Uint8Array;
+	getSlotBytes(slot: number): Uint8Array;
 
 	/**
 	 * Reads a number value from `slot`.
@@ -155,6 +157,14 @@ export class VM {
 	 * memory used by them after this is called.
 	 */
 	setSlotBytes(slot: number, bytes: ArrayBuffer | Uint8Array | Uint8ClampedArray | Int8Array, length?: number): void;
+	
+	/**
+	 * Stores `length` bytes from array at `pointer` in `slot`.
+	 * 
+	 * The bytes are copied to a new string within Wren's heap, so you can free
+	 * memory used by them after this is called.
+	 */
+	setSlotBytes(slot: number, pointer: number, length: number): void;
 	
 	/**
 	 * Stores the numeric `value` in `slot`.
@@ -200,7 +210,7 @@ export class VM {
 	 * `value` can be provided as a UTF-8 array, which is copied directly into
 	 * Wasm memory.
 	 */
-	setSlotString(slot: number, value: string | ArrayBuffer | Uint8Array | Uint8ClampedArray): void;
+	setSlotString(slot: number, value: CStringSource): void;
 
 	/**
 	 * Stores the value captured in `handle` in `slot`.
@@ -472,6 +482,67 @@ export type Handle = number;
  * This avoids the overhead of converting a JavaScript string to UTF-8.
  */
 export type CStringSource = string | ArrayBuffer | Uint8Array | Uint8ClampedArray;
+
+export interface WrenEmscriptenModule {
+	HEAP8: Int8Array;
+	HEAP16: Int16Array;
+	HEAP32: Int32Array;
+	HEAPU8: Uint8Array;
+	HEAPU16: Uint16Array;
+	HEAPU32: Uint32Array;
+	HEAPF32: Float32Array;
+	HEAPF64: Float64Array;
+
+	/**
+	 * Allocates `size` bytes of memory.
+	 * 
+	 * Returns pointer to allocated memory, which should be later released with {@link _free()}.
+	 */
+	_malloc(size: number): number;
+
+	/**
+	 * Reallocates the memory at `ptr` to `size` bytes of memory.
+	 * 
+	 * Returns pointer to newly allocated memory, which should be later released with {@link _free()}.
+	 */
+	_realloc(ptr: number, size: number): number;
+
+	/**
+	 * Releases memory previously allocated using {@link _malloc()} or {@link _realloc()}.
+	 */
+	_free(ptr: number): void;
+
+	/**
+	 * Used for creating allocated memory.
+	 * 
+	 * Must be called before using {@link stackAlloc()}.
+	 * 
+	 * Once used, release the stack with {@link stackRestore stackRestore(stack)}, passing the value returned from `stackSave`.
+	 */
+	stackSave(): number;
+
+	/**
+	 * Used for creating allocated memory.
+	 * 
+	 * Pass the value returned from {@link stackSave()} to release stack allocated memory.
+	 */
+	stackRestore(stack: number): void;
+
+	/**
+	 * Allocates `size` bytes of memory to the stack.
+	 * @example
+	 * let stack = Module.stackSave();
+	 * 
+	 * let ptr = Module.stackAlloc(1);
+	 * 
+	 * Module.ccall("myFunction", "void", ["number"], [ptr]);
+	 * 
+	 * console.log(Module.HEAPU8[ptr]);
+	 * 
+	 * Module.stackRestore(stack)
+	 */
+	stackAlloc(size: number): number;
+}
 
 /**
  * Default export that has all exported JavaScript APIs.

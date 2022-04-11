@@ -1,7 +1,10 @@
 [
 	"util",
 	"math",
+	"array",
+	"stringbuilder",
 	"vector",
+	"color",
 	"async",
 	"time",
 	"game",
@@ -13,5 +16,6 @@
 	"graphics",
 	"polygon",
 	"sprite",
+	"json",
 	""
 ]

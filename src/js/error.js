@@ -17,8 +17,6 @@ export function showError(error) {
 
 
 export function showWrenError() {
-	console.error(wrenErrorString);
-
 	if (wrenErrorStack.length === 0) {
 		document.body.append(
 			createElement("div", { class: "error" }, [

@@ -68,5 +68,9 @@ class Vector {
 		return Vector.new(_x + (v.x - _x) * t, _y + (v.y - _y) * t)
 	}
 
-	toString { "(%(_y), %(_x))" }
+	toString { "(%(_x), %(_y))" }
+
+	toJSON { [ _x, _y ] }
+
+	static fromJSON(a) { (a is List && a.count >= 2) ? Vector.new(a[0], a[1]) : Vector.new() }
 }

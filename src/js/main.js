@@ -13,6 +13,7 @@ import { canvas } from "./canvas.js";
 import { showError, showWrenError } from "./error.js";
 import { waitUntil } from "./async.js";
 import { initCameraModule } from "./api/camera.js";
+import { terminalInterpret } from "./debug/terminal.js";
 
 /** @type {number} */
 let prevTime = null;
@@ -140,3 +141,5 @@ addEventListener("keydown", (event) => {
 }, { passive: true });
 
 init();
+
+self["wren"] = terminalInterpret;

@@ -22,6 +22,7 @@ export let callHandle_loaded_3 = 0;
 export let callHandle_update_0 = 0;
 export let callHandle_update_1 = 0;
 export let callHandle_update_2 = 0;
+export let callHandle_toString = 0;
 
 
 /**
@@ -44,9 +45,19 @@ export let wrenErrorString = null;
  */
 export let wrenErrorStack = [];
 
+let errorhandlers = {};
+
+/**
+ * @param {string} moduleName
+ * @param {(type: number, lineNumber: number, message: string) => void} callback 
+ */
+export function registerWrenErrorHandler(moduleName, callback) {
+	errorhandlers[moduleName] = callback;
+}
+
 
 export function createWrenVM() {
-	vm = new VM({
+	self["vm"] = vm = new VM({
 		bindForeignMethodFn: resolveForeignMethod,
 		bindForeignClassFn: resolveForeignClass,
 		resolveModuleFn(importer, name) {
@@ -64,6 +75,11 @@ export function createWrenVM() {
 			return httpGET("assets" + moduleName + ".wren", "arraybuffer");
 		},
 		errorFn(type, moduleName, lineNumber, message) {
+			if (type !== 1 && errorhandlers.hasOwnProperty(moduleName)) {
+				errorhandlers[moduleName](type, lineNumber, message);
+				return;
+			}
+
 			let s;
 			if (type === 0) {
 				// Compile error.
@@ -83,10 +99,13 @@ export function createWrenVM() {
 
 				wrenErrorStack.push([ moduleName, lineNumber, message ]);
 			}
+
+			// Always log errors to console.
+			console.error(s);
 			
 			// Join with newlines.
 			wrenErrorString = wrenErrorString ? wrenErrorString + "\n" + s : s;
-		}
+		},
 	});
 
 	HEAPU8 = new Uint8Array(vm.heap);
@@ -103,6 +122,7 @@ export function createWrenVM() {
 	callHandle_update_0 = vm.makeCallHandle("update_()");
 	callHandle_update_1 = vm.makeCallHandle("update_(_)");
 	callHandle_update_2 = vm.makeCallHandle("update_(_,_)");
+	callHandle_toString = vm.makeCallHandle("toString");
 }
 
 /**

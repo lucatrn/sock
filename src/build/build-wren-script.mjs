@@ -26,7 +26,13 @@ for (let line of script.split(/[\r\n]+/g)) {
 		line = line.slice(0, comment);
 	}
 
-	line = line.replace(/ *(==|!=|[\-+*/%=<>\(\){}\[\],&\|]) */g, "$1");
+	let parts = line.split(/("(?:[^"\\]|\\.)*")/);
+
+	for (let i = 0; i < parts.length; i += 2) {
+		parts[i] = parts[i].replace(/ *(==|!=|[\-+*/%=<>\(\){}\[\],&\|]) */g, "$1");
+	}
+
+	line = parts.join("");
 
 	if (line.length > 0) {
 		min += line + "\n";
