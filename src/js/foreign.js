@@ -1,11 +1,10 @@
-import { VM } from "./wren.js";
 
 /**
  * @param {string} moduleName
  * @param {string} className
  * @param {boolean} isStatic
  * @param {string} signature
- * @param {(vm: VM) => void} callback
+ * @param {() => void} callback
  */
 export function addForeignMethod(moduleName, className, isStatic, signature, callback) {
 	foreignMethods[methodID(moduleName || "sock", className, isStatic, signature)] = callback;
@@ -14,7 +13,7 @@ export function addForeignMethod(moduleName, className, isStatic, signature, cal
 /**
  * @param {string} moduleName
  * @param {string} className
- * @param {Record<string, (vm: VM) => void>} methods
+ * @param {Record<string, () => void>} methods
  */
 export function addClassForeignStaticMethods(moduleName, className, methods) {
 	for (let signature in methods) {
@@ -25,7 +24,7 @@ export function addClassForeignStaticMethods(moduleName, className, methods) {
 /**
  * @param {string} moduleName
  * @param {string} className
- * @param {Record<string, (vm: VM) => void>} methods
+ * @param {Record<string, () => void>} methods
  */
 export function addClassForeignMethods(moduleName, className, methods) {
 	for (let signature in methods) {
@@ -36,9 +35,9 @@ export function addClassForeignMethods(moduleName, className, methods) {
 /**
  * @param {string} moduleName
  * @param {string} className
- * @param {import("./wren.js").ForeignClassMethods} classMethods
- * @param {Record<string, (vm: VM) => void>} [methods]
- * @param {Record<string, (vm: VM) => void>} [staticMethods]
+ * @param {ForeignClassMethods} classMethods
+ * @param {Record<string, () => void>} [methods]
+ * @param {Record<string, () => void>} [staticMethods]
  */
 export function addForeignClass(moduleName, className, classMethods, methods, staticMethods) {
 	foreignClasses[classID(moduleName, className)] = classMethods;
@@ -57,7 +56,7 @@ export function addForeignClass(moduleName, className, classMethods, methods, st
  * @param {string} className
  * @param {boolean} isStatic
  * @param {string} signature
- * @returns {undefined | ((vm: VM) => void)}
+ * @returns {undefined | (() => void)}
  */
 export function resolveForeignMethod(moduleName, className, isStatic, signature) {
 	return foreignMethods[methodID(moduleName, className, isStatic, signature)];
@@ -66,7 +65,7 @@ export function resolveForeignMethod(moduleName, className, isStatic, signature)
 /**
  * @param {string} moduleName
  * @param {string} className
- * @returns {undefined | import("./wren.js").ForeignClassMethods}
+ * @returns {undefined | ForeignClassMethods}
  */
 export function resolveForeignClass(moduleName, className) {
 	return foreignClasses[classID(moduleName, className)];
@@ -90,8 +89,12 @@ function classID(moduleName, className) {
 	return `${moduleName}:${className}`;
 }
 
-/** @type {Record<string, (vm: VM) => void>} */
+/** @type {Record<string, () => void>} */
 let foreignMethods = {};
 
-/** @type {Record<string, import("./wren.js").ForeignClassMethods>} */
+/** @type {Record<string, ForeignClassMethods>} */
 let foreignClasses = {};
+
+/**
+ * @typedef {[() => void, () => void]} ForeignClassMethods
+ */

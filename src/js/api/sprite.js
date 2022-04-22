@@ -5,7 +5,6 @@ import { SpriteBatcher } from "../gl/sprite-batcher.js";
 import { Texture } from "../gl/texture.js";
 import { httpGETImage } from "../network/http.js";
 import { abortFiber, vm } from "../vm.js";
-import { resolveAssetPath } from "./asset.js";
 
 let defaultFilter = gl.NEAREST;
 let defaultWrap = gl.CLAMP_TO_EDGE;
@@ -21,6 +20,16 @@ class Sprite extends Texture {
 		this.progress = null;
 		/** @type {SpriteBatcher|null} */
 		this.batcher = null;
+		/**
+		 * Transform origin
+		 * @type {number[]|null}
+		 */
+		this.tfo = null;
+		/**
+		 * Transform
+		 * @type {number[]}
+		 */
+		this.tf = null;
 	}
 
 	get name() {
@@ -111,19 +120,31 @@ addForeignClass("sock", "Sprite", {
 	"height"() {
 		vm.setSlotDouble(0, getSprite().height);
 	},
-	"loadProgress"() {
+	"bytesLoaded"() {
 		vm.setSlotDouble(0, getSprite().progress || 0);
 	},
-	"size"() {
+	"byteSize"() {
 		vm.setSlotDouble(0, getSprite().size);
 	},
 	async "load_()"() {
 		getSprite().loadFromPath();
 	},
+	"scaleFilter"() {
+		vm.setSlotString(0, glFilterNumberToString(getSprite().filter));
+	},
+	"scaleFilter=(_)"() {
+		getSprite().setFilter(glFilterStringToNumber(vm.getSlotString(1)));
+	},
+	"wrapMode"() {
+		vm.setSlotString(0, glWrapModeNumberToString(getSprite().wrap));
+	},
+	"wrapMode=(_)"() {
+		getSprite().setWrap(glWrapModeStringToNumber(vm.getSlotString(1)));
+	},
 	"beginBatch()"() {
 		let spr = getSprite();
 		if (spr.batcher) {
-			abortFiber("Batch already started");
+			abortFiber("batch already started");
 		} else {
 			spr.beginBatch();
 		}
@@ -133,25 +154,100 @@ addForeignClass("sock", "Sprite", {
 		if (spr.batcher) {
 			spr.endBatch();
 		} else {
-			abortFiber("Batch no yet started");
+			abortFiber("batch no yet started");
 		}
 	},
-	"draw(_,_,_,_)"() {
-		let x = vm.getSlotDouble(1);
-		let y = vm.getSlotDouble(2);
-		let w = vm.getSlotDouble(3);
-		let h = vm.getSlotDouble(4);
+	"transform_"() {
 		let spr = getSprite();
 
-		if (spr.batcher) {
-			spr.batcher.draw(x, y, w, h);
+		if (spr.tf == null) {
+			vm.setSlotNull(0);
 		} else {
-			let bat = getTempBatcher();
-
-			bat.begin(spr);
-			bat.draw(x, y, w, h);
-			bat.end();
+			vm.ensureSlots(2);
+			vm.setSlotNewList(0);
+	
+			for (let i = 0; i < 6; i++) {
+				vm.setSlotDouble(1, spr.tf[i]);
+				vm.insertInList(0, -1, 1);
+			}
 		}
+	},
+	"setTransform_(_,_,_,_,_,_)"() {
+		let spr = getSprite();
+		let n0 = vm.getSlotDouble(1);
+
+		if (isNaN(n0)) {
+			spr.tf = null;
+		} else {
+			spr.tf = [
+				n0,
+				vm.getSlotDouble(2),
+				vm.getSlotDouble(3),
+				vm.getSlotDouble(4),
+				vm.getSlotDouble(5),
+				vm.getSlotDouble(6),
+			];
+		}
+	},
+	"transformOrigin_"() {
+		let spr = getSprite();
+
+		if (spr.tfo == null) {
+			vm.setSlotNull(0);
+		} else {
+			vm.ensureSlots(2);
+			vm.setSlotNewList(0);
+	
+			for (let i = 0; i < 2; i++) {
+				vm.setSlotDouble(1, spr.tfo[i]);
+				vm.insertInList(0, -1, 1);
+			}
+		}
+	},
+	"setTransformOrigin(_,_)"() {
+		let spr = getSprite();
+		let n0 = vm.getSlotDouble(1);
+
+		if (isNaN(n0)) {
+			spr.tfo = null;
+		} else {
+			spr.tfo = [
+				n0,
+				vm.getSlotDouble(2),
+			];
+		}
+	},
+	"draw_(_,_,_,_,_)"() {
+		let spr = getSprite();
+		let x1 = vm.getSlotDouble(1);
+		let y1 = vm.getSlotDouble(2);
+		let x2 = x1 + vm.getSlotDouble(3);
+		let y2 = y1 + vm.getSlotDouble(4);
+		let c = vm.getSlotDouble(5);
+
+		let bat = spr.batcher || getTempBatcher().begin(spr);
+
+		bat.drawQuad(x1, y1, x2, y2, 0, 0, 0, 1, 1, c, spr.tf, spr.tfo);
+
+		if (!spr.batcher) bat.end();
+	},
+	"draw_(_,_,_,_,_,_,_,_,_)"() {
+		let spr = getSprite();
+		let x1 = vm.getSlotDouble(1);
+		let y1 = vm.getSlotDouble(2);
+		let x2 = x1 + vm.getSlotDouble(3);
+		let y2 = y1 + vm.getSlotDouble(4);
+		let u1 = vm.getSlotDouble(5) / spr.width;
+		let v1 = vm.getSlotDouble(6) / spr.height;
+		let u2 = u1 + vm.getSlotDouble(7) / spr.width;
+		let v2 = v1 + vm.getSlotDouble(8) / spr.height;
+		let c = vm.getSlotDouble(9);
+
+		let bat = spr.batcher || getTempBatcher().begin(spr);
+
+		bat.drawQuad(x1, y1, x2, y2, 0, u1, v1, u2, v2, c, spr.tf, spr.tfo);
+
+		if (!spr.batcher) bat.end();
 	},
 }, {
 	"defaultScaleFilter"() {

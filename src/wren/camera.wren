@@ -18,23 +18,25 @@ class Camera {
 	}
 
 	static topLeft {
-		return Vector.new(
+		return Vec.new(
 			__c.x - size.x / 2,
 			__c.y - size.y / 2
 		)
 	}
 
-	static topLeft=(v) {
+	static setTopLeft(x, y) {
 		var size = Game.size
 
-		__c.x = v.x + size.x / 2
-		__c.y = v.y + size.y / 2
+		__c.x = x + size.x / 2
+		__c.y = y + size.y / 2
 
 		update_()
 	}
 
+	static topLeft=(v) { setTopLeft(v.x, v.y) }
+
 	static init_() {
-		__c = Vector.new(0, 0)
+		__c = Vec.new(0, 0)
 		__s = 1
 	}
 

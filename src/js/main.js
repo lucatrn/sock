@@ -1,19 +1,21 @@
-import Wren from "./wren.js";
 import "./api/add-all-api.js";
-import { callHandle_call_0, createWrenVM, vm, wrenErrorString, wrenTypeToName } from "./vm.js";
 import { initCursorModule } from "./api/cursor.js";
 import { initTimeModule, updateTimeModule } from "./api/time.js";
-import { httpGET } from "./network/http.js";
 import { fps, gameIsReady, gameUpdate, initGameModule, quitFromAPI } from "./api/game.js";
+import { initAssetModule, updateAssetModule } from "./api/asset.js";
+import { initCameraModule } from "./api/camera.js";
+import { initInputModule, updateInputModule } from "./api/input.js";
+import { httpGET } from "./network/http.js";
 import { finalizeLayout } from "./layout.js";
 import { Shader } from "./gl/shader.js";
 import { mainFramebuffer } from "./gl/framebuffer.js";
-import { initAssetModule, updateAssetModule } from "./api/asset.js";
 import { canvas } from "./canvas.js";
 import { showError, showWrenError } from "./error.js";
-import { waitUntil } from "./async.js";
-import { initCameraModule } from "./api/camera.js";
+import { until } from "./async.js";
 import { terminalInterpret } from "./debug/terminal.js";
+import { loadEmscripten, wrenAddImplicitImportModule, wrenErrorString, wrenHasError, wrenInterpret } from "./vm.js";
+import { makeCallHandles } from "./vm-call-handles.js";
+import { initSystemFont } from "./system-font.js";
 
 /** @type {number} */
 let prevTime = null;
@@ -21,6 +23,7 @@ let time = 0;
 let frame = 0;
 let remainingTime = 0;
 let quit = false;
+let Module;
 
 async function init() {
 	// Get scripts in parallel.
@@ -28,20 +31,23 @@ async function init() {
 	let promGameMainScript = httpGET("assets/main.wren", "arraybuffer");
 
 	// Load Wren VM.
-	await Wren.load();
+	await loadEmscripten();
 
-	// Create the VM.
-	createWrenVM();
+	initSystemFont();
+	makeCallHandles();
 
 	// Load in the "sock" script.
 	let sockScript = await promSockScript;
 	
-	let result = vm.interpret("sock", sockScript);
+	let result = wrenInterpret("sock", sockScript);
 	
 	if (result !== 0) {
 		finalize();
 		return;
 	}
+
+	// Make the "sock" module part of the implicit import API.
+	wrenAddImplicitImportModule("sock");
 
 	// Init sock modules.
 	initTimeModule();
@@ -49,6 +55,7 @@ async function init() {
 	initCursorModule();
 	initCameraModule();
 	initGameModule();
+	initInputModule();
 
 	// Init WebGL.
 	mainFramebuffer.updateResolution();
@@ -58,15 +65,20 @@ async function init() {
 	// Load main game module
 	let gameMainScript = await promGameMainScript;
 
-	result = vm.interpret("/main", gameMainScript);
+	result = wrenInterpret("/main", gameMainScript);
 	if (result !== 0) {
 		finalize();
 		return;
 	}
 
 	// Now we wait for Game.ready_() to be called!
-	if (!await waitUntil(100, 1000, () => gameIsReady)) {
+	if (!await until(100, 1000, () => gameIsReady || wrenHasError)) {
 		finalize("took to long for Game.begin() to be called...");
+		return;
+	}
+
+	if (wrenHasError) {
+		finalize();
 		return;
 	}
 
@@ -90,6 +102,7 @@ function update() {
 			// Update module state.
 			updateTimeModule(frame, time);
 			updateAssetModule();
+			updateInputModule();
 
 			frame++;
 			time += 1 / fps;
@@ -131,7 +144,7 @@ function update() {
 function finalize(error) {
 	if (error) {
 		showError(error);
-	} else if (wrenErrorString) {
+	} else if (wrenHasError) {
 		showWrenError();
 	}
 }

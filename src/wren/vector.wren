@@ -1,5 +1,5 @@
 
-class Vector {
+class Vec {
 	construct new() {
 		_x = 0
 		_y = 0
@@ -16,44 +16,41 @@ class Vector {
 	x=(x) { _x = x }
 	y=(y) { _y = y }
 
-	floor { Vector.new(_x.floor, _y.floor) }
+	floor { new(_x.floor, _y.floor) }
 	
-	ceil { Vector.new(_x.ceil, _y.ceil) }
+	ceil { new(_x.ceil, _y.ceil) }
 
-	round { Vector.new(_x.round, _y.round) }
+	round { new(_x.round, _y.round) }
 
 	length { (_x*_x + _y*_y).sqrt }
 
-	length=(targetLength) {
-		var len = length
-		if (len > 0) {
-			len = targetLength / len
-			_x = _x * len
-			_y = _y * len
+	length=(t) {
+		var n = length
+		if (n > 0) {
+			n = t / n
+			_x = _x * n
+			_y = _y * n
 		}
 	}
 
-	normalize() {
-		var len = length
-		if (len > 0) {
-			_x = _x / len
-			_y = _y / len
-		}
+	normalize {
+		var n = length
+		return n > 0 ? new(_x / n, _y / n) : new()
 	}
 
-	normalizeRange(min, max) {
+	normalize(min, max) {
 		var len = length
-		if (len <= min) return Vector.new()
+		if (len <= min) return new()
 		len = ((len - min) / (max - min)).min(1) / len
-		return Vector.new(_x * len, _y * len)
+		return new(_x * len, _y * len)
 	}
 
-	- { Vector.new(-_x, -_y) }
-	+ (v) { Vector.new(_x + v.x, _y + v.y ) }
-	- (v) { Vector.new(_x - v.x, _y - v.y ) }
-	* (k) { Vector.new(_x * k, _y * k ) }
-	/ (k) { Vector.new(_x / k, _y / k ) }
-	== (v) { v is Vector && _x == v.x && _y == v.y }
+	- { new(-_x, -_y) }
+	+ (v) { new(_x + v.x, _y + v.y ) }
+	- (v) { new(_x - v.x, _y - v.y ) }
+	* (a) { a is Num ? new(_x * a, _y * a) : dot(a) }
+	/ (k) { new(_x / k, _y / k ) }
+	== (v) { v is Vec && _x == v.x && _y == v.y }
 
 	dot(v) { _x*v.x + _y*v.y }
 
@@ -65,12 +62,12 @@ class Vector {
 
 	lerp(v, t) { 
 		t = t.clamp(0, 1)
-		return Vector.new(_x + (v.x - _x) * t, _y + (v.y - _y) * t)
+		return new(_x + (v.x - _x) * t, _y + (v.y - _y) * t)
 	}
 
 	toString { "(%(_x), %(_y))" }
 
 	toJSON { [ _x, _y ] }
 
-	static fromJSON(a) { (a is List && a.count >= 2) ? Vector.new(a[0], a[1]) : Vector.new() }
+	static fromJSON(a) { (a is List && a.count >= 2) ? new(a[0], a[1]) : new() }
 }

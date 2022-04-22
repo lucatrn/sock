@@ -1,12 +1,19 @@
 
+//#define MORE m
+//#define SKIP_AND_CHECK_EOF h
+//#define CHECK_EOF e
+//#define SKIP z
+//#define MATCH_LITERAL n
+//#define READ_STRING b
+
 class JSON {
 
 	// === PARSING ===
 
 	static fromString(s) {
 		var p = JSON.new_(s)
-		p.s()
-		return p.m ? p.value() : null
+		p.SKIP()
+		return p.MORE ? p.value() : null
 	}
 
 	construct new_(s) {
@@ -16,29 +23,29 @@ class JSON {
 	}
 
 	// Returns true if have more bytes to read.
-	m { _i < _n }
+	MORE { _i < _n }
 
 	// Abort if have no more bytes to read.
-	f() {
+	CHECK_EOF() {
 		if (_i >= _n) Fiber.abort("unexpected end of JSON")
 	}
 
 	// Skip and abort if have no more bytes to read.
-	g() {
-		s()
-		f()
+	SKIP_AND_CHECK_EOF() {
+		SKIP()
+		CHECK_EOF()
 	}
 
 	// Skip whitespace and comments.
-	s() {
-		while (m) {
+	SKIP() {
+		while (MORE) {
 			var c = _b[_i]
 			if (c == 32 || c == 9 || c == 10 || c == 13) {
 				_i = _i + 1
 			} else if (c == 47 && _i + 1 < _n && _b[_i + 1]) {
 				_i = _i + 2
 
-				while (m) {
+				while (MORE) {
 					c = _b[_i]
 					_i = _i + 1
 					if (c == 10 || c == 13) {
@@ -55,12 +62,12 @@ class JSON {
 	value() {
 		var c = _b[_i]
 
-		if (c == 34) return string()
+		if (c == 34) return READ_STRING()
 
 		// Array.
 		if (c == 91) {
 			_i = _i + 1
-			g()
+			SKIP_AND_CHECK_EOF()
 
 			var l = []
 
@@ -70,14 +77,14 @@ class JSON {
 				while (true) {
 					// Get value and add to list.
 					l.add(value())
-					g()
+					SKIP_AND_CHECK_EOF()
 
 					// Check for comma.
 					var a
 					if (_b[_i] == 44) {
 						a = true
 						_i = _i + 1
-						g()
+						SKIP_AND_CHECK_EOF()
 					}
 
 					// Check for closing ']'.
@@ -93,8 +100,8 @@ class JSON {
 				if (l.count == 2) {
 					var k = l[0]
 					if (k is String && k.count > 1 && k[0] == "»") {
-						var C = __m[k[1..-1]]
-						if (C) return C.fromJSON(l[1])
+						var f = __m[k[1..-1]]
+						if (f) return f.fromJSON(l[1])
 					}
 				}
 			}
@@ -105,7 +112,7 @@ class JSON {
 		// Object.
 		if (c == 123) {
 			_i = _i + 1
-			g()
+			SKIP_AND_CHECK_EOF()
 
 			var l = {}
 
@@ -114,23 +121,23 @@ class JSON {
 			} else {
 				while (true) {
 					if (_b[_i] != 34) Fiber.abort("expected string for object key")
-					var k = string()
-					g()
+					var k = READ_STRING()
+					SKIP_AND_CHECK_EOF()
 
 					// Read ':'.
 					if (_b[_i] != 58) Fiber.abort("expected ':' after object key")
-					g()
+					SKIP_AND_CHECK_EOF()
 
 					// Get value and save to map.
 					l[k] = value()
-					g()
+					SKIP_AND_CHECK_EOF()
 
 					// Check for comma.
 					var a 
 					if (_b[_i] == 44) {
 						a = true
 						_i = _i + 1
-						g()
+						SKIP_AND_CHECK_EOF()
 					}
 
 					// Check for closing '}'.
@@ -154,7 +161,7 @@ class JSON {
 			if (c == 45) {
 				s = -1
 				_i = _i + 1
-				f()
+				CHECK_EOF()
 				c = _b[_i]
 			}
 
@@ -184,7 +191,7 @@ class JSON {
 			// Decimal digis.
 			if (_i < _n && _b[_i] == 46) {
 				_i = _i + 1
-				f()
+				CHECK_EOF()
 				c = _b[_i]
 
 				if (c >= 48 && c <= 57) {
@@ -212,7 +219,7 @@ class JSON {
 			// Exponent.
 			if (_i < _n && (_b[_i] == 69 || _b[_i] == 101)) {
 				_i = _i + 1
-				f()
+				CHECK_EOF()
 
 				// Optional '-' or '+'.
 				var p = true
@@ -220,7 +227,7 @@ class JSON {
 				if (c == 43 || c == 45) {
 					if (c == 45) p = false
 					_i = _i + 1
-					f()
+					CHECK_EOF()
 				}
 				
 				if (c >= 48 && c <= 57) {
@@ -249,15 +256,15 @@ class JSON {
 		}
 
 		// Literals
-		if (lit("null")) return null
-		if (lit("true")) return true
-		if (lit("false")) return false
+		if (MATCH_LITERAL("null")) return null
+		if (MATCH_LITERAL("true")) return true
+		if (MATCH_LITERAL("false")) return false
 
 		Fiber.abort("invalid value")
 	}
 
 	// If we match against the given string literal, skip to end and return true.
-	lit(s) {
+	MATCH_LITERAL(s) {
 		s = s.bytes
 		if (_i + s.count > _n) return false
 		var i = _i
@@ -270,7 +277,7 @@ class JSON {
 	}
 
 	// Read a string as a Wren string.
-	string() {
+	READ_STRING() {
 		// Starting '"'
 		_i = _i + 1
 
@@ -278,7 +285,7 @@ class JSON {
 		var s = _s ? _s.clear() : (_s = StringBuilder.new())
 
 		while (true) {
-			f()
+			CHECK_EOF()
 			var c = _b[_i]
 			_i = _i + 1
 
@@ -287,7 +294,7 @@ class JSON {
 			
 			// Escape with '/'.
 			if (c == 92) {
-				f()
+				CHECK_EOF()
 				c = _b[_i]
 				_i = _i + 1
 
@@ -322,23 +329,10 @@ class JSON {
 	static toString_(sb, x) {
 		if (x is Null || x is Num || x is Bool) {
 			sb.add(x)
-		} else if (x is String || x is Fn || x is Class) {
+		} else if (x is String) {
 			addString_(sb, x)
 		} else if (x is List) {
-			sb.addByte(91)
-
-			var first = true
-			for (y in x) {
-				if (first) {
-					first = false
-				} else {
-					sb.addByte(44)
-				}
-
-				toString_(sb, y)
-			}
-
-			sb.addByte(93)
+			addList_(sb, x)
 		} else if (x is Map) {
 			sb.addByte(123)
 
@@ -364,8 +358,10 @@ class JSON {
 			sb.add("\",")
 			toString_(sb, x.toJSON)
 			sb.addByte(93)
+		} else if (x is Sequence) {
+			addList_(sb, x.toList)
 		} else {
-			sb.add("null")
+			addString_(sb, x)
 		}
 	}
 
@@ -396,10 +392,29 @@ class JSON {
 		sb.addByte(34)
 	}
 
+	static addList_(sb, x) {
+		sb.addByte(91)
+
+		var first = true
+		for (y in x) {
+			if (first) {
+				first = false
+			} else {
+				sb.addByte(44)
+			}
+
+			toString_(sb, y)
+		}
+
+		sb.addByte(93)
+	}
+
 	static register(cls) {
 		__m[cls] = true
 		__m[cls.name] = cls
 	}
+
+	// static get(path) { TransformedAsset.new(Text.get(path)) {|t| fromString(t.text) } }
 
 	static init_() {
 		__m = {}
@@ -408,5 +423,7 @@ class JSON {
 
 JSON.init_()
 
-JSON.register(Vector)
+JSON.register(Array)
+JSON.register(Vec)
 JSON.register(Color)
+JSON.register(Transform)

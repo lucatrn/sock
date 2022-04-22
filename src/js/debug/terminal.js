@@ -1,19 +1,50 @@
-import { callHandle_toString, vm } from "../vm.js";
+import { callHandle_toString } from "../vm-call-handles.js";
+import { wrenCall, wrenEnsureSlots, wrenGetSlotString, wrenGetVariable, wrenHasVariable, wrenInterpret } from "../vm.js";
 
 let init = false;
 let terminalModule = "_terminal";
 
 /**
+ * @param {any} args
+ * @returns {any} result
+ */
+export function terminalInterpret(...args) {
+	let a = args[0];
+
+	if (typeof a === "string") {
+		return interpret(a);
+	} else if (a.raw && a.map) {
+		let raw = a.raw;
+		let script = "";
+
+		for (let i = 0; i < raw.length; i++) {
+			if (i > 0) {
+				script += a[i];
+			}
+
+			script += raw[i];
+		}
+
+		return interpret(script);
+	} else {
+		console.error(a);
+		throw TypeError("call like this: wren`script`");
+	}
+}
+
+/**
  * @param {string} s
  * @returns {any} result
  */
-export function terminalInterpret(s) {
+function interpret(s) {
 	if (!init) {
 		init = true;
-		vm.interpret(terminalModule, 'import "sock" for Math,Vector,Color,Game,JSON\nvar r__');
+		wrenInterpret(terminalModule, "var r__");
 	}
 
 	s = s.trim();
+
+	let maybeExpression = false;
 
 	if (!s.includes("\n")) {
 		// Single line
@@ -24,7 +55,7 @@ export function terminalInterpret(s) {
 				let varName = r[1];
 
 				// Allow repeated variable declaration
-				if (vm.hasVariable(terminalModule, varName)) {
+				if (wrenHasVariable(terminalModule, varName)) {
 					if (s.includes("=")) {
 						// Remove [var ] from start if already declared.
 						s = s.slice(4);
@@ -34,7 +65,7 @@ export function terminalInterpret(s) {
 					}
 				}
 
-				let result = vm.interpret(terminalModule, s);
+				let result = wrenInterpret(terminalModule, s);
 
 				if (result === 0) {
 					return getVariableAsJavaScript(varName);
@@ -42,121 +73,85 @@ export function terminalInterpret(s) {
 
 				return;
 			}
-		} else if (s.startsWith("if ") || s.startsWith("if(")) {
-			// If
-		} else if (s.startsWith("for ") || s.startsWith("for(")) {
-			// For
-		} else if (s.startsWith("while ") || s.startsWith("while(")) {
-			// While
-		} else if (s.startsWith("import ")) {
-			// Import
-		} else if (s.startsWith("class ")) {
-			// Class definition
-		} else {
+		} else if (!startsWithStatement(s)) {
 			// This should be an expression of some kind!
+			maybeExpression = true;
 
 			// For simple assignments, decare base as variable if it doesn't look like a class.
 			let r = /^([_a-zA-Z][_a-zA-Z0-9]*)\s*=/.exec(s) || /^([_a-zA-Z][_a-zA-Z0-9]*)$/.exec(s);
 			if (r) {
 				let baseVarName = r[1];
 
-				if (!vm.hasVariable(terminalModule, baseVarName)) {
-					if (s[0] === s[0].toLowerCase()) {
-						vm.interpret(terminalModule, "var " + baseVarName);
+				if (!wrenHasVariable(terminalModule, baseVarName)) {
+					if (baseVarName[0] === baseVarName[0].toLowerCase()) {
+						wrenInterpret(terminalModule, "var " + baseVarName);
 					}
 				}
 			}
-
-			let result = vm.interpret(terminalModule, `r__=(${s})`);
-
-			if (result === 0) {
-				return getVariableAsJavaScript("r__");
-			}
-
-			return;
 		}
+	} else {
+		maybeExpression = !startsWithStatement(s);
 	}
 
-	// Just execute.
-	vm.interpret(terminalModule, s);
+	if (maybeExpression) {
+		// Try as expression!
+		let result = wrenInterpret(terminalModule, `r__=JSON.toString(${s})`);
+	
+		if (result === 0) {
+			return getVariableAsJavaScript("r__", true);
+		} else if (result === 2) {
+			return "[error]";
+		}
+	}
+		
+	// Try just interpreting.
+	let result = wrenInterpret(terminalModule, s);
+	if (result === 0) {
+		return "[success]";
+	} else {
+		return "[error]";
+	}
+}
+
+/**
+ * @param {string} s
+ */
+function startsWithStatement(s) {
+	return s.startsWith("if ") || s.startsWith("if(") || s.startsWith("for ") || s.startsWith("for(") || s.startsWith("while ") || s.startsWith("while(") || s.startsWith("import ") || s.startsWith("class ");
 }
 
 /**
  * @param {string} varName
  */
-function getVariableAsJavaScript(varName) {
-	vm.ensureSlots(1);
-	vm.getVariable(terminalModule, varName, 0);
+function getVariableAsJavaScript(varName, json=false) {
+	wrenEnsureSlots(1);
+	wrenGetVariable(terminalModule, varName, 0);
 
-	let type = vm.getSlotType(0);
-
-	if (type === 0) {
-		return vm.getSlotBool(0);
-	} else if (type === 1) {
-		return vm.getSlotDouble(0);
-	} else if (type === 5) {
-		return null;
-	}
-
-	let result = vm.call(callHandle_toString);
+	let result = wrenCall(callHandle_toString);
 	if (result === 0) {
-		let toStr = vm.getSlotString(0);
+		let toStr = wrenGetSlotString(0);
 
-		return toStr;
+		if (json) {
+			return JSON.parse(toStr, (key, value) => {
+				if (Array.isArray(value) && value.length === 2 && typeof value[0] === "string" && value[0][0] === "»") {
+					let type = value[0].slice(1);
+					value = value[1];
+
+					if (type === "Vec") return { x: value[0], y: value[1] };
+					if (type === "Color") {
+						let u8 = new Uint8Array(new Uint32Array([ value ]).buffer);
+						return { r: u8[0], g: u8[1], b: u8[2], a: u8[3] };
+					}
+					// if (type === "Array") return new Uint8Array(value);
+					// console.warn(`unhandled type "${type}"`);
+				}
+
+				return value;
+			});
+		} else {
+			return toStr;
+		}
 	}
 
 	return "[error]";
 }
-
-// /**
-//  * @param {any} cache 
-//  */
-// function getJavaScriptCopy() {
-// 	let root = vm.getSlotHandle(0);
-// 
-// 	vm.setSlotNewMap(0);
-// 	let map = vm.getSlotHandle(0);
-// 
-// 	vm.setSlotHandle(0, root);
-// 	let result = getJavaScriptCopyEx(root, map)
-// 
-// 	vm.releaseHandle(map);
-// 	vm.releaseHandle(root);
-// 
-// 	return result;
-// }
-// 
-// /**
-//  * @param {number} handle
-//  * @param {number} map
-//  */
-// function getJavaScriptCopyEx(handle, map) {
-// 	let type = vm.getSlotType(0);
-// 
-// 	if (type === 3) {
-// 		// List
-// 		let count = vm.getListCount(0);
-// 		let checked = Math.min(99, count);
-// 
-// 		vm.ensureSlots(3);
-// 
-// 		vm.setSlotHandle(2, map);
-// 
-// 		let items = [];
-// 		for (let i = 0; i < checked; i++) {
-// 			vm.getListElement(0, i, 1);
-// 
-// 			if (vm.getMapContainsKey(2, 1)) {
-// 				
-// 			}
-// 		}
-// 
-// 		return items.map()
-// 	} else {
-// 		// Just use toString.
-// 		let result = vm.call(callHandle_toString);
-// 		if (result === 0) {
-// 			return vm.getSlotString(0);
-// 		}
-// 	}
-// }

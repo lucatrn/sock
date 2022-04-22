@@ -3,15 +3,28 @@ foreign class Array is Sequence {
 	construct new(n) {}
 
 	static fromString(s) {
-		var a = Array.new(s.bytes.count)
+		var a = Array.new(s.byteCount)
 		a.copyFromString(s, 0)
 		return a
 	}
 
+	static fromBytes(a) {
+		var b = new(a.count)
+		var i = 0
+		for (c in a) {
+			b.setByte(i, c)
+			i = i + 1
+		}
+		return b
+	}
+
+	foreign static fromBase64(s)
+
 	foreign count
 
-	foreign uint8(i)
-	foreign uint8(i, b)
+	foreign getByte(i)
+	foreign setByte(i, b)
+	foreign fillBytes(b)
 
 // 	foreign int16(i)
 // 	foreign int16(i, b)
@@ -31,6 +44,8 @@ foreign class Array is Sequence {
 // 	foreign float64(i)
 // 	foreign float64(i, b)
 
+	foreign toString
+
 	foreign copyFromString(s, i)
 
 	iterate(i) {
@@ -38,9 +53,14 @@ foreign class Array is Sequence {
 		return i < count ? i : false
 	}
 
-	iteratorValue(i) { uint8(i) }
+	iteratorValue(i) { getByte(i) }
 
-	[i] { uint8(i) }
+	toJSON { toList }
 
-	[i]=(b) { uint8(i, b) }
+	static fromJSON(a) { a is List ? fromBytes(a) : null }
+
+	[i] { getByte(i) }
+
+	[i]=(b) { setByte(i, b) }
+
 }

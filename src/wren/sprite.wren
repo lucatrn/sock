@@ -1,38 +1,124 @@
 
 foreign class Sprite is Asset {
-	construct get(path) {}
+	construct new() {}
 
-	resolution { Vector.new(width, height) }
+	static get(p) {
+		var s = new()
+		s.get(Asset.resolvePath(Meta.module(1), p))
+		return s
+	}
 
-	toString { "Sprite:%(path)" }
+	get(path) { System.print(path) }
+	// foreign get_(path) {}
 
 	foreign path
+
+	foreign bytesLoaded
+
+	foreign byteSize
+
+
+	// Texture properties.
 
 	foreign width
 
 	foreign height
 
-	foreign loadProgress
+	size { Vec.new(width, height) }
 
-	foreign size
+	foreign scaleFilter
 
-	foreign load_()
+	foreign scaleFilter=(n)
+	
+	foreign wrapMode
+
+	foreign wrapMode=(n)
+
+	toString { "Sprite:%(path)" }
+
+
+	// Batching API
 
 	foreign beginBatch()
 
 	foreign endBatch()
 
-	foreign draw(x, y, w, h)
 
-	draw(x, y) {
-		draw(x, y, width, height)
+	// Drawing transformation.
+
+	transform {
+		var t = transform_
+		return t && Transform.new(t[0], t[1], t[2], t[3], t[4], t[5])
 	}
+
+	transform=(t) {
+		if (t) {
+			setTransform_(t.n0, t.n1, t.n2, t.n3, t.n4, t.n5)
+		} else {
+			setTransform_(Num.nan, 0, 0, 0, 0, 0)
+		}
+	}
+
+	rotation=(a) { transform = Transform.rotate(a) }
+
+	foreign transform_
+
+	foreign setTransform_(a, b, c, d, e, f)
+
+	transformOrigin {
+		var o = transformOrigin_
+		return o && Vec.new(o[0], o[1])
+	}
+
+	transformOrigin=(o) {
+		if (o) {
+			setTransformOrigin(o.x, o.y)
+		} else {
+			setTransformOrigin(Num.nan, 0)
+		}
+	}
+
+	foreign setTransformOrigin(x, y)
+	
+	foreign transformOrigin_
+
+
+	// Drawing API
+
+	draw(x, y) { draw_(x, y, width, height, 0xffffffff) }
+
+	draw(x, y, c) { draw_(x, y, width, height, c is Num ? c : c.uint32) }
+	
+	draw(x, y, w, h) { draw_(x, y, w, h, 0xffffffff) }
+
+	draw(x, y, w, h, c) { draw_(x, y, w, h, c is Num ? c : c.uint32) }
+
+	draw(x, y, u, v, uw, vh) { draw_(x, y, width, height, u, v, uw, vh, 0xffffffff) }
+
+	draw(x, y, w, h, u, v, uw, vh) { draw_(x, y, w, h, u, v, uw, vh, 0xffffffff) }
+
+
+	// Low level functions or common use cases.
+	// All paramters are doubles.
+
+	foreign draw_(x, y, w, h, c)
+
+	foreign draw_(x, y, w, h, u, v, uw, vh, c)
+
+
+	// // Low level drawing for complex draw.
+	// foreign beginBatch_()
+	// foreign endBatch_()
+	// foreign vert_(x, y, z, u, v, c)
+
+
+	// Set/Get default Sprite properties.
 
 	foreign static defaultScaleFilter
 
-	foreign static defaultScaleFilter=(name)
+	foreign static defaultScaleFilter=(n)
 
 	foreign static defaultWrapMode
 
-	foreign static defaultWrapMode=(name)
+	foreign static defaultWrapMode=(n)
 }

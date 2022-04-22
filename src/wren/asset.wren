@@ -1,38 +1,37 @@
 
-// Abstract: implementers must have following methods:
-//   loadProgress: number
-//   size: number
+// Implementers must have following methods:
+//   byteSize: number
+//   bytesLoaded: number
 //   load_(): void
-//
-//
-// Implementers should also consider overiding the following methods:
-//   unload(): void
-class Asset {
-	isLoaded { loadProgress >= size }
 
-	loadRatio { loadProgress / size }
+class Asset {
+	isLoaded { bytesLoaded >= byteSize }
 
 	load() {
-		__loading.add(this)
+		if (!isLoaded && !__loading.contains(this)) {
+			__loading.add(this)
 
-		load_()
+			load_()
+		}
 
 		return this
 	}
 
-	unload() {}
+	unload {}
 
-	static init_() {
-		__loading = []
-	}
+	static path { "%(Meta.module(1)).wren" }
+
+	static path(p) { resolvePath(Meta.module(1), p) }
+
+	foreign static resolvePath(curr, next)
 
 	static anyLoading { !__loading.isEmpty && !allLoaded }
 
 	static allLoaded { __loading.all {|asset| asset.isLoaded } }
 
-	static totalLoadSize { __loading.reduce(0) {|total, asset| total + asset.size } }
+	static totalBytesLoaded { __loading.reduce(0) {|n, a| n + a.bytesLoaded } }
 
-	static totalLoadProgress { __loading.reduce(0) {|total, asset| total + asset.loadProgress } }
+	static totalByteSize { __loading.reduce(0) {|n, a| n + a.byteSize } }
 
 	static totalLoadRatio {
 		if (__loading.isEmpty) {
@@ -40,9 +39,9 @@ class Asset {
 		} else {
 			var total = 0
 			var loaded = 0
-			for (asset in __loading) {
-				total = total + asset.size
-				loaded = loaded + asset.loadProgress
+			for (a in __loading) {
+				total = total + a.byteSize
+				loaded = loaded + a.bytesLoaded
 			}
 			return loaded / total
 		}
@@ -52,5 +51,31 @@ class Asset {
 		if (__loading.count > 0 && allLoaded) {
 			__loading.clear()
 		}
+	}
+
+	static init_() {
+		__loading = []
+	}
+}
+
+Asset.init_()
+
+class TransformedAsset is Asset {
+	construct new(a, f) {
+		_a = a
+		_f = f
+	}
+
+	bytesLoaded { _a.bytesLoaded }
+	byteSize { _a.byteSize }
+	load_() { _a.load_() }
+
+	value {
+		if (_f) {
+			if (!isLoaded) Fiber.abort("asset not loaded")
+			_v = _f.call(_a)
+			_f = null
+		}
+		return _v
 	}
 }

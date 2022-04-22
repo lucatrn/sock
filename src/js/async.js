@@ -5,7 +5,7 @@
  * @param {() => boolean} f
  * @returns {Promise<boolean>} resolves to false if timedout
  */
-export function waitUntil(delay, timeout, f) {
+export function until(delay, timeout, f) {
 	let time = 0;
 	return new Promise((resolve) => {
 		let id = setInterval(() => {

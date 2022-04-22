@@ -1,6 +1,7 @@
 import { addForeignMethod } from "../foreign.js";
 import { computedLayout } from "../layout.js";
-import { callHandle_init_0, vm } from "../vm.js";
+import { wrenCall, wrenEnsureSlots, wrenGetSlotDouble, wrenGetSlotHandle, wrenGetVariable, wrenSetSlotHandle } from "../vm.js";
+import { callHandle_init_0 } from "../vm-call-handles.js";
 
 export let cameraCenterX = 0;
 export let cameraCenterY = 0;
@@ -31,13 +32,36 @@ export function getCameraMatrix() {
 	return cameraMatrix;
 }
 
+export function saveCameraMatrix() {
+	return [ cameraCenterX, cameraCenterY, cameraScale ];
+}
+
+/**
+ * @param {number[]} saved 
+ */
+export function loadCameraMatrix(saved) {
+	[ cameraCenterX, cameraCenterY, cameraScale ] = saved;
+	cameraMatrixDirty = true;
+}
+
+/**
+ * @param {number} x
+ * @param {number} y
+ */
+export function setCameraMatrixTopLeft(x, y) {
+	cameraCenterX = x + computedLayout.rw/2;
+	cameraCenterY = y + computedLayout.rh/2;
+	cameraScale = 1;
+	cameraMatrixDirty = true;
+}
+
 
 // Wren -> JS
 
 addForeignMethod("", "Camera", true, "update_(_,_,_)", () => {
-	cameraCenterX = vm.getSlotDouble(1);
-	cameraCenterY = vm.getSlotDouble(2);
-	cameraScale = vm.getSlotDouble(3);
+	cameraCenterX = wrenGetSlotDouble(1);
+	cameraCenterY = wrenGetSlotDouble(2);
+	cameraScale = wrenGetSlotDouble(3);
 	cameraMatrixDirty = true;
 });
 
@@ -47,11 +71,11 @@ addForeignMethod("", "Camera", true, "update_(_,_,_)", () => {
 let handle_Camera = 0;
 
 export function initCameraModule() {
-	vm.ensureSlots(1);
-	vm.getVariable("sock", "Camera", 0);
-	handle_Camera = vm.getSlotHandle(0);
+	wrenEnsureSlots(1);
+	wrenGetVariable("sock", "Camera", 0);
+	handle_Camera = wrenGetSlotHandle(0);
 
-	// vm.ensureSlots(1);
-	vm.setSlotHandle(0, handle_Camera);
-	vm.call(callHandle_init_0);
+	// wrenEnsureSlotss(1);
+	wrenSetSlotHandle(0, handle_Camera);
+	wrenCall(callHandle_init_0);
 }

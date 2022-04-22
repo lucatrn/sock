@@ -1,6 +1,6 @@
 import { addForeignMethod } from "../foreign.js";
 import { canvas } from "../canvas.js";
-import { callHandle_init_0, vm } from "../vm.js";
+import { wrenEnsureSlots, wrenGetSlotBool, wrenGetSlotHandle, wrenGetVariable } from "../vm.js";
 
 let cursorIsHidden = false;
 
@@ -12,7 +12,7 @@ function updateCursor() {
 // Wren -> JS
 
 addForeignMethod("", "Cursor", true, "setHidden_(_)", () => {
-	cursorIsHidden = vm.getSlotBool(1);
+	cursorIsHidden = wrenGetSlotBool(1);
 
 	updateCursor();
 });
@@ -23,11 +23,7 @@ addForeignMethod("", "Cursor", true, "setHidden_(_)", () => {
 let handle_Cursor = 0;
 
 export function initCursorModule() {
-	vm.ensureSlots(1);
-	vm.getVariable("sock", "Cursor", 0);
-	handle_Cursor = vm.getSlotHandle(0);
-
-	// vm.ensureSlots(1);
-	vm.setSlotHandle(0, handle_Cursor);
-	vm.call(callHandle_init_0);
+	wrenEnsureSlots(1);
+	wrenGetVariable("sock", "Cursor", 0);
+	handle_Cursor = wrenGetSlotHandle(0);
 }

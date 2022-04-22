@@ -1,9 +1,9 @@
 [
-	"util",
-	"math",
+	"common",
 	"array",
 	"stringbuilder",
 	"vector",
+	"transform",
 	"color",
 	"async",
 	"time",
@@ -11,11 +11,9 @@
 	"input",
 	"cursor",
 	"asset",
-	"text",
 	"camera",
 	"graphics",
 	"polygon",
-	"sprite",
 	"json",
 	""
 ]

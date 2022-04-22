@@ -1,22 +1,31 @@
 
 class Input {
-	static holdCutoff { __holdCutoff }
+	static holdCutoff { __hc }
 
-	static holdCutoff=(value) { __holdCutoff = value.clamp(0.001, 1) }
+	static holdCutoff=(value) { __hc = value.clamp(0.001, 1) }
 
-	static mouse { Vector.new(__mouseX, __mouseY) }
+	static mouse { __ms }
 
-	static mouseDelta { Vector.new(__mouseX - __mouseX0, __mouseY - __mouseY0) }
+	static mouseDelta { __msd }
 
-	static updateMouse_(x, y) {
-		__mouseX0 = __mouseX
-		__mouseY0 = __mouseY
-		__mouseX = x
-		__mouseY = y
+	static mouseWheel { __mw }
+
+	static updateMouse_(x, y, w) {
+		if (__ms) {
+			__msd.x = x - __ms.x
+			__msd.y = y - __ms.y
+			__ms.x = x
+			__ms.y = y
+		} else {
+			__ms = Vec.new(x, y)
+			__msd = Vec.new()
+		}
+
+		__mw = w
 	}
 
 	static value(ids) {
-		return inputs_(ids).reduce(0) {|acc, state| state ? state.value.max(acc) : acc }
+		return inputs_(ids).reduce(0) {|v, s| s ? s.value.max(v) : v }
 	}
 
 	static value(neg, pos) {
@@ -24,7 +33,7 @@ class Input {
 	}
 
 	static value(negX, posX, negY, posY) {
-		return Vector.new(value(negX, posX), value(negY, posY))
+		return Vec.new(value(negX, posX), value(negY, posY))
 	}
 
 	static valuePressed(ids) {
@@ -39,23 +48,23 @@ class Input {
 	}
 
 	static valuePressed(negX, posX, negY, posY) {
-		return Vector.new(valuePressed(negX, posX), valuePressed(negY, posY))
+		return Vec.new(valuePressed(negX, posX), valuePressed(negY, posY))
 	}
 
 	static held(ids) {
-		return inputs_(ids).some {|state| state && state.held }
+		return inputs_(ids).any {|s| s && s.held }
 	}
 	
 	static pressed(ids) {
-		return inputs_(ids).some {|state| state && state.pressed }
+		return inputs_(ids).any {|s| s && s.pressed }
 	}
 	
 	static pressed(ids, repeatDelay, repeatStartDelay) {
-		return inputs_(ids).some {|state| state && state.pressed(repeatDelay, repeatStartDelay) }
+		return inputs_(ids).any {|s| s && s.pressed(repeatDelay, repeatStartDelay) }
 	}
 
 	static released(ids) {
-		return inputs_(ids).some {|state| state && state.released }
+		return inputs_(ids).any {|s| s && s.released }
 	}
 
 	static whichPressed {
@@ -70,32 +79,36 @@ class Input {
 
 	static inputs_(ids) {
 		if (ids is String) {
-			return ValueSequence.new(__inputs[ids])
+			// return [ __inputs[ids] ]
+			return Sequence.of(__inputs[ids])
 		} else if (ids is Sequence) {
 			return ids.map {|id| __inputs[id] }
 		} else {
-			return ValueSequence.new()
+			return Sequence.empty
 		}
 	}
 
 	static update_(id, value) {
-		var state = __inputs[id]
-		if (state) {
-			state.update(value)
+		var s = __inputs[id]
+		if (s) {
+			s.update(value)
 		} else {
 			__inputs[id] = InputState.new(value)
 		}
 	}
 
-	static update_(negID, posID, value) {
-		update_(negID, value < 0 ? -value : 0)
-		update_(posID, value > 0 ?  value : 0)
-	}
+	// static update_(negID, posID, value) {
+	// 	update_(negID, value < 0 ? -value : 0)
+	// 	update_(posID, value > 0 ?  value : 0)
+	// }
 
 	static init_() {
 		__inputs = {}
+		__hc = 0.5
 	}
 }
+
+Input.init_()
 
 class InputState {
 	construct new(value) {
@@ -121,7 +134,7 @@ class InputState {
 
 	released { _frame == Time.frame && !held }
 
-	update_(value) {
+	update(value) {
 		var wasHeld = held
 		_value = value
 		if (wasHeld != held) _frame = Time.frame

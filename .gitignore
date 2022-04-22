@@ -3,3 +3,4 @@
 /dst
 /ignore
 /node_modules
+/src/js-generated/*.js

@@ -1,5 +1,5 @@
 import { getCameraMatrix } from "../api/camera.js";
-import { Color } from "../api/color.js";
+import { Color } from "../color.js";
 import { gl } from "./gl.js";
 import { Shader } from "./shader.js";
 import { Texture } from "./texture.js";
@@ -27,9 +27,7 @@ let shader = new Shader({
 	fragUniforms: {
 		"tex": "sampler2D",
 	},
-	frag: "gl_FragColor = texture2D(tex, v_uv);",
-	// frag: "gl_FragColor = vec4(1.0, 0.0, 1.0, 1.0);",
-	// frag: "gl_FragColor = vec4(v_uv, 0.0, 1.0);",
+	frag: "gl_FragColor = texture2D(tex, v_uv) * v_color;",
 });
 
 shader.needsCompilation();
@@ -131,27 +129,65 @@ export class SpriteBatcher {
 		 */
 		this._texture = texture;
 		this._vertexCount = 0;
+
+		return this;
 	}
 
+	// /**
+	//  * @param {number} x1
+	//  * @param {number} y1
+	//  * @param {number} x2
+	//  * @param {number} y2
+	//  * @param {number} z
+	//  * @param {number} c
+	//  */
+	// draw(x1, y1, x2, y2, z, c) {
+	// 	this.draw2(x1, y1, x2, y2, z, 0, 0, 1, 1, c, tf, tfo);
+	// }
+	
 	/**
-	 * @param {number} x
-	 * @param {number} y
-	 * @param {number|null} [w] Defaults to texture width.
-	 * @param {number|null} [h] Defautls to texture height.
-	 * @param {number|null} [z]
+	 * @param {number} x1
+	 * @param {number} y1
+	 * @param {number} x2
+	 * @param {number} y2
+	 * @param {number} z
+	 * @param {number} u1
+	 * @param {number} v1
+	 * @param {number} u2
+	 * @param {number} v2
+	 * @param {number} c
+	 * @param {number[]|null} [tf] A 2x3 transform matrix
+	 * @param {number[]|null} [tfo] A 2d transform origin
 	 */
-	draw(x, y, w, h, z) {
-		if (w == null) w = this._texture.width;
-		if (h == null) h = this._texture.height;
-		let x2 = x + w;
-		let y2 = y + h;
-		if (z == null) z = 0;
-
+	drawQuad(x1, y1, x2, y2, z, u1, v1, u2, v2, c, tf, tfo) {
 		this.checkResize(4);
-		this.addVertex(x, y,   z, 0xffffffff, 0, 0);
-		this.addVertex(x, y2,  z, 0xffffffff, 0, 1);
-		this.addVertex(x2, y,  z, 0xffffffff, 1, 0);
-		this.addVertex(x2, y2, z, 0xffffffff, 1, 1);
+		
+		if (tf) {
+			let tx1 = x1 * tf[0] + y1 * tf[2] + tf[4];
+			let ty1 = x1 * tf[1] + y1 * tf[3] + tf[5];
+			let tx2 = x1 * tf[0] + y2 * tf[2] + tf[4];
+			let ty2 = x1 * tf[1] + y2 * tf[3] + tf[5];
+			let tx3 = x2 * tf[0] + y1 * tf[2] + tf[4];
+			let ty3 = x2 * tf[1] + y1 * tf[3] + tf[5];
+			let tx4 = x2 * tf[0] + y2 * tf[2] + tf[4];
+			let ty4 = x2 * tf[1] + y2 * tf[3] + tf[5];
+
+			let tfox = tfo ? (x1 + tfo[0]) : ((x1 + x2) / 2);
+			let tfoy = tfo ? (y1 + tfo[1]) : ((y1 + y2) / 2);
+			let dx = tfox - tf[0] * tfox - tf[2] * tfoy;
+			let dy = tfoy - tf[1] * tfox - tf[3] * tfoy;
+
+			this.addVertex(tx1 + dx, ty1 + dy, z, c, u1, v1);
+			this.addVertex(tx2 + dx, ty2 + dy, z, c, u1, v2);
+			this.addVertex(tx3 + dx, ty3 + dy, z, c, u2, v1);
+			this.addVertex(tx4 + dx, ty4 + dy, z, c, u2, v2);
+		} else {
+			this.addVertex(x1, y1, z, c, u1, v1);
+			this.addVertex(x1, y2, z, c, u1, v2);
+			this.addVertex(x2, y1, z, c, u2, v1);
+			this.addVertex(x2, y2, z, c, u2, v2);
+		}
+		
 	}
 
 	/**
@@ -160,7 +196,7 @@ export class SpriteBatcher {
 	 * @param {number} x
 	 * @param {number} y
 	 * @param {number} z
-	 * @param {Color|number} color
+	 * @param {number} color
 	 * @param {number} u
 	 * @param {number} v
 	 * @protected
@@ -172,16 +208,7 @@ export class SpriteBatcher {
 		this._floats[i4 + 1] = y;
 		this._floats[i4 + 2] = z;
 
-		if (typeof color === "number") {
-			this._ints[i4 + 3] = color;
-		} else {
-			let ib = this._vertexCount * 24 + 12;
-
-			this._bytes[ib    ] = color.r * 255.999;
-			this._bytes[ib + 1] = color.g * 255.999;
-			this._bytes[ib + 2] = color.b * 255.999;
-			this._bytes[ib + 3] = color.a * 255.999;
-		}
+		this._ints[i4 + 3] = color;
 
 		this._floats[i4 + 4] = u;
 		this._floats[i4 + 5] = v;

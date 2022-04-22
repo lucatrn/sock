@@ -2,26 +2,13 @@
 foreign class StringBuilder {
 	construct new() {}
 
-	add(a) {
-		add_(a.toString)
-		return this
-	}
+	add(a) { addString(a.toString) }
 
-	foreign add_(a)
+	foreign addString(a)
 
-	addByte(b) {
-		addByte_(b)
-		return this
-	}
+	foreign addByte(b)
 
-	foreign addByte_(b)
-
-	clear() {
-		clear_()
-		return this
-	}
-
-	foreign clear_()
+	foreign clear()
 
 	foreign toString
 }

@@ -6,6 +6,10 @@ class Game {
 
 	static size { __size }
 
+	static width { __size.x }
+	
+	static height { __size.y }
+
 	static size=(v) {
 		if (v == null) {
 			if (__fixed) {
@@ -16,13 +20,17 @@ class Game {
 			}
 		} else {
 			if (!__fixed || __size != v) {
-				__size.x = v.x
-				__size.y = v.y
+				__size.x = v.x.floor.clamp(1, 2048)
+				__size.y = v.y.floor.clamp(1, 2048)
 				__fixed = true
 				layoutChanged_()
 			}
 		}
 	}
+
+	static width=(w) { size = Vec.new(w, __size.y) }
+
+	static height=(h) { size = Vec.new(__size.x, h) }
 
 	static isFixedSize { __fixed }
 
@@ -54,12 +62,34 @@ class Game {
 
 	foreign static layoutChanged_(x, y, fixed, pp, maxs)
 
+	static print(s) {
+		__drawY = 16 + print_(s.toString, __drawX, __drawY)
+	}
+	
+	static print(s, x, y) {
+		__drawX = x
+		__drawY = 16 + print_(s.toString, x, y)
+	}
+
+	static printColor { __drawC }
+
+	static printColor=(c) {
+		__drawC = c
+		setPrintColor_(c.uint32)
+	}
+
+	foreign static print_(s, x, y)
+
+	foreign static setPrintColor_(i)
+
 	static init_(sx, sy) {
-		__size = Vector.new(sx, sy)
-		__screen = Vector.new(sx, sy)
+		__size = Vec.new(sx, sy)
+		__screen = Vec.new(sx, sy)
 		__fixed = false
 		__maxs = Num.infinity
 		__pp = false
+		__drawX = __drawY = 4
+		__drawC = Color.white
 	}
 
 	static update_(sx, sy) {
@@ -86,6 +116,8 @@ class Game {
 	}
 
 	static update_() {
+		__drawX = __drawY = 4
+
 		if (__fn) __fn.call()
 		ready_()
 	}

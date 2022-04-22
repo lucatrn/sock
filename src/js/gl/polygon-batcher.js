@@ -1,4 +1,4 @@
-import { Color } from "../api/color.js";
+import { Color } from "../color.js";
 import { gl } from "./gl.js";
 import { PrimitiveBatcher } from "./primitive-batcher.js";
 import { Shader } from "./shader.js";

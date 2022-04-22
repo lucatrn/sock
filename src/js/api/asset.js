@@ -1,31 +1,16 @@
-import { callHandle_init_0, callHandle_update_0, callHandle_update_2, vm } from "../vm.js";
+import { wrenCall, wrenEnsureSlots, wrenGetSlotHandle, wrenGetVariable, wrenSetSlotHandle } from "../vm.js";
+import { callHandle_update_0 } from "../vm-call-handles.js";
 
 let handle_Asset = 0;
 
 export function initAssetModule() {
-	vm.ensureSlots(1);
-	vm.getVariable("sock", "Asset", 0);
-	handle_Asset = vm.getSlotHandle(0);
-
-	vm.ensureSlots(1);
-	vm.setSlotHandle(0, handle_Asset);
-	vm.call(callHandle_init_0);
+	wrenEnsureSlots(1);
+	wrenGetVariable("sock", "Asset", 0);
+	handle_Asset = wrenGetSlotHandle(0);
 }
 
 export function updateAssetModule() {
-	vm.ensureSlots(1);
-	vm.setSlotHandle(0, handle_Asset);
-	vm.call(callHandle_update_0);
-}
-
-/**
- * @param {string} path
- * @returns {string}
- */
-export function resolveAssetPath(path) {
-	if (path[0] !== "/") {
-		path = "/" + path;
-	}
-
-	return "assets" + path;
+	wrenEnsureSlots(1);
+	wrenSetSlotHandle(0, handle_Asset);
+	wrenCall(callHandle_update_0);
 }

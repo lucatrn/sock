@@ -44,7 +44,7 @@ export function showWrenError() {
 			let name = moduleName[0] === "/" ? moduleName.slice(1) : moduleName;
 	
 			let stackEl = createElement("div", {}, [
-				location ? `  ${location} at ` : `  at`,
+				location ? `  ${location} at ` : `  at `,
 				createElement("a", { href: getModulePath(moduleName), onclick: onclick }, name + ":" + lineNumber),
 			]);
 	
@@ -65,7 +65,7 @@ export function showWrenError() {
 
 	document.body.append(outerElement);
 
-	let scriptElement;
+	let scriptElement, scriptTitleElement;
 
 	showScript(0);
 	
@@ -75,6 +75,9 @@ export function showWrenError() {
 	async function showScript(stackIndex) {
 		if (scriptElement) {
 			scriptElement.remove();
+		}
+		if (scriptTitleElement) {
+			scriptTitleElement.remove();
 		}
 
 		let [ moduleName, lineNumber ] = wrenErrorStack[stackIndex];
@@ -109,6 +112,7 @@ export function showWrenError() {
 		}
 	
 		outerElement.append(
+			scriptTitleElement = createElement("div", { class: "code-name" }, moduleName.slice(1) + ".wren"),
 			scriptElement = createElement("div", { class: "code" }, [
 				createElement("pre", { class: "code-lines" }, lineNumbers),
 				createElement("pre", { class: "code-source" }, source),

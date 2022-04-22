@@ -1,7 +1,7 @@
 // RollupJS config file, for building JS client code.
 //
 // Usage:
-//   rollup -c build-js-production.config.js
+//   rollup -c build-js.config.js
 
 export default {
 	input: "src/js/main.js",
