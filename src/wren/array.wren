@@ -63,6 +63,10 @@ foreign class Array is Sequence {
 
 	foreign toString
 
+	foreign asString
+
+	foreign toBase64
+
 	foreign setFromString(s)
 
 	foreign load_(path)
@@ -74,9 +78,9 @@ foreign class Array is Sequence {
 
 	iteratorValue(i) { getByte(i) }
 
-	toJSON { toList }
+	toJSON { toBase64 }
 
-	static fromJSON(a) { a is List ? fromBytes(a) : null }
+	static fromJSON(a) { (a is String ? fromBase64(a) : (a is List ? fromBytes(a) : null)) }
 
 	[i] { getByte(i) }
 

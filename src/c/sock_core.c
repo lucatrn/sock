@@ -23,6 +23,19 @@ void wrenAbort(WrenVM* vm, const char* msg) {
 	wrenAbortFiber(vm, 0);
 }
 
+char nibbleAsHuamnChar(unsigned char b) {
+	if (b < 10) return 48 + b;
+	if (b < 16) return 87 + b;
+	return '?';
+}
+
+// Insert charcters at buffer[0] and buffer[1] that display the given byte
+// as a human readable hex value.
+void bufferPutHumanHex(char* buffer, unsigned char b) {
+	buffer[0] = nibbleAsHuamnChar(b >> 4);
+	buffer[1] = nibbleAsHuamnChar(b & 15);
+}
+
 // Validates an integer index at the given slot. Supports negative indices.
 uint32_t wren_validateIndex(WrenVM* vm, uint32_t count, int slot) {
 	if (wrenGetSlotType(vm, slot) != WREN_TYPE_NUM) {
@@ -280,6 +293,26 @@ void wren_array_uint8_fill(WrenVM* vm) {
 void wren_array_toString(WrenVM* vm) {
 	Array* array = (Array*)wrenGetSlotForeign(vm, 0);
 
+	uint32_t len = array->length * 2;
+	char* result = malloc(len);
+	uint32_t resultIndex = 0;
+
+	for (uint32_t i = 0; i < array->length; i++) {
+		uint8_t byte = ((uint8_t*)array->data)[i];
+
+		bufferPutHumanHex(result + resultIndex, byte);
+
+		resultIndex += 2;
+	}
+
+	wrenSetSlotBytes(vm, 0, (const char*)result, len);
+
+	free(result);
+}
+
+void wren_array_asString(WrenVM* vm) {
+	Array* array = (Array*)wrenGetSlotForeign(vm, 0);
+
 	wrenSetSlotBytes(vm, 0, (const char*)array->data, array->length);
 }
 
@@ -301,7 +334,7 @@ void wren_array_copyFromString(WrenVM* vm) {
 	}
 }
 
-// static const char* BASE64_BYTES = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+static const char BASE64_CHARS[64] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
 static const unsigned char BASE64_CHAR_TO_BYTE[128] = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 62, 0, 0, 0, 63, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 0, 0, 0, 0, 0, 0, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 0, 0, 0, 0, 0 };
 
@@ -345,6 +378,67 @@ void wren_array_fromBase64(WrenVM* vm) {
 	Array* array = (Array*)wrenSetSlotNewForeign(vm, 0, 0, sizeof(Array));
 	array->data = bytes;
 	array->length = byteLen;
+}
+
+void wren_array_toBase64(WrenVM* vm) {
+	Array* array = (Array*)wrenGetSlotForeign(vm, 0);
+	uint8_t* bytes = (uint8_t*)array->data;
+
+	uint32_t n = array->length;
+	uint32_t rem = n % 3;
+	n -= rem;
+
+	uint32_t b64n = (n / 3) * 4;
+	if (rem != 0) b64n += 4;
+
+	uint32_t b64i = 0;
+	uint8_t* b64 = (uint8_t*)malloc(b64n);
+	uint32_t i = 0;
+	
+	for ( ; i < n; i += 3) {
+		uint8_t a = bytes[i];
+		uint8_t b = bytes[i + 1];
+		uint8_t c = bytes[i + 2];
+
+		int n1 =  (a & 0b11111100) >> 2;
+		int n2 = ((a &       0b11) << 4) | ((b & 0b11110000) >> 4);
+		int n3 = ((b & 0b00001111) << 2) | ((c & 0b11000000) >> 6);
+		int n4 =  (c & 0b00111111);
+
+		b64[b64i++] = BASE64_CHARS[n1];
+		b64[b64i++] = BASE64_CHARS[n2];
+		b64[b64i++] = BASE64_CHARS[n3];
+		b64[b64i++] = BASE64_CHARS[n4];
+	}
+
+	if (rem == 1) {
+		uint8_t a = bytes[i];
+
+		int n1 = (a & 0b11111100) >> 2;
+		int n2 = (a &       0b11) << 4;
+
+		b64[b64i++] = BASE64_CHARS[n1];
+		b64[b64i++] = BASE64_CHARS[n2];
+		b64[b64i++] = (uint8_t)'=';
+		b64[b64i  ] = (uint8_t)'=';
+	} else if (rem == 2) {
+		uint8_t a = bytes[i];
+		uint8_t b = bytes[i + 1];
+
+		int n1 =  (a & 0b11111100) >> 2;
+		int n2 = ((a &       0b11) << 4) | ((b & 0b11110000) >> 4);
+		int n3 =  (b & 0b00001111) << 2;
+
+		b64[b64i++] = BASE64_CHARS[n1];
+		b64[b64i++] = BASE64_CHARS[n2];
+		b64[b64i++] = BASE64_CHARS[n3];
+		b64[b64i  ] = (uint8_t)'=';
+	}
+
+	// Copy result to Wren string.
+	wrenSetSlotBytes(vm, 0, (const char*)b64, b64n);
+
+	free(b64);
 }
 
 
@@ -471,32 +565,21 @@ void wren_color_setB(WrenVM* vm) { ((Color*)wrenGetSlotForeign(vm, 0))->parts.b 
 void wren_color_setA(WrenVM* vm) { ((Color*)wrenGetSlotForeign(vm, 0))->parts.a = (unsigned char)(wrenGetSlotDouble(vm, 1) * 255.999); }
 void wren_color_setPacked(WrenVM* vm) { ((Color*)wrenGetSlotForeign(vm, 0))->packed = wrenGetSlotDouble(vm, 1); }
 
-char color_toStringGetChar(unsigned char b) {
-	if (b < 10) return 48 + b;
-	if (b < 16) return 87 + b;
-	return '?';
-}
-
-void color_toStringAddByte(char* buffer, unsigned char b) {
-	buffer[0] = color_toStringGetChar(b >> 4);
-	buffer[1] = color_toStringGetChar(b & 15);
-}
-
 void wren_color_toString(WrenVM* vm) {
 	Color* color = (Color*)wrenGetSlotForeign(vm, 0);
 
 	char buffer[9];
 
 	buffer[0] = '#';
-	color_toStringAddByte(buffer + 1, color->parts.r);
-	color_toStringAddByte(buffer + 3, color->parts.g);
-	color_toStringAddByte(buffer + 5, color->parts.b);
+	bufferPutHumanHex(buffer + 1, color->parts.r);
+	bufferPutHumanHex(buffer + 3, color->parts.g);
+	bufferPutHumanHex(buffer + 5, color->parts.b);
 	
 	int len;
 	if (color->parts.a == 255) {
 		len = 7;
 	} else {
-		color_toStringAddByte(buffer + 7, color->parts.a);
+		bufferPutHumanHex(buffer + 7, color->parts.a);
 		len = 9;
 	}
 
@@ -553,7 +636,9 @@ WrenForeignMethodFn wren_BindForeignMethod(WrenVM* vm, const char* module, const
 			} else {
 				if (strcmp(signature, "count") == 0) return wren_array_count;
 				if (strcmp(signature, "resize(_)") == 0) return wren_array_resize;
+				if (strcmp(signature, "toBase64") == 0) return wren_array_toBase64;
 				if (strcmp(signature, "toString") == 0) return wren_array_toString;
+				if (strcmp(signature, "asString") == 0) return wren_array_asString;
 				if (strcmp(signature, "getByte(_)") == 0) return wren_array_uint8_get;
 				if (strcmp(signature, "setByte(_,_)") == 0) return wren_array_uint8_set;
 				if (strcmp(signature, "fillBytes(_)") == 0) return wren_array_uint8_fill;
