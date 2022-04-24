@@ -12,6 +12,7 @@ let functions = [
 	"free",
 	"sock_init",
 	"sock_font",
+	"sock_array_setter_helper",
 ];
 
 for (let l = 0; l < lines.length; l++) {

@@ -4,24 +4,14 @@ foreign class Sprite is Asset {
 
 	static load(p) {
 		p = Asset.path(Meta.module(1), p)
-		var s = Loading.add_(new())
-		s.load_(p)
+		var s = new()
+		Loading.add_(s.load_(p))
 		return s
 	}
 
 	foreign load_(path)
 
 	// foreign loadPixels_(pixels)
-
-	foreign progress
-	
-	foreign error
-
-	// Enable Sprite to be used as progress object.
-	[n] {
-		if (n == 0) return progress
-		if (n == 1) return error
-	}
 
 
 	// Texture properties.

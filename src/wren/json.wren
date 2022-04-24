@@ -13,9 +13,10 @@ class JSON {
 
 	static load(p) {
 		p = Asset.path(Meta.module(1), p)
-		var a = Loading.add_([0, null])
-		Asset.loadString_(a, p)
-		return Value.async(a) {|s| JSON.fromString(s) }
+
+		var a = Async.new()
+		Asset.loadString_(a.loader { |s| fromString(s) }, p)
+		return a
 	}
 
 

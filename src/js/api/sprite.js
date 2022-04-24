@@ -4,7 +4,8 @@ import { gl } from "../gl/gl.js";
 import { SpriteBatcher } from "../gl/sprite-batcher.js";
 import { Texture } from "../gl/texture.js";
 import { httpGETImage } from "../network/http.js";
-import { abortFiber, vm, wrenEnsureSlots, wrenGetSlotDouble, wrenGetSlotForeign, wrenGetSlotString, wrenGetSlotType, wrenInsertInList, wrenSetSlotDouble, wrenSetSlotNewForeign, wrenSetSlotNewList, wrenSetSlotNull, wrenSetSlotString } from "../vm.js";
+import { abortFiber, vm, wrenEnsureSlots, wrenGetSlotDouble, wrenGetSlotForeign, wrenGetSlotHandle, wrenGetSlotString, wrenGetSlotType, wrenInsertInList, wrenReleaseHandle, wrenSetListElement, wrenSetSlotDouble, wrenSetSlotHandle, wrenSetSlotNewForeign, wrenSetSlotNewList, wrenSetSlotNull, wrenSetSlotString } from "../vm.js";
+import { initLoadingProgressList } from "./asset.js";
 
 let defaultFilter = gl.NEAREST;
 let defaultWrap = gl.CLAMP_TO_EDGE;
@@ -28,16 +29,6 @@ class Sprite extends Texture {
 		this.batcher = null;
 
 		/**
-		 * Load progress [0..1].
-		 */
-		this.progress = 0;
-
-		/**
-		 * @type {string}
-		 */
-		this.error = null;
-
-		/**
 		 * Transform origin.
 		 * @type {number[]|null}
 		 */
@@ -54,15 +45,35 @@ class Sprite extends Texture {
 		return this.path || "Sprite#" + this.ptr;
 	}
 
-	async loadFromPath() {
-		let source = await httpGETImage("assets" + this.path);
-		
-		if (source == null) {
-			this.error = `failed to load sprite ${this.path}`;
-			this.progress = -1;
-		} else {
-			this.load(source);
-			this.progress = 1;
+	/**
+	 * @param {number} progressListHandle
+	 */
+	async loadFromPath(progressListHandle) {
+		try {
+			let progress = -1;
+			let error;
+			
+			let source = await httpGETImage("assets" + this.path);
+			
+			if (source == null) {
+				error = `failed to load sprite ${this.path}`;
+			} else {
+				this.load(source);
+				progress = 1;
+			}
+
+			wrenEnsureSlots(2);
+			wrenSetSlotHandle(0, progressListHandle);
+
+			wrenSetSlotDouble(1, progress);
+			wrenSetListElement(0, 0, 1);
+
+			if (error) {
+				wrenSetSlotString(1, error);
+				wrenSetListElement(0, 1, 1);
+			}
+		} finally {
+			wrenReleaseHandle(progressListHandle);
 		}
 	}
 
@@ -138,18 +149,7 @@ addForeignClass("sock", "Sprite", [
 	"height"() {
 		wrenSetSlotDouble(0, getSprite().height);
 	},
-	"progress"() {
-		wrenSetSlotDouble(0, getSprite().progress);
-	},
-	"error"() {
-		let error = getSprite().error;
-		if (error) {
-			wrenSetSlotString(0, error);
-		} else {
-			wrenSetSlotNull(0);
-		}
-	},
-	async "load_(_)"() {
+	"load_(_)"() {
 		if (wrenGetSlotType(1) !== 6) {
 			abortFiber("path must be a string");
 			return;
@@ -159,7 +159,9 @@ addForeignClass("sock", "Sprite", [
 
 		spr.path = wrenGetSlotString(1);
 
-		spr.loadFromPath();
+		let progressListHandle = initLoadingProgressList();
+
+		spr.loadFromPath(progressListHandle);
 	},
 	"scaleFilter"() {
 		wrenSetSlotString(0, glFilterNumberToString(getSprite().filter));

@@ -1,6 +1,8 @@
 #include <string.h>
 #include <errno.h>
 #include <stdio.h>
+#include <math.h>
+#include <stdint.h>
 #include "emscripten.h"
 #include "wren.h"
 
@@ -21,6 +23,28 @@ void wrenAbort(WrenVM* vm, const char* msg) {
 	wrenAbortFiber(vm, 0);
 }
 
+// Validates an integer index at the given slot. Supports negative indices.
+uint32_t wren_validateIndex(WrenVM* vm, uint32_t count, int slot) {
+	if (wrenGetSlotType(vm, slot) != WREN_TYPE_NUM) {
+		wrenAbort(vm, "index must be a number");
+		return UINT32_MAX;
+	}
+
+	double value = wrenGetSlotDouble(vm, slot);
+	if (value != trunc(value)) {
+		wrenAbort(vm, "index must be an integer");
+		return UINT32_MAX;
+	}
+
+	// Negative indices count from the end.
+	if (value < 0) value = count + value;
+	
+	// Check bounds.
+	if (value >= 0 && value < count) return (uint32_t)value;
+	
+	wrenAbort(vm, "index out of bounds");
+	return UINT32_MAX;
+}
 
 #define RELATIVE_PART_BUFFER_SIZE 16
 
@@ -155,87 +179,125 @@ void wren_Asset_resolvePath(WrenVM* vm) {
 
 // Array
 
-#define ARRAY_SIZE(data) (*((unsigned*)(data)))
-#define ARRAY_SET_SIZE(data, size) (((unsigned*)(data))[0] = (size))
-#define ARRAY_INT8(data, i) ((char*)((unsigned char*)(data) + sizeof(unsigned) + (i)))
-#define ARRAY_UINT8(data, i) ((unsigned char*)((unsigned char*)(data) + sizeof(unsigned) + (i)))
-#define ARRAY_UINT16(data, i) ((unsigned short*)((unsigned char*)(data) + sizeof(unsigned) + (i)))
+
+typedef struct
+{
+	uint32_t length;
+	void* data;
+} Array;
+
+uint32_t wren_array_validateLength(WrenVM* vm, int slot) {
+	if (wrenGetSlotType(vm, slot) != WREN_TYPE_NUM) {
+		wrenAbort(vm, "Array size must be a number");
+		return UINT32_MAX;
+	}
+
+	double lenf = wrenGetSlotDouble(vm, slot);
+	if (lenf < 0 || lenf != trunc(lenf)) {
+		wrenAbort(vm, "Array size must be a non-negative integer");
+		return UINT32_MAX;
+	}
+
+	return (uint32_t)lenf;
+}
 
 void wren_arrayAllocate(WrenVM* vm) {
-	unsigned size = (unsigned)wrenGetSlotDouble(vm, 1);
+	uint32_t len = wren_array_validateLength(vm, 1);
+	if (len == UINT32_MAX) return;
 
-	void* data = wrenSetSlotNewForeign(vm, 0, 0, sizeof(unsigned) + size);
+	Array* array = (Array*)wrenSetSlotNewForeign(vm, 0, 0, sizeof(Array));
 	
-	ARRAY_SET_SIZE(data, size);
+	array->length = len;
+	
+	if (len == 0) {
+		array->data = NULL;
+	} else {
+		array->data = malloc(len);
+	}
+}
+
+void wren_arrayFinalize(void* data) {
+	Array* array = (Array*)data;
+	if (array->data) free(array->data);
 }
 
 void wren_array_count(WrenVM* vm) {
-	wrenSetSlotDouble(vm, 0, ARRAY_SIZE(wrenGetSlotForeign(vm, 0)));
+	wrenSetSlotDouble(vm, 0, ((Array*)wrenGetSlotForeign(vm, 0))->length);
 }
 
-int wren_arrayConvertIndex(WrenVM* vm, void* data, int i) {
-	if (i < 0) {
-		i = ARRAY_SIZE(data) + i;
-		if (i < 0) {
-			wrenAbort(vm, "index out of range");
-			return -1;
-		}
-	} else if (i >= ARRAY_SIZE(data)) {
-		wrenAbort(vm, "index out of range");
-		return -1;
+void array_resize(Array* array, uint8_t len) {
+	array->data = realloc(array->data, len);
+	array->length = len;
+}
+
+void wren_array_resize(WrenVM* vm) {
+	uint32_t len = wren_array_validateLength(vm, 1);
+	if (len == UINT32_MAX) return;
+
+	Array* array = (Array*)wrenGetSlotForeign(vm, 0);
+
+	array_resize(array, len);
+}
+
+// Returns true if not a number.
+bool wren_array_validateValue(WrenVM* vm, int slot) {
+	if (wrenGetSlotType(vm, 2) != WREN_TYPE_NUM) {
+		wrenAbort(vm, "value must be a number");
+		return true;
 	}
-	return i;
+
+	return false;
 }
 
 void wren_array_uint8_get(WrenVM* vm) {
-	void* data = wrenGetSlotForeign(vm, 0);
-	int i = wren_arrayConvertIndex(vm, data, (int)wrenGetSlotDouble(vm, 1));
-	if (i >= 0) {
-		wrenSetSlotDouble(vm, 0, *ARRAY_UINT8(data, i));
-	}
+	Array* array = (Array*)wrenGetSlotForeign(vm, 0);
+
+	uint32_t index = wren_validateIndex(vm, array->length, 1);
+	if (index == UINT32_MAX) return;
+
+	wrenSetSlotDouble(vm, 0, ((uint8_t*)array->data)[index]);
 }
 
 void wren_array_uint8_set(WrenVM* vm) {
-	void* data = wrenGetSlotForeign(vm, 0);
-	int i = wren_arrayConvertIndex(vm, data, (int)wrenGetSlotDouble(vm, 1));
-	if (i >= 0) {
-		int v = (unsigned char)wrenGetSlotDouble(vm, 2);
+	Array* array = (Array*)wrenGetSlotForeign(vm, 0);
 
-		*ARRAY_UINT8(data, i) = v;
-	}
+	uint32_t index = wren_validateIndex(vm, array->length, 1);
+	if (index == UINT32_MAX) return;
+
+	if (wren_array_validateValue(vm, 2)) return;
+
+	((uint8_t*)array->data)[index] = (uint8_t)wrenGetSlotDouble(vm, 2);
 }
 
 void wren_array_uint8_fill(WrenVM* vm) {
-	void* data = wrenGetSlotForeign(vm, 0);
-	unsigned char v = (unsigned char)wrenGetSlotDouble(vm, 1);
-	memset(ARRAY_UINT8(data, 0), v, ARRAY_SIZE(data));
+	Array* array = (Array*)wrenGetSlotForeign(vm, 0);
+
+	if (wren_array_validateValue(vm, 1)) return;
+
+	memset(array->data, (int)wrenGetSlotDouble(vm, 1), array->length);
 }
 
 void wren_array_toString(WrenVM* vm) {
-	void* data = wrenGetSlotForeign(vm, 0);
-	unsigned len = ARRAY_SIZE(data);
+	Array* array = (Array*)wrenGetSlotForeign(vm, 0);
 
-	wrenSetSlotBytes(vm, 0, ARRAY_INT8(data, 0), len);
+	wrenSetSlotBytes(vm, 0, (const char*)array->data, array->length);
 }
 
 void wren_array_copyFromString(WrenVM* vm) {
-	void* data = wrenGetSlotForeign(vm, 0);
-	unsigned len = ARRAY_SIZE(data);
+	Array* array = (Array*)wrenGetSlotForeign(vm, 0);
+
+	if (wrenGetSlotType(vm, 1) != WREN_TYPE_STRING) {
+		wrenAbort(vm, "arg must be a string");
+		return;
+	}
 
 	int byteLen;
 	const char* bytes = wrenGetSlotBytes(vm, 1, &byteLen);
 
-	int offset = (int)wrenGetSlotDouble(vm, 2);
-
-	if (offset + byteLen > len) {
-		wrenSetSlotString(vm, 0, "string is too large");
-		wrenAbortFiber(vm, 0);
+	if (byteLen > array->length) {
+		wrenAbort(vm, "string is too big");
 	} else {
-		unsigned char* u8 = ARRAY_UINT8(data, offset);
-
-		for (int i = 0; i < byteLen; i++) {
-			u8[i] = bytes[i];
-		}
+		memcpy(array->data, bytes, byteLen);
 	}
 }
 
@@ -245,12 +307,12 @@ static const unsigned char BASE64_CHAR_TO_BYTE[128] = { 0, 0, 0, 0, 0, 0, 0, 0, 
 
 void wren_array_fromBase64(WrenVM* vm) {
 	if (wrenGetSlotType(vm, 1) != WREN_TYPE_STRING) {
-		wrenAbort(vm, "fromBase64(_) must be passed a string");
+		wrenAbort(vm, "args must be a string");
 		return;
 	}
 
 	int n;
-	const char* base64 = wrenGetSlotBytes(vm, 1, &n);
+	const uint8_t* base64 = (const uint8_t*)wrenGetSlotBytes(vm, 1, &n);
 
 	int byteLen = (n * 3) / 4;
 
@@ -263,19 +325,15 @@ void wren_array_fromBase64(WrenVM* vm) {
 			}
 		}
 	}
-	
-	void* array = wrenSetSlotNewForeign(vm, 0, 0, sizeof(unsigned) + byteLen);
-	ARRAY_SET_SIZE(array, byteLen);
 
-	unsigned char* bytes = ARRAY_UINT8(array, 0);
-
+	char* bytes = malloc(byteLen);
 	int byteIndex = 0;
 
 	for (int i = 3; i < n; i += 4) {
-		unsigned char n1 = BASE64_CHAR_TO_BYTE[(unsigned char)base64[i - 3] & 0b1111111];
-		unsigned char n2 = BASE64_CHAR_TO_BYTE[(unsigned char)base64[i - 2] & 0b1111111];
-		unsigned char n3 = BASE64_CHAR_TO_BYTE[(unsigned char)base64[i - 1] & 0b1111111];
-		unsigned char n4 = BASE64_CHAR_TO_BYTE[(unsigned char)base64[i]     & 0b1111111];
+		unsigned char n1 = BASE64_CHAR_TO_BYTE[base64[i - 3] & 0b1111111];
+		unsigned char n2 = BASE64_CHAR_TO_BYTE[base64[i - 2] & 0b1111111];
+		unsigned char n3 = BASE64_CHAR_TO_BYTE[base64[i - 1] & 0b1111111];
+		unsigned char n4 = BASE64_CHAR_TO_BYTE[base64[i]     & 0b1111111];
 
 		bytes[byteIndex    ] = (n1 << 2) + ((n2 & 0b110000) >> 4);
 		bytes[byteIndex + 1] = ((n2 & 0b1111) << 4) + ((n3 & 0b111100) >> 2);
@@ -283,6 +341,10 @@ void wren_array_fromBase64(WrenVM* vm) {
 
 		byteIndex += 3;
 	}
+
+	Array* array = (Array*)wrenSetSlotNewForeign(vm, 0, 0, sizeof(Array));
+	array->data = bytes;
+	array->length = byteLen;
 }
 
 
@@ -467,6 +529,7 @@ WrenForeignClassMethods wren_bindForeignClass(WrenVM* vm, const char* module, co
 			result.finalize = wren_sbFinalize;
 		} else if (strcmp(className, "Array") == 0) {
 			result.allocate = wren_arrayAllocate;
+			result.finalize = wren_arrayFinalize;
 		} else if (strcmp(className, "Color") == 0) {
 			result.allocate = wren_colorAllocate;
 		}
@@ -489,11 +552,12 @@ WrenForeignMethodFn wren_BindForeignMethod(WrenVM* vm, const char* module, const
 				if (strcmp(signature, "fromBase64(_)") == 0) return wren_array_fromBase64;
 			} else {
 				if (strcmp(signature, "count") == 0) return wren_array_count;
+				if (strcmp(signature, "resize(_)") == 0) return wren_array_resize;
 				if (strcmp(signature, "toString") == 0) return wren_array_toString;
 				if (strcmp(signature, "getByte(_)") == 0) return wren_array_uint8_get;
 				if (strcmp(signature, "setByte(_,_)") == 0) return wren_array_uint8_set;
 				if (strcmp(signature, "fillBytes(_)") == 0) return wren_array_uint8_fill;
-				if (strcmp(signature, "copyFromString(_,_)") == 0) return wren_array_copyFromString;
+				if (strcmp(signature, "setFromString(_)") == 0) return wren_array_copyFromString;
 			}
 		} else if (strcmp(className, "Color") == 0) {
 			if (!isStatic) {
@@ -611,5 +675,16 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 // 
 // 		return sock_init();
 // 	}
+
+	void* sock_array_setter_helper(WrenVM* vm, WrenHandle* handle, uint32_t length) {
+		wrenEnsureSlots(vm, 1);
+
+		wrenSetSlotHandle(vm, 0, handle);
+		Array* array = (Array*)wrenGetSlotForeign(vm, 0);
+
+		array_resize(array, length);
+
+		return array->data;
+	}
 
 #endif

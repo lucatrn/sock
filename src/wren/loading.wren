@@ -8,6 +8,23 @@
 // This index format makes it easy to implement loadables in the embedder.
 // The embedder holds a reference to a list and just sets the first item in it.
 
+class LoadingTask {
+	construct new(n, f) {
+		if (!(n is Num && n.isInteger && n > 0)) Fiber.abort("invalid LoadingTask count")
+		_n = n
+		_f = f
+		_i = 0
+	}
+
+	[n] { _p || _i / _n }
+
+	call() {
+		var p = _f.arity == 0 ? _f.call() : _f.call(_i)
+		if (p is Num) _p = p.clamp(0, 1)
+		_i = _i + 1
+	}
+}
+
 class Loading {
 	static init_() {
 		__LOADING = []
@@ -42,21 +59,27 @@ class Loading {
 		__COMPLETED = false
 
 		if (__LOADING.count > 0) {
-			// Update tasks.
+			// Check progress and update tasks.
 			// Try to use only up to 75% of this frame on Task execution.
 			var t = System.clock
 			var dt = 0.75 / (Game.fps || 60)
 
 			for (a in __LOADING) {
 				if (a[0] < 0) Fiber.abort(a[1] || "error loading some asset")
-				if (a is LoadingTask && a[0] < 1) {
+				
+				if (System.clock - t < dt && a is LoadingTask && a[0] < 1) {
 					a.call()
-					if (System.clock - t >= dt) break
+				}
+
+				if (a[0] >= 1 && a is List && a.count >= 3 && a[2]) {
+					a[2].call(a[1])
+					a[2] = null
 				}
 			}
 
 			// Check if all loaded.
 			if (__LOADING.all {|a| a[0] >= 1 }) {
+				// Set finish state.
 				__LOADING.clear()
 				__COMPLETED = true
 			}
@@ -64,21 +87,15 @@ class Loading {
 	}
 }
 
-class LoadingTask {
-	construct new(n, f) {
-		if (!(n is Num && n.isInteger && n > 0)) Fiber.abort("invalid LoadingTask count")
-		_n = n
-		_f = f
-		_i = 0
-	}
-
-	[n] { _p || _i / _n }
-
-	call() {
-		var p = _f.arity == 0 ? _f.call() : _f.call(_i)
-		if (p is Num) _p = p.clamp(0, 1)
-		_i = _i + 1
-	}
-}
-
 Loading.init_()
+
+class Async {
+	construct new() {
+	}
+
+	loader { Loading.add_([ 0, null, Fn.new {|v| _v = v } ]) }
+
+	loader(f) { Loading.add_([ 0, null, Fn.new {|v| _v = f.call(v) } ]) }
+
+	value { _v }
+}

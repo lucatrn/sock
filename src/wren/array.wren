@@ -2,16 +2,11 @@
 foreign class Array is Sequence {
 	construct new(n) {}
 
-	static load(p) {
-		p = Asset.path(Meta.module(1), p)
-		var a = Loading.add_([0, null])
-		Asset.loadString_(a, p)
-		return Value.async(a) {|s| fromString(s) }
-	}
+	static new() { new(0) }
 
 	static fromString(s) {
 		var a = Array.new(s.byteCount)
-		a.copyFromString(s, 0)
+		a.setFromString(s)
 		return a
 	}
 
@@ -25,9 +20,18 @@ foreign class Array is Sequence {
 		return b
 	}
 
+	static load(p) {
+		p = Asset.path(Meta.module(1), p)
+		var a = new()
+		Loading.add_(a.load_(p))
+		return a
+	}
+
 	foreign static fromBase64(s)
 
 	foreign count
+
+	foreign resize(n)
 
 	foreign getByte(i)
 	foreign setByte(i, b)
@@ -59,7 +63,9 @@ foreign class Array is Sequence {
 
 	foreign toString
 
-	foreign copyFromString(s, i)
+	foreign setFromString(s)
+
+	foreign load_(path)
 
 	iterate(i) {
 		i = i ? i + 1 : 0
