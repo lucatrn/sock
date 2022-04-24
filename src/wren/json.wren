@@ -5,8 +5,19 @@
 //#define SKIP z
 //#define MATCH_LITERAL n
 //#define READ_STRING b
+//#define ABORT y
 
 class JSON {
+
+	// === ASSETS ===
+
+	static load(p) {
+		p = Asset.path(Meta.module(1), p)
+		var a = Loading.add_([0, null])
+		Asset.loadString_(a, p)
+		return Value.async(a) {|s| JSON.fromString(s) }
+	}
+
 
 	// === PARSING ===
 
@@ -17,6 +28,7 @@ class JSON {
 	}
 
 	construct new_(s) {
+		_w = s
 		_b = s.bytes
 		_i = 0
 		_n = _b.count
@@ -58,6 +70,11 @@ class JSON {
 		}
 	}
 
+	// Abort and show file info.
+	ABORT(m) {
+		Fiber.abort("%(m) '%(_w[(_i)..(_i + 9).min(_n)].replace("\n", " "))..'")
+	}
+
 	// Parse out JSON value at current position.
 	value() {
 		var c = _b[_i]
@@ -93,7 +110,7 @@ class JSON {
 						break
 					}
 
-					if (!a) Fiber.abort("expect ',' or ']' after array value")
+					if (!a) ABORT("expect ',' or ']' after array value")
 				}
 
 				// Handle custom deserialization.
@@ -120,12 +137,13 @@ class JSON {
 				_i = _i + 1
 			} else {
 				while (true) {
-					if (_b[_i] != 34) Fiber.abort("expected string for object key")
+					if (_b[_i] != 34) ABORT("expected string for object key")
 					var k = READ_STRING()
 					SKIP_AND_CHECK_EOF()
 
 					// Read ':'.
-					if (_b[_i] != 58) Fiber.abort("expected ':' after object key")
+					if (_b[_i] != 58) ABORT("expected ':' after object key")
+					_i = _i + 1
 					SKIP_AND_CHECK_EOF()
 
 					// Get value and save to map.
@@ -146,7 +164,7 @@ class JSON {
 						break
 					}
 
-					if (!a) Fiber.abort("expect ',' or '}' after object value")
+					if (!a) ABORT("expect ',' or '}' after object value")
 				}
 			}
 
@@ -185,7 +203,7 @@ class JSON {
 					}
 				}
 			} else {
-				Fiber.abort("invalid symbol in digit")
+				ABORT("invalid symbol in digit")
 			}
 
 			// Decimal digis.
@@ -212,7 +230,7 @@ class JSON {
 
 					d = d + a/b
 				} else {
-					Fiber.abort("expected digit after '.' in number")
+					ABORT("expected digit after '.' in number")
 				}
 			}
 
@@ -248,7 +266,7 @@ class JSON {
 
 					d = p ? d * e : d / e
 				} else {
-					Fiber.abort("expected digit after exponent in number")
+					ABORT("expected digit after exponent in number")
 				}
 			}
 
@@ -260,7 +278,7 @@ class JSON {
 		if (MATCH_LITERAL("true")) return true
 		if (MATCH_LITERAL("false")) return false
 
-		Fiber.abort("invalid value")
+		ABORT("invalid value")
 	}
 
 	// If we match against the given string literal, skip to end and return true.

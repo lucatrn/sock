@@ -1,8 +1,7 @@
 import "./api/add-all-api.js";
-import { initCursorModule } from "./api/cursor.js";
 import { initTimeModule, updateTimeModule } from "./api/time.js";
 import { fps, gameIsReady, gameUpdate, initGameModule, quitFromAPI } from "./api/game.js";
-import { initAssetModule, updateAssetModule } from "./api/asset.js";
+import { initAssetModule } from "./api/asset.js";
 import { initCameraModule } from "./api/camera.js";
 import { initInputModule, updateInputModule } from "./api/input.js";
 import { httpGET } from "./network/http.js";
@@ -13,7 +12,7 @@ import { canvas } from "./canvas.js";
 import { showError, showWrenError } from "./error.js";
 import { until } from "./async.js";
 import { terminalInterpret } from "./debug/terminal.js";
-import { loadEmscripten, wrenAddImplicitImportModule, wrenErrorString, wrenHasError, wrenInterpret } from "./vm.js";
+import { loadEmscripten, wrenAddImplicitImportModule, wrenCall, wrenErrorString, wrenHasError, wrenInterpret } from "./vm.js";
 import { makeCallHandles } from "./vm-call-handles.js";
 import { initSystemFont } from "./system-font.js";
 
@@ -33,10 +32,13 @@ async function init() {
 	// Load Wren VM.
 	await loadEmscripten();
 
-	initSystemFont();
+	let promSystemFont = initSystemFont();
 	makeCallHandles();
 
+	// wrenCall(0);
+
 	// Load in the "sock" script.
+	await promSystemFont;
 	let sockScript = await promSockScript;
 	
 	let result = wrenInterpret("sock", sockScript);
@@ -52,7 +54,6 @@ async function init() {
 	// Init sock modules.
 	initTimeModule();
 	initAssetModule();
-	initCursorModule();
 	initCameraModule();
 	initGameModule();
 	initInputModule();
@@ -71,8 +72,8 @@ async function init() {
 		return;
 	}
 
-	// Now we wait for Game.ready_() to be called!
-	if (!await until(100, 1000, () => gameIsReady || wrenHasError)) {
+	// Now we wait for Game.ready_() to be called! Or for an error to occurr.
+	if (!await until(100, 60000, () => gameIsReady || wrenHasError)) {
 		finalize("took to long for Game.begin() to be called...");
 		return;
 	}
@@ -101,7 +102,6 @@ function update() {
 	
 			// Update module state.
 			updateTimeModule(frame, time);
-			updateAssetModule();
 			updateInputModule();
 
 			frame++;
@@ -148,10 +148,6 @@ function finalize(error) {
 		showWrenError();
 	}
 }
-
-addEventListener("keydown", (event) => {
-	if (event.code === "F4") quit = true;
-}, { passive: true });
 
 init();
 

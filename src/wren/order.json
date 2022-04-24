@@ -1,5 +1,7 @@
 [
 	"common",
+	"value",
+	"asset",
 	"array",
 	"stringbuilder",
 	"vector",
@@ -9,11 +11,11 @@
 	"time",
 	"game",
 	"input",
-	"cursor",
-	"asset",
+	"loading",
 	"camera",
+	"sprite",
 	"graphics",
-	"polygon",
+	"text",
 	"json",
 	""
 ]

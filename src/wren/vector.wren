@@ -49,7 +49,7 @@ class Vec {
 	+ (v) { new(_x + v.x, _y + v.y ) }
 	- (v) { new(_x - v.x, _y - v.y ) }
 	* (a) { a is Num ? new(_x * a, _y * a) : dot(a) }
-	/ (k) { new(_x / k, _y / k ) }
+	/ (k) { Vec.new(_x / k, _y / k ) }
 	== (v) { v is Vec && _x == v.x && _y == v.y }
 
 	dot(v) { _x*v.x + _y*v.y }

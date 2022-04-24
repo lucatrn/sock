@@ -23,8 +23,8 @@ export class Texture {
 		this.texture = null;
 	}
 
-	get name() {
-		return this.texture ? String(this.texture) : "?";
+	name() {
+		return "Texture";
 	}
 
 	/**
@@ -103,7 +103,7 @@ export class Texture {
 			}
 
 			if (warn.length > 0) {
-				console.warn(`Forced settings on non power-of-two texture "${this.name}": ${warn.join(", ")}.\nThe texture would not function properly otherwise, see https://www.khronos.org/webgl/wiki/WebGL_and_OpenGL_Differences#Non-Power_of_Two_Texture_Support`);
+				console.warn(`Forced settings on non power-of-two texture "${this.name()}": ${warn.join(", ")}.\nThe texture would not function properly otherwise, see https://www.khronos.org/webgl/wiki/WebGL_and_OpenGL_Differences#Non-Power_of_Two_Texture_Support`);
 			}
 		}
 		

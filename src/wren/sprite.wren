@@ -2,20 +2,26 @@
 foreign class Sprite is Asset {
 	construct new() {}
 
-	static get(p) {
-		var s = new()
-		s.get(Asset.resolvePath(Meta.module(1), p))
+	static load(p) {
+		p = Asset.path(Meta.module(1), p)
+		var s = Loading.add_(new())
+		s.load_(p)
 		return s
 	}
 
-	get(path) { System.print(path) }
-	// foreign get_(path) {}
+	foreign load_(path)
 
-	foreign path
+	// foreign loadPixels_(pixels)
 
-	foreign bytesLoaded
+	foreign progress
+	
+	foreign error
 
-	foreign byteSize
+	// Enable Sprite to be used as progress object.
+	[n] {
+		if (n == 0) return progress
+		if (n == 1) return error
+	}
 
 
 	// Texture properties.
@@ -33,8 +39,6 @@ foreign class Sprite is Asset {
 	foreign wrapMode
 
 	foreign wrapMode=(n)
-
-	toString { "Sprite:%(path)" }
 
 
 	// Batching API
@@ -85,6 +89,8 @@ foreign class Sprite is Asset {
 
 	// Drawing API
 
+	draw(a) { draw(a.x, a.y) }
+
 	draw(x, y) { draw_(x, y, width, height, 0xffffffff) }
 
 	draw(x, y, c) { draw_(x, y, width, height, c is Num ? c : c.uint32) }
@@ -121,4 +127,6 @@ foreign class Sprite is Asset {
 	foreign static defaultWrapMode
 
 	foreign static defaultWrapMode=(n)
+
+	foreign toString
 }

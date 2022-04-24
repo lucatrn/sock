@@ -1,12 +1,11 @@
 
-class Text is Asset {
-	construct get(path) {}
+class Text {
 
-	text { _text }
-	
-	toString { _text }
+	static load(p) {
+		p = Asset.path(Meta.module(1), p)
+		var a = Loading.add_([0, null])
+		Asset.loadString_(a, p)
+		return Value.async(a)
+	}
 
-	foreign load_()
-
-	load_(text) { _text = text }
 }

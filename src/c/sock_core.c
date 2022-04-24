@@ -511,7 +511,7 @@ WrenForeignMethodFn wren_BindForeignMethod(WrenVM* vm, const char* module, const
 			}
 		} else if (strcmp(className, "Asset") == 0) {
 			if (isStatic) {
-				if (strcmp(signature, "resolvePath(_,_)") == 0) return wren_Asset_resolvePath;
+				if (strcmp(signature, "path(_,_)") == 0) return wren_Asset_resolvePath;
 			}
 		}
 	}

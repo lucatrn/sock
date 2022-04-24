@@ -8,17 +8,17 @@ import sockEmscriptenFactory from "../js-generated/sock_c.js";
  */
 export let Module;
 
-/**
- * Emscripten heap as bytes.
- * @type {Uint8Array}
- */
-export let HEAPU8;
+export function HEAP() {
+	return Module.HEAPU8.buffer;
+}
 
-/**
- * Emscripten heap as doubles.
- * @type {Float64Array}
- */
-export let HEAPF64;
+export function HEAPU8() {
+	return Module.HEAPU8;
+}
+
+export function HEAPF64() {
+	return Module.HEAPF64;
+}
 
 /**
  * Used to accumlate Wren writes.
@@ -40,10 +40,6 @@ export let vm;
 export async function loadEmscripten() {
 	// Load the Emscripten module.
 	Module = await sockEmscriptenFactory();
-
-	// Get heap arrays.
-	HEAPU8 = Module.HEAPU8;
-	HEAPF64 = Module.HEAPF64;
 
 	// Setup [Module.sock] object.
 	// This is used by [src/js-esm/library.js] to enable C->JS communication.
@@ -89,12 +85,15 @@ export async function loadEmscripten() {
 
 				s = `[WREN COMPILE ERROR]\n${message}\n  at ${formatModuleLineTrace(moduleName, lineNumber)}`;
 
+				wrenErrorStack = [];
 				wrenErrorStack.push([ moduleName, lineNumber, null ]);
 			} else if (type === 1) {
 				// Runtime error.
 				wrenErrorMessage = message;
 
 				s = "[WREN RUNTIME ERROR]\n" + message;
+
+				wrenErrorStack = [];
 			} else if (type === 2) {
 				// Stack trace
 				s = `  at ${message} ${formatModuleLineTrace(moduleName, lineNumber)}`;
@@ -267,11 +266,13 @@ export function getSlotBytes(slot) {
 		[vm, slot, lenPtr]
 	);
 
-	let length = new Int32Array(HEAPU8.buffer, lenPtr)[0];
+	let heap = HEAP();
+
+	let length = new Int32Array(heap, lenPtr)[0];
 
 	Module.stackRestore(stack);
 
-	return new Uint8Array(HEAPU8.buffer, ptr, length);
+	return new Uint8Array(heap, ptr, length);
 }
 
 /**
@@ -280,6 +281,69 @@ export function getSlotBytes(slot) {
  */
 export function wrenGetSlotDouble(slot) {
 	return Module.ccall("wrenGetSlotDouble",
+		"number",
+		["number", "number"],
+		[vm, slot]
+	);
+}
+
+/**
+ * @param {number} slot
+ * @returns {number}
+ */
+export function wrenGetListCount(slot) {
+	return Module.ccall("wrenGetListCount",
+		"number",
+		["number", "number"],
+		[vm, slot]
+	);
+}
+
+/**
+ * @param {number} listSlot
+ * @param {number} index
+ * @param {number} elementSlot
+ */
+export function wrenGetListElement(listSlot, index, elementSlot) {
+	Module.ccall("wrenGetListElement",
+		null,
+		["number", "number", "number", "number"],
+		[vm, listSlot, index, elementSlot]
+	);
+}
+
+/**
+ * @param {number} listSlot
+ * @param {number} index
+ * @param {number} elementSlot
+ */
+export function wrenSetListElement(listSlot, index, elementSlot) {
+	Module.ccall("wrenSetListElement",
+		null,
+		["number", "number", "number", "number"],
+		[vm, listSlot, index, elementSlot]
+	);
+}
+
+/**
+ * @param {number} listSlot
+ * @param {number} index
+ * @param {number} elementSlot
+ */
+export function wrenInsertInList(listSlot, index, elementSlot) {
+	Module.ccall("wrenInsertInList",
+		null,
+		["number", "number", "number", "number"],
+		[vm, listSlot, index, elementSlot]
+	);
+}
+
+/**
+ * @param {number} slot
+ * @returns {number}
+ */
+export function wrenGetSlotForeign(slot) {
+	return Module.ccall("wrenGetSlotForeign",
 		"number",
 		["number", "number"],
 		[vm, slot]
@@ -308,6 +372,17 @@ export function wrenGetVariable(moduleName, name, slot) {
 		null,
 		["number", "string", "string", "number"],
 		[vm, moduleName, name, slot]
+	);
+}
+
+/**
+ * @param {number} slot
+ */
+export function wrenSetSlotNull(slot) {
+	Module.ccall("wrenSetSlotNull",
+		null,
+		["number", "number"],
+		[vm, slot]
 	);
 }
 
@@ -376,6 +451,30 @@ export function wrenSetSlotHandle(slot, handle) {
 }
 
 /**
+ * @param {number} slot
+ * @param {number} classSlot
+ * @param {number} size
+ */
+export function wrenSetSlotNewForeign(slot, classSlot, size) {
+	return Module.ccall("wrenSetSlotNewForeign",
+		"number",
+		["number", "number", "number", "number"],
+		[vm, slot, classSlot, size]
+	);
+}
+
+/**
+ * @param {number} slot
+ */
+export function wrenSetSlotNewList(slot) {
+	Module.ccall("wrenSetSlotNewList",
+		"number",
+		["number", "number"],
+		[vm, slot]
+	);
+}
+
+/**
  * @param {number} callHandle
  * @returns {WrenInterpretResult}
  */
@@ -396,6 +495,37 @@ export function wrenAddImplicitImportModule(moduleName) {
 		["number", "string"],
 		[vm, moduleName]
 	);
+}
+
+/**
+ * @param {number} handle
+ */
+export function wrenReleaseHandle(handle) {
+	Module.ccall("wrenReleaseHandle",
+		null,
+		["number", "number"],
+		[vm, handle]
+	);
+}
+
+/**
+ * @param {number} slot
+ */
+export function wrenAbortFiber(slot) {
+	Module.ccall("wrenAbortFiber",
+		null,
+		["number", "number"],
+		[vm, slot]
+	);
+}
+
+/**
+ * @param {string} message
+ */
+export function abortFiber(message) {
+	wrenEnsureSlots(1);
+	wrenSetSlotString(0, message);
+	wrenAbortFiber(0);
 }
 
 /**
@@ -440,16 +570,7 @@ export let wrenErrorString = null;
  * Provides the module name, line number, location to the wren file at the top of the error stack.
  * @type {[string, number, string|null][]}
  */
-export let wrenErrorStack = [];
-
-/**
- * @param {string} message
- */
-export function abortFiber(message) {
-	// vm.ensureSlots(1);
-	// vm.setSlotString(0, message);
-	// vm.abortFiber(0);
-}
+export let wrenErrorStack;
 
 /**
  * @param {string} name
@@ -494,10 +615,12 @@ function stackAllocUTF8ArrayAsCString(arraySource) {
 	
 	let ptr = Module.stackAlloc(len);
 
-	HEAPU8.set(src, ptr);
+	let u8 = HEAPU8();
+
+	u8.set(src, ptr);
 
 	if (!nullTerminated) {
-		HEAPU8[ptr + len - 1] = 0;
+		u8[ptr + len - 1] = 0;
 	}
 
 	return ptr;

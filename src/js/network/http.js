@@ -2,7 +2,7 @@
 /**
  * @param {string} url
  * @param {XMLHttpRequestResponseType} type
- * @param {(loaded: number, total: number) => void} [progressCallback]
+ * @param {(progress: number) => void} [progressCallback]
  * @returns {Promise<any>}
  */
 export function httpGET(url, type, progressCallback) {
@@ -15,7 +15,7 @@ export function httpGET(url, type, progressCallback) {
 		if (progressCallback) {
 			xhr.onprogress = (event) => {
 				if (event.lengthComputable) {
-					progressCallback(event.loaded, event.total)
+					progressCallback(event.loaded / event.total)
 				}
 			};
 		}

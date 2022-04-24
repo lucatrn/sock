@@ -10,6 +10,8 @@ class Game {
 	
 	static height { __size.y }
 
+	static center { __size / 2 }
+
 	static size=(v) {
 		if (v == null) {
 			if (__fixed) {
@@ -62,6 +64,10 @@ class Game {
 
 	foreign static layoutChanged_(x, y, fixed, pp, maxs)
 
+	foreign static cursor
+	
+	foreign static cursor=(s)
+
 	static print(s) {
 		__drawY = 16 + print_(s.toString, __drawX, __drawY)
 	}
@@ -103,20 +109,22 @@ class Game {
 	}
 
 	static begin(fn) {
-		if (fn is Fn) {
-			if (fn.arity == 0) {
-				__fn = fn
-				ready_()
-			} else {
-				Fiber.abort("update function must have no arguments")
-			}
-		} else {
-			Fiber.abort("update function is %(fn.type), should be a Fn")
-		}
+		if (__fn) Fiber.abort("Game.begin() alread called")
+		if (!(fn is Fn)) Fiber.abort("update function is %(fn.type), should be a Fn")
+		if (fn.arity != 0) Fiber.abort("update function must have no arguments")
+		
+		__fn = fn
+		ready_()
 	}
 
 	static update_() {
+		if (Input.held("F4")) quit()
+
+		// Init print location.
 		__drawX = __drawY = 4
+
+		// Update modules.
+		Loading.update_()
 
 		if (__fn) __fn.call()
 		ready_()

@@ -36,28 +36,22 @@ export function showWrenError() {
 	for (let i = 0; i < wrenErrorStack.length; i++) {
 		let [moduleName, lineNumber, location] = wrenErrorStack[i];
 
-		if (isSockUpdateStackTraceLine(moduleName, location)) {
-			messageElement.append(
-				createElement("div", {}, "  in sock update")
-			);
-		} else {
-			let name = moduleName[0] === "/" ? moduleName.slice(1) : moduleName;
-	
-			let stackEl = createElement("div", {}, [
-				location ? `  ${location} at ` : `  at `,
-				createElement("a", { href: getModulePath(moduleName), onclick: onclick }, name + ":" + lineNumber),
-			]);
-	
-			/**
-			 * @param {MouseEvent} event
-			 */
-			function onclick(event) {
-				event.preventDefault();
-				showScript(i);
-			}
+		let name = moduleName[0] === "/" ? moduleName.slice(1) : moduleName;
 
-			messageElement.append(stackEl);
+		let stackEl = createElement("div", {}, [
+			location ? `  ${location} at ` : `  at `,
+			createElement("a", { href: getModulePath(moduleName), onclick: onclick }, name + ":" + lineNumber),
+		]);
+
+		/**
+		 * @param {MouseEvent} event
+		 */
+		function onclick(event) {
+			event.preventDefault();
+			showScript(i);
 		}
+
+		messageElement.append(stackEl);
 	}
 
 
@@ -65,7 +59,7 @@ export function showWrenError() {
 
 	document.body.append(outerElement);
 
-	let scriptElement, scriptTitleElement;
+	let shownScript, scriptElement, scriptTitleElement, lineNumbers, lines, targetLine, targetLineNum;
 
 	showScript(0);
 	
@@ -73,53 +67,66 @@ export function showWrenError() {
 	 * @param {number} stackIndex
 	 */
 	async function showScript(stackIndex) {
-		if (scriptElement) {
-			scriptElement.remove();
-		}
-		if (scriptTitleElement) {
-			scriptTitleElement.remove();
+		let [ moduleName, lineNumber  ] = wrenErrorStack[stackIndex];
+		
+		if (shownScript !== moduleName) {
+			if (scriptElement) {
+				scriptElement.remove();
+			}
+			if (scriptTitleElement) {
+				scriptTitleElement.remove();
+			}
+
+			let url = getModulePath(moduleName);
+		
+			let source = await (await fetch(url)).text();
+	
+			shownScript = moduleName;
+	
+			let sourceLines = source.split(/\r\n|\n/);
+			
+			// Re-format sock script.
+			if (moduleName === "sock") {
+				let indent = 0;
+				sourceLines = sourceLines.map(line => {
+					if (line[0] === "}") indent--;
+	
+					let newLine = "\t".repeat(indent) + line;
+	
+					if (line[0] !== "}" && line.endsWith("}")) indent--;
+					if (line.includes("{")) indent++;
+	
+					return newLine;
+				});
+			}
+		
+			lineNumbers = [];
+			lines = [];
+		
+			for (let i = 0; i < sourceLines.length; i++) {
+				lineNumbers.push(createElement("div", {}, 1 + i));
+				lines.push(createElement("div", {}, sourceLines[i] || "\u00A0"));
+			}
+		
+			outerElement.append(
+				scriptTitleElement = createElement("div", { class: "code-name" }, moduleName + ".wren"),
+				scriptElement = createElement("div", { class: "code" }, [
+					createElement("pre", { class: "code-lines" }, lineNumbers),
+					createElement("pre", { class: "code-source" }, lines),
+				])
+			);
 		}
 
-		let [ moduleName, lineNumber ] = wrenErrorStack[stackIndex];
+		// Highlight line and scroll to.
+		if (targetLine) {
+			targetLine.className = targetLineNum.className = "";
+		}
 
-		let url = getModulePath(moduleName);
-	
-		let source = await (await fetch(url)).text();
-	
-		let lineCount = 0;
-		let i = 0;
-		while (i < source.length) {
-			lineCount++;
-			i = source.indexOf("\n", i);
-			if (i < 0) {
-				break;
-			}
-			i++;
-		}
-	
-		let lineNumbers = [];
-		let targetLineNum;
-	
-		for (let i = 1; i <= lineCount; i++) {
-			let lineNum = createElement("div", {}, i);
-	
-			if (i === lineNumber) {
-				targetLineNum = lineNum;
-				lineNum.className = "code-target";
-			}
-	
-			lineNumbers.push(lineNum);
-		}
-	
-		outerElement.append(
-			scriptTitleElement = createElement("div", { class: "code-name" }, moduleName.slice(1) + ".wren"),
-			scriptElement = createElement("div", { class: "code" }, [
-				createElement("pre", { class: "code-lines" }, lineNumbers),
-				createElement("pre", { class: "code-source" }, source),
-			])
-		);
-	
-		if (targetLineNum) {
+		targetLine = lines[lineNumber - 1];
+		targetLineNum = lineNumbers[lineNumber - 1];
+
+		if (targetLine) {
+			targetLine.className = targetLineNum.className = "code-target";
 			targetLineNum.scrollIntoView({ block: "center" });
 		}
 	}
@@ -134,16 +141,4 @@ function getModulePath(name) {
 	}
 
 	return name + ".wren"
-}
-
-/**
- * @param {string} moduleName
- * @param {string} info
- */
-function isSockUpdateStackTraceLine(moduleName, info) {
-	if (moduleName === "sock" && info) {
-		return info.includes("update_()");
-	}
-
-	return false;
 }

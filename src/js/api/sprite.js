@@ -4,50 +4,65 @@ import { gl } from "../gl/gl.js";
 import { SpriteBatcher } from "../gl/sprite-batcher.js";
 import { Texture } from "../gl/texture.js";
 import { httpGETImage } from "../network/http.js";
-import { abortFiber, vm } from "../vm.js";
+import { abortFiber, vm, wrenEnsureSlots, wrenGetSlotDouble, wrenGetSlotForeign, wrenGetSlotString, wrenGetSlotType, wrenInsertInList, wrenSetSlotDouble, wrenSetSlotNewForeign, wrenSetSlotNewList, wrenSetSlotNull, wrenSetSlotString } from "../vm.js";
 
 let defaultFilter = gl.NEAREST;
 let defaultWrap = gl.CLAMP_TO_EDGE;
 
 class Sprite extends Texture {
 	/**
-	 * @param {string} path
+	 * @param {number} ptr
 	 */
-	constructor(path) {
+	constructor(ptr) {
 		super(defaultFilter, defaultWrap);
 
-		this.path = path;
-		this.progress = null;
+		/**
+		 * Foreign slot pointer.
+		 */
+		this.ptr = ptr;
+
+		/** @type {string} */
+		this.path = null;
+
 		/** @type {SpriteBatcher|null} */
 		this.batcher = null;
+
 		/**
-		 * Transform origin
+		 * Load progress [0..1].
+		 */
+		this.progress = 0;
+
+		/**
+		 * @type {string}
+		 */
+		this.error = null;
+
+		/**
+		 * Transform origin.
 		 * @type {number[]|null}
 		 */
 		this.tfo = null;
+
 		/**
-		 * Transform
+		 * Transform matrix.
 		 * @type {number[]}
 		 */
 		this.tf = null;
 	}
 
-	get name() {
-		return this.path;
+	name() {
+		return this.path || "Sprite#" + this.ptr;
 	}
 
 	async loadFromPath() {
-		if (this.progress == null) {
-			this.progress = 0;
-
-			let source = await httpGETImage(resolveAssetPath(this.path));
-			if (source == null) {
-				console.error("failed to load sprite " + this.path);
-			} else {
-				this.load(source);
-	
-				this.progress = this.size;
-			}
+		let source = await httpGETImage("assets" + this.path);
+		
+		if (source == null) {
+			this.error = `failed to load sprite ${this.path}`;
+			this.progress = -1;
+		} else {
+			this.load(source);
+			this.progress = 1;
 		}
 	}
 
@@ -88,58 +103,75 @@ function getTempBatcher() {
 }
 
 
-/** @type {Map<number, Sprite>} */
+/**
+ * Maps foreign C pointer to Sprite object.
+ * @type {Map<number, Sprite>}
+ */
 let sprites = new Map();
 
+/**
+ * Gets the current Sprite in slot 0.
+ * @returns {Sprite}
+ */
 function getSprite() {
-	return sprites.get(vm.getSlotForeign(0));
+	return sprites.get(wrenGetSlotForeign(0));
 }
 
 
-addForeignClass("sock", "Sprite", {
-	allocate() {
-		let path = vm.getSlotString(1);
-		let ptr = vm.setSlotNewForeign(0, 0, 0);
+addForeignClass("sock", "Sprite", [
+	() => {
+		let ptr = wrenSetSlotNewForeign(0, 0, 0);
 
-		let tex = new Sprite(path);
+		let tex = new Sprite(ptr);
 
 		sprites.set(ptr, tex);
 	},
-	finalize(ptr) {
+	(ptr) => {
 		let tex = sprites.get(ptr);
 		tex.free();
 		sprites.delete(ptr);
 	},
-}, {
-	"path"() {
-		vm.setSlotString(0, getSprite().path);
-	},
+], {
 	"width"() {
-		vm.setSlotDouble(0, getSprite().width);
+		wrenSetSlotDouble(0, getSprite().width);
 	},
 	"height"() {
-		vm.setSlotDouble(0, getSprite().height);
+		wrenSetSlotDouble(0, getSprite().height);
 	},
-	"bytesLoaded"() {
-		vm.setSlotDouble(0, getSprite().progress || 0);
+	"progress"() {
+		wrenSetSlotDouble(0, getSprite().progress);
 	},
-	"byteSize"() {
-		vm.setSlotDouble(0, getSprite().size);
+	"error"() {
+		let error = getSprite().error;
+		if (error) {
+			wrenSetSlotString(0, error);
+		} else {
+			wrenSetSlotNull(0);
+		}
 	},
-	async "load_()"() {
-		getSprite().loadFromPath();
+	async "load_(_)"() {
+		if (wrenGetSlotType(1) !== 6) {
+			abortFiber("path must be a string");
+			return;
+		}
+
+		let spr = getSprite();
+
+		spr.path = wrenGetSlotString(1);
+
+		spr.loadFromPath();
 	},
 	"scaleFilter"() {
-		vm.setSlotString(0, glFilterNumberToString(getSprite().filter));
+		wrenSetSlotString(0, glFilterNumberToString(getSprite().filter));
 	},
 	"scaleFilter=(_)"() {
-		getSprite().setFilter(glFilterStringToNumber(vm.getSlotString(1)));
+		getSprite().setFilter(glFilterStringToNumber(wrenGetSlotString(1)));
 	},
 	"wrapMode"() {
-		vm.setSlotString(0, glWrapModeNumberToString(getSprite().wrap));
+		wrenSetSlotString(0, glWrapModeNumberToString(getSprite().wrap));
 	},
 	"wrapMode=(_)"() {
-		getSprite().setWrap(glWrapModeStringToNumber(vm.getSlotString(1)));
+		getSprite().setWrap(glWrapModeStringToNumber(wrenGetSlotString(1)));
 	},
 	"beginBatch()"() {
 		let spr = getSprite();
@@ -161,31 +193,31 @@ addForeignClass("sock", "Sprite", {
 		let spr = getSprite();
 
 		if (spr.tf == null) {
-			vm.setSlotNull(0);
+			wrenSetSlotNull(0);
 		} else {
-			vm.ensureSlots(2);
-			vm.setSlotNewList(0);
+			wrenEnsureSlots(2);
+			wrenSetSlotNewList(0);
 	
 			for (let i = 0; i < 6; i++) {
-				vm.setSlotDouble(1, spr.tf[i]);
-				vm.insertInList(0, -1, 1);
+				wrenSetSlotDouble(1, spr.tf[i]);
+				wrenInsertInList(0, -1, 1);
 			}
 		}
 	},
 	"setTransform_(_,_,_,_,_,_)"() {
 		let spr = getSprite();
-		let n0 = vm.getSlotDouble(1);
+		let n0 = wrenGetSlotDouble(1);
 
 		if (isNaN(n0)) {
 			spr.tf = null;
 		} else {
 			spr.tf = [
 				n0,
-				vm.getSlotDouble(2),
-				vm.getSlotDouble(3),
-				vm.getSlotDouble(4),
-				vm.getSlotDouble(5),
-				vm.getSlotDouble(6),
+				wrenGetSlotDouble(2),
+				wrenGetSlotDouble(3),
+				wrenGetSlotDouble(4),
+				wrenGetSlotDouble(5),
+				wrenGetSlotDouble(6),
 			];
 		}
 	},
@@ -193,37 +225,37 @@ addForeignClass("sock", "Sprite", {
 		let spr = getSprite();
 
 		if (spr.tfo == null) {
-			vm.setSlotNull(0);
+			wrenSetSlotNull(0);
 		} else {
-			vm.ensureSlots(2);
-			vm.setSlotNewList(0);
+			wrenEnsureSlots(2);
+			wrenSetSlotNewList(0);
 	
 			for (let i = 0; i < 2; i++) {
-				vm.setSlotDouble(1, spr.tfo[i]);
-				vm.insertInList(0, -1, 1);
+				wrenSetSlotDouble(1, spr.tfo[i]);
+				wrenInsertInList(0, -1, 1);
 			}
 		}
 	},
 	"setTransformOrigin(_,_)"() {
 		let spr = getSprite();
-		let n0 = vm.getSlotDouble(1);
+		let n0 = wrenGetSlotDouble(1);
 
 		if (isNaN(n0)) {
 			spr.tfo = null;
 		} else {
 			spr.tfo = [
 				n0,
-				vm.getSlotDouble(2),
+				wrenGetSlotDouble(2),
 			];
 		}
 	},
 	"draw_(_,_,_,_,_)"() {
 		let spr = getSprite();
-		let x1 = vm.getSlotDouble(1);
-		let y1 = vm.getSlotDouble(2);
-		let x2 = x1 + vm.getSlotDouble(3);
-		let y2 = y1 + vm.getSlotDouble(4);
-		let c = vm.getSlotDouble(5);
+		let x1 = wrenGetSlotDouble(1);
+		let y1 = wrenGetSlotDouble(2);
+		let x2 = x1 + wrenGetSlotDouble(3);
+		let y2 = y1 + wrenGetSlotDouble(4);
+		let c = wrenGetSlotDouble(5);
 
 		let bat = spr.batcher || getTempBatcher().begin(spr);
 
@@ -233,15 +265,15 @@ addForeignClass("sock", "Sprite", {
 	},
 	"draw_(_,_,_,_,_,_,_,_,_)"() {
 		let spr = getSprite();
-		let x1 = vm.getSlotDouble(1);
-		let y1 = vm.getSlotDouble(2);
-		let x2 = x1 + vm.getSlotDouble(3);
-		let y2 = y1 + vm.getSlotDouble(4);
-		let u1 = vm.getSlotDouble(5) / spr.width;
-		let v1 = vm.getSlotDouble(6) / spr.height;
-		let u2 = u1 + vm.getSlotDouble(7) / spr.width;
-		let v2 = v1 + vm.getSlotDouble(8) / spr.height;
-		let c = vm.getSlotDouble(9);
+		let x1 = wrenGetSlotDouble(1);
+		let y1 = wrenGetSlotDouble(2);
+		let x2 = x1 + wrenGetSlotDouble(3);
+		let y2 = y1 + wrenGetSlotDouble(4);
+		let u1 = wrenGetSlotDouble(5) / spr.width;
+		let v1 = wrenGetSlotDouble(6) / spr.height;
+		let u2 = u1 + wrenGetSlotDouble(7) / spr.width;
+		let v2 = v1 + wrenGetSlotDouble(8) / spr.height;
+		let c = wrenGetSlotDouble(9);
 
 		let bat = spr.batcher || getTempBatcher().begin(spr);
 
@@ -249,20 +281,23 @@ addForeignClass("sock", "Sprite", {
 
 		if (!spr.batcher) bat.end();
 	},
+	"toString"() {
+		wrenSetSlotString(0, getSprite().name());
+	}
 }, {
 	"defaultScaleFilter"() {
-		vm.setSlotString(0, glFilterNumberToString(defaultFilter));
+		wrenSetSlotString(0, glFilterNumberToString(defaultFilter));
 	},
 	"defaultScaleFilter=(_)"() {
-		let name = vm.getSlotString(1);
+		let name = wrenGetSlotString(1);
 		
 		defaultFilter = glFilterStringToNumber(name);
 	},
 	"defaultWrapMode"() {
-		vm.setSlotString(0, glWrapModeNumberToString(defaultWrap));
+		wrenSetSlotString(0, glWrapModeNumberToString(defaultWrap));
 	},
 	"defaultWrapMode=(_)"() {
-		let name = vm.getSlotString(1);
+		let name = wrenGetSlotString(1);
 
 		defaultWrap = glWrapModeStringToNumber(name);
 	},

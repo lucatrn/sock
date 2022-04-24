@@ -5,6 +5,7 @@ import { SpriteBatcher } from "./gl/sprite-batcher.js";
 import { httpGETImage } from "./network/http.js";
 import { loadCameraMatrix, saveCameraMatrix, setCameraMatrixTopLeft } from "./api/camera.js";
 import { Color } from "./color.js";
+import { computedLayout } from "./layout.js";
 
 // TODO: most of this file will end up in C eventually.
 
@@ -24,7 +25,7 @@ let systemFontSpriteBatcher;
 
 export async function initSystemFont() {
 	let ptr = Module.ccall("sock_font", "number");
-	let url = URL.createObjectURL(new Blob([ HEAPU8.subarray(ptr, ptr + FONT_BYTE_SIZE) ], { type: "image/gif" }));
+	let url = URL.createObjectURL(new Blob([ HEAPU8().subarray(ptr, ptr + FONT_BYTE_SIZE) ], { type: "image/gif" }));
 
 	try {
 		let img = await httpGETImage(url);
@@ -58,6 +59,7 @@ export function systemFontDraw(s, cornerX, cornerY, color) {
 
 	let dx = cornerX;
 	let dy = cornerY;
+	let screenWidth = computedLayout.rw - 8;
 
 	for (let i = 0; i < s.length; i++) {
 		let c = s[i];
@@ -68,7 +70,9 @@ export function systemFontDraw(s, cornerX, cornerY, color) {
 		} else if (c === 10) {
 			// Newline
 			dx = cornerX;
-			dy += 12;
+			dy += 14;
+		} else if (c == 13) {
+			// Carriage return
 		} else if (c == 32) {
 			// Space
 			dx += 6;
@@ -91,6 +95,11 @@ export function systemFontDraw(s, cornerX, cornerY, color) {
 			);
 	
 			dx += 6;
+		}
+
+		if (dx >= screenWidth) {
+			dx = cornerX;
+			dy += 14;
 		}
 	}
 

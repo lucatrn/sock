@@ -19,7 +19,7 @@ mergeInto(LibraryManager.library, {
 			let [allocate, finalize] = fns;
 
 			if (allocate) {
-				let u32 = new Uint32Array(this.heap, methods);
+				let u32 = new Uint32Array(Module.HEAP8.buffer, methods);
 
 				u32[0] = Module.addFunction(allocate, "vi");
 

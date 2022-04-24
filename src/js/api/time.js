@@ -14,7 +14,7 @@ export function initTimeModule() {
  * @param {number} time
  */
 export function updateTimeModule(frame, time) {
-	wrenEnsureSlots(2);
+	wrenEnsureSlots(3);
 	wrenSetSlotHandle(0, handle_Time);
 	wrenSetSlotDouble(1, frame);
 	wrenSetSlotDouble(2, time);

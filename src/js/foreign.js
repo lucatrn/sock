@@ -96,5 +96,5 @@ let foreignMethods = {};
 let foreignClasses = {};
 
 /**
- * @typedef {[() => void, () => void]} ForeignClassMethods
+ * @typedef {[() => void, (ptr: number) => void]} ForeignClassMethods
  */

@@ -1,3 +1,4 @@
+import { canvas } from "../canvas.js";
 import { Color } from "../color.js";
 import { addClassForeignStaticMethods } from "../foreign.js";
 import { glFilterStringToNumber } from "../gl/api.js";
@@ -14,6 +15,7 @@ let title = document.title;
 export let fps = 60;
 export let quitFromAPI = false;
 export let gameIsReady = false;
+let cursor = "default";
 let printColor = 0xffffffff;
 
 addClassForeignStaticMethods("sock", "Game", {
@@ -52,6 +54,29 @@ addClassForeignStaticMethods("sock", "Game", {
 	"fps=(_)"() {
 		fps = wrenGetSlotDouble(1);
 	},
+	"cursor"() {
+		wrenSetSlotString(0, cursor);
+	},
+	"cursor=(_)"() {
+		let type = wrenGetSlotType(1);
+		if (type === 5) {
+			cursor = "default";
+		} else if (type === 6) {
+			let name = wrenGetSlotString(1);
+			
+			if (!cursorSockToCSS.hasOwnProperty(name)) {
+				abortFiber(`invalid cursor type "${name}"`);
+				return;
+			}
+
+			cursor = name;
+		} else {
+			abortFiber("cursor must be null or a string");
+			return;
+		}
+
+		canvas.style.cursor = cursorSockToCSS[cursor] || cursor;
+	},
 	"quit_()"() {
 		quitFromAPI = true;
 	},
@@ -61,6 +86,7 @@ addClassForeignStaticMethods("sock", "Game", {
 	"print_(_,_,_)"() {
 		if (wrenGetSlotType(1) !== 6 || wrenGetSlotType(2) !== 1 || wrenGetSlotType(3) !== 1) {
 			abortFiber("invalid Game.print arguments");
+			return;
 		}
 
 		let bytes = getSlotBytes(1);
@@ -73,8 +99,20 @@ addClassForeignStaticMethods("sock", "Game", {
 	},
 	"setPrintColor_(_)"() {
 		printColor = wrenGetSlotDouble(1);
-	}
+	},
 });
+
+/**
+ * Mapping from Sock cursor name to CSS cursor name.
+ * `""` indicates a 1:1 mapping.
+ * @type {Record<string, string>}
+ */
+let cursorSockToCSS = {
+	"none": "",
+	"default": "",
+	"pointer": "",
+	"wait": "progress",
+};
 
 
 // JS -> Wren
