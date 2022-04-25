@@ -111,32 +111,32 @@ class Input {
 Input.init_()
 
 class InputState {
-	construct new(value) {
+	construct new(v) {
 		// Value 0..1
-		_value = value
+		_v = v
 		// Frame the value last moved across [Input.holdCutoff]
-		_frame = 0
+		_t = Time.frame
 	}
 
-	value { _value }
+	value { _v }
 
-	held { _value > Input.holdCutoff }
+	held { _v > Input.holdCutoff }
 
-	pressed { _frame == Time.frame && held }
+	pressed { _t == Time.frame && held }
 
 	pressed(repeatDelay, repeatStartDelay) {
 		if (held) {
-			var t = Time.frame - _frame - repeatStartDelay
+			var t = Time.frame - _t - repeatStartDelay
 			return t >= 0 && (t % repeatDelay) == 0
 		}
 		return false
 	}
 
-	released { _frame == Time.frame && !held }
+	released { _t == Time.frame && !held }
 
-	update(value) {
+	update(v) {
 		var wasHeld = held
-		_value = value
-		if (wasHeld != held) _frame = Time.frame
+		_v = v
+		if (wasHeld != held) _t = Time.frame
 	}
 }

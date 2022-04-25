@@ -142,7 +142,7 @@ function getVariableAsJavaScript(varName, json=false) {
 						let u8 = new Uint8Array(new Uint32Array([ value ]).buffer);
 						return { r: u8[0], g: u8[1], b: u8[2], a: u8[3] };
 					}
-					// if (type === "Array") return new Uint8Array(value);
+					if (type === "Array") return fromBase64(value);
 					// console.warn(`unhandled type "${type}"`);
 				}
 
@@ -154,4 +154,14 @@ function getVariableAsJavaScript(varName, json=false) {
 	}
 
 	return "[error]";
+}
+
+/**
+ * @param {string} s
+ */
+function fromBase64(s) {
+	s = atob(s);
+	let array = new Uint8Array(s.length);
+	for (let i = 0; i < s.length; i++) array[i] = s.charCodeAt(i);
+	return array;
 }

@@ -11,6 +11,7 @@
 	"game",
 	"input",
 	"loading",
+	"storage",
 	"camera",
 	"sprite",
 	"graphics",

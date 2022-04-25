@@ -293,9 +293,11 @@ void wren_array_uint8_fill(WrenVM* vm) {
 void wren_array_toString(WrenVM* vm) {
 	Array* array = (Array*)wrenGetSlotForeign(vm, 0);
 
-	uint32_t len = array->length * 2;
+	uint32_t len = 2 + array->length * 2;
 	char* result = malloc(len);
-	uint32_t resultIndex = 0;
+	result[0] = '0';
+	result[1] = 'x';
+	uint32_t resultIndex = 2;
 
 	for (uint32_t i = 0; i < array->length; i++) {
 		uint8_t byte = ((uint8_t*)array->data)[i];
