@@ -12,7 +12,7 @@ let names = argv.slice(2).filter(arg => arg[0] !== "-");
 
 if (names.length === 0) {
 	names = JSON.parse(await fs.readFile("src/wren/order.json", { encoding: "utf8" }));
-	names = names.filter(name => name);
+	names = names.filter(name => name && !name.startsWith("//"));
 }
 
 // Get all files and join into single string.

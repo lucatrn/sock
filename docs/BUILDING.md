@@ -3,12 +3,16 @@
 
 ## Required Software
 
-The following software must be installed:
+On all platforms, the following software must be installed:
 
 * Emscripten
 * NodeJS
 * Python
 
+For windows, the following must be installed:
+
+* Visual Studio
+
 ## Building on Windows
 
-Run `build.bat`.
+Build `projects/sock_win/sock_win.sln`

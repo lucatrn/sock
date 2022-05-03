@@ -86,7 +86,7 @@ class Game {
 
 	foreign static print_(s, x, y)
 
-	foreign static setPrintColor_(i)
+	foreign static setPrintColor_(d)
 
 	static init_(sx, sy) {
 		__size = Vec.new(sx, sy)

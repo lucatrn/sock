@@ -5,12 +5,21 @@ In order of importance.
 
 ## Essentials
 
+* Primitive drawing - `Draw` class? `Graphics.drawXYZ()`?
+  * `Polygon.buid`
+
+* Fullscreen
+
+* Desktop builds.
+	* 😱
+
 * Audio
+	* Designing this API is going to be quite tricky!  
+	  Wait until we can implement in both Web and Desktop in parallel, there are
+	  too many unknowns otherwise.
 	* What formats will be supportted?
 		* Are we in the age that we can safely use `mp3`?
 		* Need to consider lack of `ogg` support on Safari
-
-* Primitive drawing - `Draw` class? `Graphics.drawXYZ()`?
 
 * Virtual Keyboard / Simple text input
 	* Necessary for touch devices and consoles.
@@ -21,11 +30,8 @@ In order of importance.
 	* e.g. `Input.textString`
 	* e.g. `Input.textSelection` (as range e.g. `0..3`)
 
+
 ## Would Be Cool
-
-* `Array.fromHexString(s)` e.g. `Array.fromHexString("8f14a0")`
-
-* Command Line / URL Arguments - `Game.arguments`?
 
 * OS Info - `OS` class?
 	* Browser Name - `Device.browser`
@@ -33,6 +39,12 @@ In order of importance.
 	* OS Name - `Device.OS`
 	* OS Version - `Device.OSVersion`
 	* Is Mobile - `Device.isMobile`
+
+* Command Line / URL Arguments
+	* To keep things simple, we could only support named arguments.
+		* e.g. `mygame.exe -frog -cat 42` => `{ "frog": true, "cat": "42" }`
+		* e.g. `https://mygame.com/?frog&cat=42` => `{ "frog": true, "cat": "42" }`
+	* Store in map e.g. `Game.arguments`
 
 * RGBA based pixel drawing:
 	* Write pixels as RGBA bytes to an `Array`.
@@ -45,6 +57,16 @@ In order of importance.
 
 * Control graphics blend function (is this transferable to Metal?)
 
-* Open link e.g. `Game.openURL(s)`
+* Open web link e.g. `Game.openWebURL(s)` or `Device.openWebURL(s)` (`Game` APIs should be related to the game/application itself)
+
+* `Array.fromHexString(s)` e.g. `Array.fromHexString("8f14a0")`
 
 * HTTP Requests - `HTTP` class?
+
+
+## Desktop Module
+
+* Window management
+
+* DLL/.so
+	* e.g. for Steam/Discord APIs

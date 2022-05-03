@@ -3,8 +3,23 @@
 #include <stdio.h>
 #include <math.h>
 #include <stdint.h>
-#include "emscripten.h"
 #include "wren.h"
+
+#if defined _WIN32_ || defined _WIN32 || defined WIN32
+
+	#define SOCK_DESKTOP
+	#define SOCK_WIN
+
+	#include <SDL2/SDL.h>
+	#include <glad/glad.h> 
+
+#elif defined __EMSCRIPTEN__
+
+	#define SOCK_WEB
+
+	#include "emscripten.h"
+
+#endif
 
 int strLastIndex(const char* str, char c) {
 	int i = -1;
@@ -69,8 +84,8 @@ uint32_t wren_validateIndex(WrenVM* vm, uint32_t count, int slot) {
 // Returns NULL if [path] is invalid.
 char* resolveRelativeFilePath(const char* curr, const char* path) {
 	// "" or ".". Return the importer.
-	if (path[0] == '\0' || (path[0] == '.' && path[0] == '\0')) {
-		return strdup(curr);
+	if (path[0] == '\0' || (path[0] == '.' && path[1] == '\0')) {
+		return _strdup(curr);
 	}
 
 	// The parts of the path.
@@ -329,7 +344,7 @@ void wren_array_copyFromString(WrenVM* vm) {
 	int byteLen;
 	const char* bytes = wrenGetSlotBytes(vm, 1, &byteLen);
 
-	if (byteLen > array->length) {
+	if ((uint32_t)byteLen > array->length) {
 		wrenAbort(vm, "string is too big");
 	} else {
 		memcpy(array->data, bytes, byteLen);
@@ -504,6 +519,10 @@ void sbAdd(StringBuilder* sb, const char* data, int dataLen) {
 	sb->size = newSize;
 }
 
+void sbAddStr(StringBuilder* sb, const char* str) {
+	sbAdd(sb, str, strlen(str));
+}
+
 void wren_sb_add(WrenVM* vm) {
 	StringBuilder* sb = (StringBuilder*)wrenGetSlotForeign(vm, 0);
 
@@ -538,14 +557,14 @@ void wren_sb_toString(WrenVM* vm) {
 
 typedef struct
 {
-	unsigned char r;
-	unsigned char g;
-	unsigned char b;
-	unsigned char a;
+	uint8_t r;
+	uint8_t g;
+	uint8_t b;
+	uint8_t a;
 } ColorParts;
 
 typedef union {
-	unsigned packed;
+	uint32_t packed;
 	ColorParts parts;
 } Color;
 
@@ -565,7 +584,7 @@ void wren_color_setR(WrenVM* vm) { ((Color*)wrenGetSlotForeign(vm, 0))->parts.r 
 void wren_color_setG(WrenVM* vm) { ((Color*)wrenGetSlotForeign(vm, 0))->parts.g = (unsigned char)(wrenGetSlotDouble(vm, 1) * 255.999); }
 void wren_color_setB(WrenVM* vm) { ((Color*)wrenGetSlotForeign(vm, 0))->parts.b = (unsigned char)(wrenGetSlotDouble(vm, 1) * 255.999); }
 void wren_color_setA(WrenVM* vm) { ((Color*)wrenGetSlotForeign(vm, 0))->parts.a = (unsigned char)(wrenGetSlotDouble(vm, 1) * 255.999); }
-void wren_color_setPacked(WrenVM* vm) { ((Color*)wrenGetSlotForeign(vm, 0))->packed = wrenGetSlotDouble(vm, 1); }
+void wren_color_setPacked(WrenVM* vm) { ((Color*)wrenGetSlotForeign(vm, 0))->packed = (uint32_t)wrenGetSlotDouble(vm, 1); }
 
 void wren_color_toString(WrenVM* vm) {
 	Color* color = (Color*)wrenGetSlotForeign(vm, 0);
@@ -602,13 +621,13 @@ const unsigned char* sock_font() {
 
 // class/method binding.
 
-WrenForeignClassMethods wren_bindForeignClass(WrenVM* vm, const char* module, const char* className) {
+WrenForeignClassMethods wren_coreBindForeignClass(WrenVM* vm, const char* moduleName, const char* className) {
 	WrenForeignClassMethods result;
 
 	result.allocate = NULL;
 	result.finalize = NULL;
 
-	if (strcmp(module, "sock") == 0) {
+	if (strcmp(moduleName, "sock") == 0) {
 		if (strcmp(className, "StringBuilder") == 0) {
 			result.allocate = wren_sbAllocate;
 			result.finalize = wren_sbFinalize;
@@ -623,8 +642,8 @@ WrenForeignClassMethods wren_bindForeignClass(WrenVM* vm, const char* module, co
 	return result;
 }
 
-WrenForeignMethodFn wren_BindForeignMethod(WrenVM* vm, const char* module, const char* className, bool isStatic, const char* signature) {
-	if (strcmp(module, "sock") == 0) {
+WrenForeignMethodFn wren_coreBindForeignMethod(WrenVM* vm, const char* moduleName, const char* className, bool isStatic, const char* signature) {
+	if (strcmp(moduleName, "sock") == 0) {
 		if (strcmp(className, "StringBuilder") == 0) {
 			if (!isStatic) {
 				if (strcmp(signature, "addString(_)") == 0) return wren_sb_add;
@@ -680,23 +699,714 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 		strcmp("random", name) == 0
 		||
 		(strncmp("sock", name, 4) == 0 && (name[4] == '\0' || name[4] == '-'))
-	) return strdup(name);
+	) return _strdup(name);
 
 	return resolveRelativeFilePath(importer, name);
 }
 
 
-// Web init
+// === Desktop/SDL Main ===
 
-#ifdef __EMSCRIPTEN__
+#ifdef SOCK_DESKTOP
+
+	static const char* quitError = NULL;
+
+	#define PRINT_BUFFER_SIZE 128
+	static char printBuffer[PRINT_BUFFER_SIZE];
+
+	static char* basePath = NULL;
+	static int basePathLen = 0;
+	static SDL_Window* window = NULL;
+
+	static double game_fps = 60.0;
+	static bool game_ready = false;
+
+	static WrenVM* vm = NULL;
+
+	static WrenHandle* handle_Time = NULL;
+	static WrenHandle* handle_Input = NULL;
+	static WrenHandle* handle_Game = NULL;
+
+	static WrenHandle* callHandle_update_0 = NULL;
+	static WrenHandle* callHandle_update_2 = NULL;
+
+
+	// === IO UTILS ==
+
+	// Read the entire file into memory as a null terminated string.
+	// Returns NULL on error, setting quitError to the error.
+	//
+	// Adapted from example at https://wiki.libsdl.org/SDL_RWread
+	// Creative Commons Attribution 4.0 International (CC BY 4.0)
+	char* fileRead(const char* fileName) {
+		// Open file.
+		SDL_RWops *file = SDL_RWFromFile(fileName, "rb");
+		if (file == NULL) {
+			quitError = printBuffer;
+			sprintf_s(printBuffer, PRINT_BUFFER_SIZE, "open file %s", fileName);
+			return NULL;
+		}
+
+		char* res = NULL;
+
+		// Check file size.
+		Sint64 size = SDL_RWsize(file);
+		if (size < 0) {
+			quitError = printBuffer;
+			sprintf_s(printBuffer, PRINT_BUFFER_SIZE, "read file size %s", fileName);
+		} else {
+			// Allocated memory for entire file.
+			res = (char*)malloc(size + 1);
+
+			if (res == NULL) {
+				quitError = printBuffer;
+				sprintf_s(printBuffer, PRINT_BUFFER_SIZE, "alloc file memory %Id bytes %s", size, fileName);
+			} else {
+				// Read into buffer bit by bit.
+				Sint64 nb_read_total = 0;
+				Sint64 nb_read = 1;
+				char* buf = res;
+
+				while (nb_read_total < size && nb_read != 0) {
+					nb_read = SDL_RWread(file, buf, 1, (size - nb_read_total));
+					nb_read_total += nb_read;
+					buf += nb_read;
+				}
+
+				// Ensure we actually read the whole file.
+				if (nb_read_total != size) {
+					free(res);
+					res = NULL;
+					quitError = printBuffer;
+					sprintf_s(printBuffer, PRINT_BUFFER_SIZE, "only read %Id of %Id bytes from %s", nb_read_total, size, fileName);
+				} else {
+					// Null terminate.
+					res[nb_read_total] = '\0';
+				}
+			}
+		}
+
+		// Close the file.
+		SDL_RWclose(file);
+
+		return res;
+	}
+
+	char* fileReadRelative(const char* path) {
+		int pathLen = strlen(path);
+		int len = basePathLen + pathLen;
+
+		char* absPath = malloc(len + 1);
+		if (absPath == NULL) {
+			quitError = printBuffer;
+			sprintf_s(printBuffer, PRINT_BUFFER_SIZE, "alloc memory %s", path);
+			return NULL;
+		} else {
+			memcpy(absPath, basePath, basePathLen);
+			memcpy(absPath + basePathLen, path, pathLen);
+			absPath[len] = '\0';
+
+			char* result = fileRead(absPath);
+
+			free(absPath);
+
+			return result;
+		}
+	}
+
+
+	// === WREN UTILS ===
+
+	WrenHandle* wren_getHandle(const char* moduleName, const char* varName) {
+		wrenEnsureSlots(vm, 1);
+		wrenGetVariable(vm, moduleName, varName, 0);
+		return wrenGetSlotHandle(vm, 0);
+	}
+
+
+	// === OpenGL ===
+
+	typedef struct {
+		int attributeCount;
+		const char* attributes[4];
+		int vertexUnifomCount;
+		const char* vertexUniforms[4];
+		int fragmentUnifomCount;
+		const char* fragmentUniforms[4];
+		int varyingCount;
+		const char* varyings[4];
+		const char* vertexShader;
+		const char* fragmentShader;
+	} ShaderData;
+
+	typedef struct {
+		// The OpenGL program. 0 if failed to compile.
+		GLuint program;
+		// Location of uniforms in vertex->fragment and top->bottom order.
+		GLint uniforms[7];
+	} Shader;
+
+	typedef struct {
+		uint32_t width;
+		uint32_t height;
+		int filter;
+		int wrap;
+		void* glTexture;
+	} Texture;
+
+	typedef struct {
+		Texture texture;
+	} Sprite;
+
+	Shader compileShader(ShaderData* data) {
+		StringBuilder sb;
+		int success;
+
+		Shader result;
+		result.program = 0;
+
+		sbInit(&sb);
+
+		// Compile vertex shader.
+		sbAddStr(&sb, "#version 330 core\n");
+
+		for (int i = 0; i < data->attributeCount; i++) {
+			const char* attr = data->attributes[i];
+
+			sbAddStr(&sb, "layout(location = ");
+			sbAddByte(&sb, '0' + i);
+			sbAddStr(&sb, ") in ");
+			sbAddStr(&sb, attr);
+			sbAddStr(&sb, ";\n");
+		}
+		
+		for (int i = 0; i < data->vertexUnifomCount; i++) {
+			const char* unif = data->vertexUniforms[i];
+
+			sbAddStr(&sb, "uniform ");
+			sbAddStr(&sb, unif);
+			sbAddStr(&sb, ";\n");
+		}
+		
+		for (int i = 0; i < data->varyingCount; i++) {
+			const char* vary = data->varyings[i];
+
+			sbAddStr(&sb, "out ");
+			sbAddStr(&sb, vary);
+			sbAddStr(&sb, ";\n");
+		}
+
+		sbAddStr(&sb, "void main() {\n");
+		sbAddStr(&sb, data->vertexShader);
+		sbAddByte(&sb, '}');
+
+		GLuint vs = glCreateShader(GL_VERTEX_SHADER);
+		glShaderSource(vs, 1, &sb.data, &sb.size);
+		glCompileShader(vs);
+
+		glGetShaderiv(vs, GL_COMPILE_STATUS, &success);
+		if (!success) {
+			char buffer[512];
+			glGetShaderInfoLog(vs, 512, NULL, buffer);
+			printf("vertex shader error: %s", buffer);
+			quitError = "compile vertex shader";
+		} else {
+			// Compiler fragment shader.
+			sb.size = 0;
+
+			sbAddStr(&sb, "#version 330 core\nout vec4 FragColor;\n");
+			
+			for (int i = 0; i < data->fragmentUnifomCount; i++) {
+				const char* unif = data->fragmentUniforms[i];
+
+				sbAddStr(&sb, "uniform ");
+				sbAddStr(&sb, unif);
+				sbAddStr(&sb, ";\n");
+			}
+			
+			for (int i = 0; i < data->varyingCount; i++) {
+				const char* vary = data->varyings[i];
+
+				sbAddStr(&sb, "in ");
+				sbAddStr(&sb, vary);
+				sbAddStr(&sb, ";\n");
+			}
+
+			sbAddStr(&sb, "void main() {\n");
+			sbAddStr(&sb, data->fragmentShader);
+			sbAddByte(&sb, '}');
+
+			GLuint fs = glCreateShader(GL_FRAGMENT_SHADER);
+			glShaderSource(fs, 1, &sb.data, &sb.size);
+			glCompileShader(fs);
+
+			glGetShaderiv(fs, GL_COMPILE_STATUS, &success);
+			if (!success) {
+				char buffer[512];
+				glGetShaderInfoLog(fs, 512, NULL, buffer);
+				printf("fragment shader error: %s", buffer);
+				quitError = "compile fragment shader";
+			} else {
+				// Link program.
+				GLuint prog = glCreateProgram();
+				glAttachShader(prog, vs);
+				glAttachShader(prog, fs);
+				glLinkProgram(prog);
+
+				glGetProgramiv(prog, GL_LINK_STATUS, &success);
+				if(!success) {
+					char buffer[512];
+					glGetProgramInfoLog(fs, 512, NULL, buffer);
+					printf("program error: %s", buffer);
+					quitError = "link program";
+				} else {
+					result.program = prog;
+
+					// Get uniform locations.
+					glUseProgram(prog);
+
+					int uniformIndex = 0;
+					for (int i = 0; i < data->vertexUnifomCount; i++) {
+						result.uniforms[uniformIndex++] = glGetUniformLocation(prog, data->vertexUniforms[i]);
+					}
+					for (int i = 0; i < data->fragmentUnifomCount; i++) {
+						result.uniforms[uniformIndex++] = glGetUniformLocation(prog, data->fragmentUniforms[i]);
+					}
+				}
+			}
+			
+			glDeleteShader(fs);
+		}
+		
+		glDeleteShader(vs);
+
+		// Free string builder.
+		sbFree(&sb);
+
+		// Done!
+		return result;
+	}
+
+
+	// = SHADERS =
+
+	static ShaderData shaderDataSpriteBatcher = {
+		// Attributes
+		3, {
+			"vec3 vertex",
+			"vec4 color",
+			"vec2 uv",
+		},
+		// Vertex Uniforms
+		1, {
+			"mat3 mat",
+		},
+		// Fragment Uniforms
+		1, {
+			"tex sampler2D",
+		},
+		// Varyings
+		2, {
+			"vec4 v_color",
+			"vec2 v_uv",
+		},
+		// Vertex Shader
+		"v_color = color;\n"
+		"v_uv = uv;\n"
+		"vec3 a = mat * vec3(vertex.x, vertex.y, 1.0);\n"
+		"gl_Position = vec4(a.x, a.y, vertex.z, 1.0);\n"
+		,
+		// Fragment Shader
+		"gl_FragColor = texture2D(tex, v_uv) * v_color;\n"
+	};
+	
+	static ShaderData shaderDataPolygonBatcher = {
+		// Attributes
+		2, {
+			"vec3 vertex",
+			"vec4 color",
+		},
+		// Vertex Uniforms
+		0, { 0 },
+		// 1, {
+		// 	"mat3 mat",
+		// },
+		// Fragment Uniforms
+		0, { 0 },
+		// Varyings
+		1, {
+			"vec4 v_color",
+		},
+		// Vertex Shader
+		"v_color = color;\n"
+		"gl_Position = vec4(vertex, 1.0);\n"
+		// "vec3 a = mat * vec3(vertex.x, vertex.y, 1.0);\n"
+		// "gl_Position = vec4(a.x, a.y, vertex.z, 1.0);\n"
+		,
+		// Fragment Shader
+		"gl_FragColor = v_color;\n"
+	};
+
+	static Shader shaderSpriteBatcher;
+	static Shader shaderPolygonBatcher;
+
+
+	// === SOCK WREN API ===
+
+	void wren_methodTODO(WrenVM* vm) {
+		wrenAbort(vm, "TODO Method");
+	}
+
+	// TIME
+
+	void updateTimeModule(uint64_t frame, double time) {
+		wrenEnsureSlots(vm, 3);
+		wrenSetSlotHandle(vm, 0, handle_Time);
+		wrenSetSlotDouble(vm, 1, (double)frame);
+		wrenSetSlotDouble(vm, 2, time);
+		wrenCall(vm, callHandle_update_2);
+	}
+
+	// GRAPHICS
+
+	void wren_Graphics_clear3(WrenVM* vm) {
+		float r = (float)wrenGetSlotDouble(vm, 1);
+		float g = (float)wrenGetSlotDouble(vm, 2);
+		float b = (float)wrenGetSlotDouble(vm, 3);
+
+		glClearColor(r, g, b, 1.0f);
+		glClear(GL_COLOR_BUFFER_BIT);
+	}
+
+	// Game
+
+	void wren_Game_ready_(WrenVM* vm) {
+		game_ready = true;
+	}
+
+	// API Binding
+
+	WrenForeignMethodFn wren_bindForeignMethod(WrenVM* vm, const char* moduleName, const char* className, bool isStatic, const char* signature) {
+		if (strcmp(moduleName, "sock") == 0) {
+			if (strcmp(className, "Array") == 0) {
+				if (!isStatic) {
+					if (strcmp(signature, "load_(_)") == 0) return wren_methodTODO;
+				}
+			} else if (strcmp(className, "Asset") == 0) {
+				if (isStatic) {
+					if (strcmp(signature, "loadString_(_,_)") == 0) return wren_methodTODO;
+				}
+			} else if (strcmp(className, "Graphics") == 0) {
+				if (isStatic) {
+					if (strcmp(signature, "clear(_,_,_)") == 0) return wren_Graphics_clear3;
+				}
+			} else if (strcmp(className, "Camera") == 0) {
+				if (isStatic) {
+					if (strcmp(signature, "update_(_,_,_)") == 0) return wren_methodTODO;
+				}
+			} else if (strcmp(className, "Game") == 0) {
+				if (isStatic) {
+					if (strcmp(signature, "title") == 0) return wren_methodTODO;
+					if (strcmp(signature, "title=(_)") == 0) return wren_methodTODO;
+					if (strcmp(signature, "scaleFilter") == 0) return wren_methodTODO;
+					if (strcmp(signature, "scaleFilter=(_)") == 0) return wren_methodTODO;
+					if (strcmp(signature, "fps") == 0) return wren_methodTODO;
+					if (strcmp(signature, "fps=(_)") == 0) return wren_methodTODO;
+					if (strcmp(signature, "layoutChanged_(_,_,_,_,_)") == 0) return wren_methodTODO;
+					if (strcmp(signature, "cursor") == 0) return wren_methodTODO;
+					if (strcmp(signature, "cursor=(_)") == 0) return wren_methodTODO;
+					if (strcmp(signature, "print_(_,_,_)") == 0) return wren_methodTODO;
+					if (strcmp(signature, "setPrintColor_(_)") == 0) return wren_methodTODO;
+					if (strcmp(signature, "ready_()") == 0) return wren_Game_ready_;
+					if (strcmp(signature, "quit_()") == 0) return wren_methodTODO;
+				}
+			}
+		}
+
+		return wren_coreBindForeignMethod(vm, moduleName, className, isStatic, signature);
+	}
+
+
+	// === WREN CONFIG CALLBACKS ===
+
+	WrenForeignClassMethods wren_bindForeignClass(WrenVM* vm, const char* moduleName, const char* className) {
+		// Default to core.
+		WrenForeignClassMethods methods = wren_coreBindForeignClass(vm, moduleName, className);
+
+		if (!methods.allocate) {
+			// Desktop classes.
+			methods.allocate = NULL;
+			methods.finalize = NULL;
+
+			if (strcmp(moduleName, "sock") == 0) {
+				if (strcmp(className, "StringBuilder") == 0) {
+					methods.allocate = wren_sbAllocate;
+					methods.finalize = wren_sbFinalize;
+				}
+			}
+		}
+
+		return methods;
+	}
+
+	void wren_write(WrenVM* vm, const char* text) {
+		printf("%s", text);
+	}
+
+	void wren_error(WrenVM* vm, WrenErrorType type, const char* moduleName, int line, const char* message) {
+		if (type == WREN_ERROR_COMPILE) {
+			printf("[WREN] Compile Error at %s:%d %s\n", moduleName, line, message);
+		}
+		else if (type == WREN_ERROR_RUNTIME) {
+			printf("[WREN] Runtime Error %s\n", message);
+		}
+		else if (type == WREN_ERROR_STACK_TRACE) {
+			printf("  at %s:%d %s\n", moduleName, line, message);
+		}
+	}
+
+	void wren_loadModuleComplete(WrenVM* vm, const char* moduleName, WrenLoadModuleResult result) {
+		if (result.source) {
+			free((void*)result.source);
+		}
+	}
+
+	WrenLoadModuleResult wren_loadModule(WrenVM* vm, const char* name) {
+		WrenLoadModuleResult result = { 0 };
+
+		if (strcmp("meta", name) == 0 || strcmp("random", name) == 0) {
+			// Ignore standard Wren module.
+		}
+		else {
+			/*result.source = NULL;
+			result.onComplete = wren_loadModuleComplete;*/
+		}
+
+		return result;
+	}
+
+
+
+	// === MAIN ===
+
+	int mainWithSDL(int argc, char** argv) {
+		// Get runtime info.
+		basePath = SDL_GetBasePath();
+		if (basePath == NULL) {
+			quitError = "SDL_GetBasePath";
+			return -1;
+		}
+		basePathLen = strlen(basePath);
+
+		// Create window and GL context.
+		window = SDL_CreateWindow("Sock", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 640, 480, SDL_WINDOW_OPENGL);
+		if (!window) {
+			quitError = "SDL_CreateWindow";
+			return -1;
+		}
+
+		SDL_GLContext* glContext = SDL_GL_CreateContext(window);
+		if (!glContext) {
+			quitError = "SDL_GL_CreateContext";
+			return -1;
+		}
+
+		if (!gladLoadGLLoader(SDL_GL_GetProcAddress)) {
+			quitError = "gladLoadGLLoader";
+			return -1;
+		}
+
+		printf("Loaded OpenGL %d.%d\n", GLVersion.major, GLVersion.minor);
+
+		// Load shaders.
+		// shaderSpriteBatcher = compileShader(&shaderDataSpriteBatcher);
+		shaderPolygonBatcher = compileShader(&shaderDataPolygonBatcher);
+		if (shaderPolygonBatcher.program == 0) {
+			return -1;
+		}
+
+		// DEBUG triangle.
+		float triangleData[] = {
+			-0.5f, -0.5f, 0.0f, 1.0f,    1.0f, 0.0f, 0.0f, 1.0f,
+			0.5f,  -0.5f, 0.0f, 1.0f,    0.0f, 1.0f, 0.0f, 1.0f,
+			0.0f,  0.5f,  0.0f, 1.0f,    0.0f, 0.0f, 1.0f, 1.0f,
+		};
+
+		GLuint triangleBuffer;
+		glGenBuffers(1, &triangleBuffer);
+
+		glBindBuffer(GL_ARRAY_BUFFER, triangleBuffer);
+		glBufferData(GL_ARRAY_BUFFER, sizeof(triangleData), triangleData, GL_STATIC_DRAW);
+
+		// Final GL setup.
+		glViewport(0, 0, 640, 480);
+
+		// Create Wren VM.
+		WrenConfiguration config;
+		wrenInitConfiguration(&config);
+		config.writeFn = wren_write;
+		config.errorFn = wren_error;
+		config.bindForeignMethodFn = wren_bindForeignMethod;
+		config.bindForeignClassFn = wren_bindForeignClass;
+		config.loadModuleFn = wren_loadModule;
+		config.resolveModuleFn = wren_resolveModule;
+
+		vm = wrenNewVM(&config);
+
+		// Make call handles.
+		callHandle_update_0 = wrenMakeCallHandle(vm, "update_()");
+		callHandle_update_2 = wrenMakeCallHandle(vm, "update_(_,_)");
+		
+		// Load sock Wren code.
+		char* sockSource = fileReadRelative("sock.wren");
+		if (sockSource == NULL) return -1;
+
+		WrenInterpretResult sockResult = wrenInterpret(vm, "sock", sockSource);
+		free(sockSource);
+
+		if (sockResult != WREN_RESULT_SUCCESS) {
+			return -1;
+		}
+
+		wrenAddImplicitImportModule(vm, "sock");
+
+		// Get handles.
+		handle_Time = wren_getHandle("sock", "Time");
+		handle_Input = wren_getHandle("sock", "Input");
+		handle_Game = wren_getHandle("sock", "Game");
+
+		// Load user main Wren.
+		char* mainSource = fileReadRelative("assets/main.wren");
+		if (mainSource == NULL) return -1;
+
+		WrenInterpretResult mainResult = wrenInterpret(vm, "sock", mainSource);
+		free(mainSource);
+
+		if (mainResult != WREN_RESULT_SUCCESS) {
+			return -1;
+		}
+
+		// Setup
+		int inLoop = 1;
+		uint64_t frame = 0;
+		uint64_t prevTime = SDL_GetTicks64();
+		double remainingTime = 0;
+		double totalTime = 60;
+
+		while (inLoop) {
+			// Get SDL events.
+			SDL_Event event;
+			while ( SDL_PollEvent(&event) ) {
+               if ( event.type == SDL_QUIT ) {
+                   inLoop = 0;
+               } else if ( event.type == SDL_KEYDOWN ) {
+                   // TODO
+               }
+			}
+
+			// Update time stuff..
+			uint64_t now = SDL_GetTicks64();
+			uint64_t delta = min(66, now - prevTime);
+			prevTime = now;
+
+			remainingTime -= (double)delta;
+
+			if (remainingTime <= 0) {
+				remainingTime += 1.0 / game_fps;
+
+				// Do update.
+				if (game_ready) {
+					// Update modules.
+					updateTimeModule(frame, totalTime);
+
+					frame++;
+					totalTime += 1.0 / game_fps;
+
+					// Call update fn.
+					wrenEnsureSlots(vm, 1);
+					wrenSetSlotHandle(vm, 0, handle_Game);
+					WrenInterpretResult updateResult = wrenCall(vm, callHandle_update_0);
+
+					if (updateResult != WREN_RESULT_SUCCESS) {
+						inLoop = 0;
+					}
+				}
+
+				// DEBUG Triangle
+				glUseProgram(shaderPolygonBatcher.program);
+
+				glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 8 * 4, (void*)0);
+				glEnableVertexAttribArray(0);
+
+				glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE, 8 * 4, (void*)(4 * 4));
+				glEnableVertexAttribArray(1);
+
+				glBindVertexArray(triangleBuffer);
+    			glDrawArrays(GL_TRIANGLES, 0, 3);
+
+				// Finalize GL.
+				SDL_GL_SwapWindow(window);
+
+				// Check for GL errors.
+				#if DEBUG
+
+					GLenum error = glGetError();
+					if (error != 0) {
+						const char* msg = "?";
+						if (error == GL_INVALID_ENUM) msg = "invalid enum";
+						else if (error == GL_INVALID_VALUE) msg = "invalid value";
+						else if (error == GL_INVALID_OPERATION) msg = "invalid operation";
+						else if (error == GL_INVALID_FRAMEBUFFER_OPERATION) msg = "invalid framebuffer operation";
+						else if (error == GL_OUT_OF_MEMORY) msg = "out of memory";
+						else if (error == GL_STACK_UNDERFLOW) msg = "stack underflow";
+						else if (error == GL_STACK_OVERFLOW) msg = "stack overflow";
+
+						printf("OpenGL error %d: %s\n", error, msg);
+
+						inLoop = 0;
+					}
+
+				#endif
+			}
+
+			// Wait and loop.
+			SDL_Delay(2);
+		}
+
+		return 0;
+	}
+
+	int main(int argc, char** argv) {
+		// Init SDL.
+		if (SDL_Init(SDL_INIT_VIDEO) < 0) {
+			printf("ERR SDL_Init %s", SDL_GetError());
+		} else {
+			int code = mainWithSDL(argc, argv);
+
+			if (code < 0) {
+				printf("ERR %s %s", quitError, SDL_GetError());
+			}
+
+			SDL_Quit();
+		}
+
+		return 0;
+	}
+
+#endif
+
+
+// === Web Main ===
+
+#ifdef SOCK_WEB
 
 	extern void js_write(WrenVM* vm, const char* text);
-	extern void js_error(WrenVM* vm, WrenErrorType type, const char* module, int line, const char* message);
+	extern void js_error(WrenVM* vm, WrenErrorType type, const char* moduleName, int line, const char* message);
 	extern char* js_loadModule(WrenVM* vm, const char* name);
-	extern WrenForeignMethodFn js_bindMethod(WrenVM* vm, const char* module, const char* className, bool isStatic, const char* signature);
-	extern void js_bindClass(WrenVM* vm, const char* module, const char* className, WrenForeignClassMethods* methods);
+	extern WrenForeignMethodFn js_bindMethod(WrenVM* vm, const char* moduleName, const char* className, bool isStatic, const char* signature);
+	extern void js_bindClass(WrenVM* vm, const char* moduleName, const char* className, WrenForeignClassMethods* methods);
 
-	void wren_loadModuleComplete(WrenVM* vm, const char* module, WrenLoadModuleResult result) {
+	void wren_loadModuleComplete(WrenVM* vm, const char* moduleName, WrenLoadModuleResult result) {
 		if (result.source) {
 			free((void*) result.source);
 		}
@@ -719,23 +1429,23 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 		return result;
 	}
 
-	WrenForeignMethodFn wren_BindForeignMethodShim(WrenVM* vm, const char* module, const char* className, bool isStatic, const char* signature) {
+	WrenForeignMethodFn wren_bindForeignMethod(WrenVM* vm, const char* moduleName, const char* className, bool isStatic, const char* signature) {
 		// Default to C implementation.
-		WrenForeignMethodFn fn = wren_BindForeignMethod(vm, module, className, isStatic, signature);
+		WrenForeignMethodFn fn = wren_coreBindForeignMethod(vm, moduleName, className, isStatic, signature);
 		if (fn) return fn;
 
 		// Try to get JavaScript implementation otherwise.
-		return js_bindMethod(vm, module, className, isStatic, signature);
+		return js_bindMethod(vm, moduleName, className, isStatic, signature);
 	}
 
-	WrenForeignClassMethods wren_bindForeignClassShim(WrenVM* vm, const char* module, const char* className) {
+	WrenForeignClassMethods wren_bindForeignClass(WrenVM* vm, const char* moduleName, const char* className) {
 		// Default to C implementation.
-		WrenForeignClassMethods methods = wren_bindForeignClass(vm, module, className);
+		WrenForeignClassMethods methods = wren_coreBindForeignClass(vm, moduleName, className);
 
 		if (methods.allocate) return methods;
 	
 		// Try to get JavaScript implementation otherwise.
-		js_bindClass(vm, module, className, &methods);
+		js_bindClass(vm, moduleName, className, &methods);
 
 		return methods;
 	}
@@ -745,8 +1455,8 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 		wrenInitConfiguration(&config);
 		config.writeFn = js_write;
 		config.errorFn = js_error;
-		config.bindForeignMethodFn = wren_BindForeignMethodShim;
-		config.bindForeignClassFn = wren_bindForeignClassShim;
+		config.bindForeignMethodFn = wren_bindForeignMethod;
+		config.bindForeignClassFn = wren_bindForeignClass;
 		config.loadModuleFn = wren_loadModuleShim;
 		config.resolveModuleFn = wren_resolveModule;
 

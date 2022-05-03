@@ -1,6 +1,5 @@
 [
 	"common",
-	"value",
 	"asset",
 	"array",
 	"stringbuilder",
@@ -15,7 +14,6 @@
 	"camera",
 	"sprite",
 	"graphics",
-	"text",
 	"json",
 	""
 ]
