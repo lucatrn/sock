@@ -44,3 +44,5 @@ class Camera {
 
 	foreign static update_(cx, cy, s)
 }
+
+Camera.init_()

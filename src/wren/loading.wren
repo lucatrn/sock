@@ -41,7 +41,7 @@ class Loading {
 	
 	static progress { __LOADING.isEmpty ? 1 : __LOADING.reduce(0) {|acc, a| acc + a[0] } / __LOADING.count }
 
-	static add_(a) { __LOADING.add(a) }
+	static add_(a) { a ? __LOADING.add(a) : a }
 
 	static addTask(f) { addTask(1, f) }
 

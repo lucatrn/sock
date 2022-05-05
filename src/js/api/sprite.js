@@ -167,12 +167,22 @@ addForeignClass("sock", "Sprite", [
 		wrenSetSlotString(0, glFilterNumberToString(getSprite().filter));
 	},
 	"scaleFilter=(_)"() {
+		if (wrenGetSlotType(1) !== 6) {
+			abortFiber("scaleFilter must be a string");
+			return;
+		}
+
 		getSprite().setFilter(glFilterStringToNumber(wrenGetSlotString(1)));
 	},
 	"wrapMode"() {
 		wrenSetSlotString(0, glWrapModeNumberToString(getSprite().wrap));
 	},
 	"wrapMode=(_)"() {
+		if (wrenGetSlotType(1) !== 6) {
+			abortFiber("wrapMode must be a string");
+			return;
+		}
+
 		getSprite().setWrap(glWrapModeStringToNumber(wrenGetSlotString(1)));
 	},
 	"beginBatch()"() {

@@ -2,7 +2,6 @@ import "./api/add-all-api.js";
 import { initTimeModule, updateTimeModule } from "./api/time.js";
 import { fps, gameIsReady, gameUpdate, initGameModule, quitFromAPI } from "./api/game.js";
 import { initAssetModule } from "./api/asset.js";
-import { initCameraModule } from "./api/camera.js";
 import { initInputModule, updateInputModule } from "./api/input.js";
 import { httpGET } from "./network/http.js";
 import { finalizeLayout } from "./layout.js";
@@ -54,7 +53,6 @@ async function init() {
 	// Init sock modules.
 	initTimeModule();
 	initAssetModule();
-	initCameraModule();
 	initGameModule();
 	initInputModule();
 

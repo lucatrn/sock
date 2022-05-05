@@ -10,8 +10,17 @@
 	#define SOCK_DESKTOP
 	#define SOCK_WIN
 
-	#include <SDL2/SDL.h>
-	#include <glad/glad.h> 
+	#include "SDL2/SDL.h"
+	#include "glad/glad.h" 
+	#define STBI_NO_STDIO
+	#define STBI_NO_PSD
+	#define STBI_NO_TGA
+	#define STBI_NO_HDR
+	#define STBI_NO_PIC
+	#define STBI_NO_PNM
+	#define STB_IMAGE_IMPLEMENTATION
+	#define STBI_FAILURE_USERMSG
+   	#include "stb_image.h"
 
 #elif defined __EMSCRIPTEN__
 
@@ -520,7 +529,7 @@ void sbAdd(StringBuilder* sb, const char* data, int dataLen) {
 }
 
 void sbAddStr(StringBuilder* sb, const char* str) {
-	sbAdd(sb, str, strlen(str));
+	sbAdd(sb, str, (int)strlen(str));
 }
 
 void wren_sb_add(WrenVM* vm) {
@@ -718,6 +727,13 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 	static int basePathLen = 0;
 	static SDL_Window* window = NULL;
 
+	static GLint defaultSpriteFilter = GL_NEAREST;
+	static GLint defaultSpriteWrap = GL_CLAMP_TO_EDGE;
+
+	static int game_screenWidth = 640;
+	static int game_screenHeight = 480;
+	static int game_resolutionWidth = 640;
+	static int game_resolutionHeight = 480;
 	static double game_fps = 60.0;
 	static bool game_ready = false;
 
@@ -727,6 +743,7 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 	static WrenHandle* handle_Input = NULL;
 	static WrenHandle* handle_Game = NULL;
 
+	static WrenHandle* callHandle_init_2 = NULL;
 	static WrenHandle* callHandle_update_0 = NULL;
 	static WrenHandle* callHandle_update_2 = NULL;
 
@@ -734,11 +751,15 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 	// === IO UTILS ==
 
 	// Read the entire file into memory as a null terminated string.
+	//
+	// If read successfully, [fileSize] is set to file size.
+	// If [fileSize] is NULL it is ignored.
+	//
 	// Returns NULL on error, setting quitError to the error.
 	//
 	// Adapted from example at https://wiki.libsdl.org/SDL_RWread
 	// Creative Commons Attribution 4.0 International (CC BY 4.0)
-	char* fileRead(const char* fileName) {
+	char* fileRead(const char* fileName, int64_t* fileSize) {
 		// Open file.
 		SDL_RWops *file = SDL_RWFromFile(fileName, "rb");
 		if (file == NULL) {
@@ -782,6 +803,11 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 				} else {
 					// Null terminate.
 					res[nb_read_total] = '\0';
+
+					// Return file size.
+					if (fileSize) {
+						*fileSize = size;
+					}
 				}
 			}
 		}
@@ -793,7 +819,7 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 	}
 
 	char* fileReadRelative(const char* path) {
-		int pathLen = strlen(path);
+		int pathLen = (int)strlen(path);
 		int len = basePathLen + pathLen;
 
 		char* absPath = malloc(len + 1);
@@ -806,7 +832,36 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 			memcpy(absPath + basePathLen, path, pathLen);
 			absPath[len] = '\0';
 
-			char* result = fileRead(absPath);
+			char* result = fileRead(absPath, NULL);
+
+			free(absPath);
+
+			return result;
+		}
+	}
+
+	char* readAsset(const char* path, int64_t* size) {
+		if (path[0] != '/') {
+			quitError = printBuffer;
+			sprintf_s(printBuffer, PRINT_BUFFER_SIZE, "path must start with /: %s", path);
+			return NULL;
+		}
+
+		int pathLen = (int)strlen(path);
+		int len = basePathLen + 6 + pathLen;
+
+		char* absPath = malloc(len + 1);
+		if (absPath == NULL) {
+			quitError = printBuffer;
+			sprintf_s(printBuffer, PRINT_BUFFER_SIZE, "alloc memory %s", path);
+			return NULL;
+		} else {
+			memcpy(absPath, basePath, basePathLen);
+			memcpy(absPath + basePathLen, "assets", 6);
+			memcpy(absPath + basePathLen + 6, path, pathLen);
+			absPath[len] = '\0';
+
+			char* result = fileRead(absPath, size);
 
 			free(absPath);
 
@@ -821,6 +876,20 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 		wrenEnsureSlots(vm, 1);
 		wrenGetVariable(vm, moduleName, varName, 0);
 		return wrenGetSlotHandle(vm, 0);
+	}
+
+
+	// === GAME / LAYOUT ===
+
+	// void updateLayout() {
+	// }
+
+	void initGameModule() {
+		wrenEnsureSlots(vm, 3);
+		wrenSetSlotHandle(vm, 0, handle_Game);
+		wrenSetSlotDouble(vm, 1, game_screenWidth);
+		wrenSetSlotDouble(vm, 2, game_screenHeight);
+		wrenCall(vm, callHandle_init_2);
 	}
 
 
@@ -846,17 +915,339 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 		GLint uniforms[7];
 	} Shader;
 
+	static Shader shaderSpriteBatcher;
+	static Shader shaderPolygonBatcher;
+
 	typedef struct {
 		uint32_t width;
 		uint32_t height;
 		int filter;
 		int wrap;
-		void* glTexture;
+		// The OpenGL texture ID.
+		GLuint id;
 	} Texture;
 
 	typedef struct {
+		float matrix[6];
+		float originX;
+		float originY;
+	} Transform;
+	
+	typedef struct {
+		float centerX;
+		float centerY;
+		float scale;
+	} Camera;
+
+	static Camera camera = { 0.0f, 0.0f, 1.0f };
+	static float cameraMatrix[9];
+	static bool cameraMatrixDirty = true;
+
+	#define SPRITE_BUFFER_INITIAL_CAPACITY 128
+	#define SPRITE_BUFFER_CACHE_SIZE 32
+
+	typedef struct {
+		// Number of vertices we can fit.
+		uint32_t capacity;
+		// The number of buffered vertices in [vertexData].
+		uint32_t vertexCount;
+		// The size of the [indexData] array.
+		uint32_t indexCount;
+		// Vertex data array.
+		//  x     y     z     rgba  u     v
+		// [----][----][----][----][----][----]
+		void* vertexData;
+		void* indexData;
+		GLuint vertexBuffer;
+		GLuint indexBuffer;
+		GLuint vertexArray;
+	} SpriteBatcher;
+
+	static SpriteBatcher* spriteBufferCache[SPRITE_BUFFER_CACHE_SIZE];
+	static int spriteBufferCacheCount = 0;
+
+	typedef struct {
 		Texture texture;
+		Transform transform;
+		char* path;
+		SpriteBatcher* batcher;
 	} Sprite;
+
+	float* getCameraMatrix() {
+		if (cameraMatrixDirty) {
+			cameraMatrixDirty = false;
+
+			float sx =  2.0f / game_resolutionWidth;
+			float sy = -2.0f / game_resolutionHeight;
+
+			cameraMatrix[0] = sx;
+			cameraMatrix[1] = 0.0f;
+			cameraMatrix[2] = 0.0f;
+			
+			cameraMatrix[3] = 0.0f;
+			cameraMatrix[4] = sy;
+			cameraMatrix[5] = 0.0f;
+
+			cameraMatrix[6] = -camera.centerX * sx;
+			cameraMatrix[7] = -camera.centerY * sy;
+			cameraMatrix[8] = 1.0f;
+		}
+
+		return cameraMatrix;
+	}
+
+	SpriteBatcher* spriteBatcherNew() {
+		void* vertexData = malloc(SPRITE_BUFFER_INITIAL_CAPACITY * 24);
+		if (!vertexData) {
+			return NULL;
+		}
+
+		SpriteBatcher* sb = malloc(sizeof(SpriteBatcher));
+
+		if (sb) {
+			sb->capacity = SPRITE_BUFFER_INITIAL_CAPACITY;
+			sb->vertexCount = 0;
+			sb->indexCount = 0;
+			sb->vertexData = vertexData;
+			sb->indexData = NULL;
+			glGenBuffers(1, &sb->vertexBuffer);
+			glGenBuffers(1, &sb->indexBuffer);
+			glGenVertexArrays(1, &sb->vertexArray);
+		}
+
+		return sb;
+	}
+
+	void spriteBatcherFree(SpriteBatcher* sb) {
+		if (sb) {
+			if (sb->vertexData) free(sb->vertexData);
+			if (sb->indexData) free(sb->indexData);
+			glDeleteBuffers(1, &sb->vertexBuffer);
+			glDeleteBuffers(1, &sb->indexBuffer);
+			glDeleteVertexArrays(1, &sb->vertexArray);
+			free(sb);
+		}
+	}
+
+	// Get a SpriteBatcher which will be help indefinetely (e.g. by a Wren script).
+	// If possible, it re-uses an existing SpriteBatcher.
+	SpriteBatcher* spriteBatcherGet() {
+		if (spriteBufferCacheCount == 0) {
+			return spriteBatcherNew();
+		} else {
+			return spriteBufferCache[--spriteBufferCacheCount];
+		}
+	}
+	
+	// Put a SpriteBatcher into the cache if there is space.
+	// Otherwise the SpriteBatcher's resources are freed.
+	void spriteBatcherPut(SpriteBatcher* sb) {
+		if (spriteBufferCacheCount < SPRITE_BUFFER_CACHE_SIZE) {
+			spriteBufferCache[spriteBufferCacheCount++] = sb;
+		} else {
+			spriteBatcherFree(sb);
+		}
+	}
+
+	// Get a SpriteBatcher instance that will be help temorary (i.e. not indefinetely by a Wren script).
+	// If possible, it re-uses an existing SpriteBatcher.
+	SpriteBatcher* spriteBatcherTemp() {
+		if (spriteBufferCacheCount == 0) {
+			SpriteBatcher* sb = spriteBatcherNew();
+			if (sb) {
+				spriteBufferCache[0] = sb;
+				spriteBufferCacheCount++;
+			}
+			return sb;
+		} else {
+			return spriteBufferCache[0];
+		}
+	}
+
+	void spriteBatcherBegin(SpriteBatcher* sb) {
+		sb->vertexCount = 0;
+	}
+	
+	void spriteBatcherEnd(SpriteBatcher* sb, Sprite* spr) {
+		if (sb && sb->vertexCount != 0) {
+			glBindVertexArray(sb->vertexArray);
+
+			// Put vertex data.
+			glBindBuffer(GL_ARRAY_BUFFER, sb->vertexBuffer);
+
+			GLint bufferSize;
+			glGetBufferParameteriv(GL_ARRAY_BUFFER, GL_BUFFER_SIZE, &bufferSize);
+
+			if (sb->vertexCount * 24 > (uint32_t)bufferSize) {
+				// Re-allocate vertex data.
+				glBufferData(GL_ARRAY_BUFFER, sb->vertexCount * 24, sb->vertexData, GL_DYNAMIC_DRAW);
+			} else {
+				// Put in sub-data.
+				glBufferSubData(GL_ARRAY_BUFFER, 0, sb->vertexCount * 24, sb->vertexData);
+			}
+			
+			// Configure/enable attributes.
+			glVertexAttribPointer(
+				0,
+				3,
+				GL_FLOAT,
+				GL_FALSE,
+				24,
+				(void*)0
+			);
+			glEnableVertexAttribArray(0);
+			
+			glVertexAttribPointer(
+				1,
+				4,
+				GL_UNSIGNED_BYTE,
+				GL_TRUE,
+				24,
+				(void*)12
+			);
+			glEnableVertexAttribArray(1);
+
+			glVertexAttribPointer(
+				2,
+				2,
+				GL_FLOAT,
+				GL_FALSE,
+				24,
+				(void*)16
+			);
+			glEnableVertexAttribArray(2);
+
+			// Set shader camera matrix.
+			// float matrix[9] = {
+			// 	1.0f, 0.0f, 0.0f,
+			// 	0.0f, 1.0f, 0.0f,
+			// 	0.0f, 0.0f, 1.0f,
+			// };
+			glUniformMatrix3fv(shaderSpriteBatcher.uniforms[0], 1, GL_FALSE, getCameraMatrix());
+
+			// Set shader texture.
+			glActiveTexture(GL_TEXTURE0);
+			glBindTexture(GL_TEXTURE_2D, spr->texture.id);
+			glUniform1i(shaderSpriteBatcher.uniforms[1], 0);
+		
+			// Setup index buffer.
+			// Since we're always drawing quads, we only need to populate it whenever it needs resizing.
+			glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, sb->indexBuffer);
+			
+			// 6 indices for every 4 vertices.
+			// 6:4 -> 3:2
+			uint32_t indexCount = (sb->vertexCount * 3) / 2;
+			
+			// Grow index array.
+			if (indexCount > sb->indexCount) {
+				// Create new indices array.
+				uint32_t newIndexCount = (sb->capacity * 3) / 2;
+
+				uint16_t* newIndices = (uint16_t*)realloc(sb->indexData, newIndexCount * 2);
+				if (!newIndices) return;
+				
+				// Set new indices.
+				uint32_t vi = (sb->indexCount * 2) / 3;
+
+				for (uint32_t i = sb->indexCount; i < newIndexCount; i += 6) {
+					newIndices[i    ] = vi;
+					newIndices[i + 1] = vi + 1;
+					newIndices[i + 2] = vi + 2;
+					newIndices[i + 3] = vi + 1;
+					newIndices[i + 4] = vi + 3;
+					newIndices[i + 5] = vi + 2;
+					vi += 4;
+				}
+
+				glBufferData(GL_ELEMENT_ARRAY_BUFFER, newIndexCount * 2, newIndices, GL_DYNAMIC_DRAW);
+
+				sb->indexCount = newIndexCount;
+				sb->indexData = newIndices;
+			}
+
+			// Draw!
+			glUseProgram(shaderSpriteBatcher.program);
+
+			glBindVertexArray(sb->vertexArray);
+
+			glDrawElements(GL_TRIANGLES, indexCount, GL_UNSIGNED_SHORT, 0);
+
+			// Clean up.
+			glBindVertexArray(0);
+			glDisableVertexAttribArray(0);
+			glDisableVertexAttribArray(1);
+			glDisableVertexAttribArray(2);
+		}
+	}
+	
+	bool spriteBatcherCheckResize(SpriteBatcher* sb, uint32_t vertexCount) {
+		if (sb->vertexCount + vertexCount > sb->capacity) {
+			// Grow capacity.
+			if (sb->capacity * 2 >= 0xfffff) {
+				return false;
+			}
+
+			sb->capacity *= 2;
+			
+			// Resize vertex data.
+			void* newVertexData = realloc(sb->vertexData, sb->capacity * 24);
+			if (!newVertexData) {
+				return false;
+			}
+
+			sb->vertexData = newVertexData;
+		}
+
+		return true;
+	}
+
+	void spriteBatcherAddVertex(SpriteBatcher* sb, float x, float y, float z, uint32_t color, float u, float v) {
+		float* floatPtr = ((float*)sb->vertexData) + (sb->vertexCount * 6);
+		uint32_t* int32ptr = (uint32_t*)floatPtr;
+
+		floatPtr[0] = x;
+		floatPtr[1] = y;
+		floatPtr[2] = z;
+		int32ptr[3] = color;
+		floatPtr[4] = u;
+		floatPtr[5] = v;
+
+		sb->vertexCount++;
+	}
+	
+	void spriteBatcherDrawQuad(SpriteBatcher* sb, float x1, float y1, float x2, float y2, float z, float u1, float v1, float u2, float v2, uint32_t color, Transform* tf) {
+		if (spriteBatcherCheckResize(sb, 4)) {
+			if (tf) {
+				// TODO handle transform.
+			} else {
+				spriteBatcherAddVertex(sb, x1, y1, z, color, u1, v1);
+				spriteBatcherAddVertex(sb, x1, y2, z, color, u1, v2);
+				spriteBatcherAddVertex(sb, x2, y1, z, color, u2, v1);
+				spriteBatcherAddVertex(sb, x2, y2, z, color, u2, v2);
+			}
+		}
+	}
+
+	bool compilerShaderUniformLocations(Shader* shader, int count, const char** names, int index) {
+		for (int i = 0; i < count; i++) {
+			const char* name = names[i];
+
+			int space = strLastIndex(name, ' ');
+			if (space >= 0) {
+				name = name + space + 1;
+			}
+
+			GLint location = glGetUniformLocation(shader->program, name);
+			if (location == -1) {
+				quitError = printBuffer;
+				sprintf_s(printBuffer, PRINT_BUFFER_SIZE, "invalid uniform name %s", name);
+				return false;
+			}
+			shader->uniforms[index++] = location;
+		}
+
+		return true;
+	}
 
 	Shader compileShader(ShaderData* data) {
 		StringBuilder sb;
@@ -964,13 +1355,13 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 
 					// Get uniform locations.
 					glUseProgram(prog);
+					
+					bool vuOK = compilerShaderUniformLocations(&result, data->vertexUnifomCount, data->vertexUniforms, 0);
+					bool fuOK = compilerShaderUniformLocations(&result, data->fragmentUnifomCount, data->fragmentUniforms, data->vertexUnifomCount);
 
-					int uniformIndex = 0;
-					for (int i = 0; i < data->vertexUnifomCount; i++) {
-						result.uniforms[uniformIndex++] = glGetUniformLocation(prog, data->vertexUniforms[i]);
-					}
-					for (int i = 0; i < data->fragmentUnifomCount; i++) {
-						result.uniforms[uniformIndex++] = glGetUniformLocation(prog, data->fragmentUniforms[i]);
+					if (!vuOK || !fuOK) {
+						glDeleteProgram(result.program);
+						result.program = 0;
 					}
 				}
 			}
@@ -999,11 +1390,11 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 		},
 		// Vertex Uniforms
 		1, {
-			"mat3 mat",
+			"mat3 m",
 		},
 		// Fragment Uniforms
 		1, {
-			"tex sampler2D",
+			"sampler2D tex",
 		},
 		// Varyings
 		2, {
@@ -1013,11 +1404,12 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 		// Vertex Shader
 		"v_color = color;\n"
 		"v_uv = uv;\n"
-		"vec3 a = mat * vec3(vertex.x, vertex.y, 1.0);\n"
-		"gl_Position = vec4(a.x, a.y, vertex.z, 1.0);\n"
+		// "gl_Position = vec4(vertex, 1.0);\n"
+		"vec3 a = m * vec3(vertex.xy, 1.0);\n"
+		"gl_Position = vec4(a.xy, vertex.z, 1.0);\n"
 		,
 		// Fragment Shader
-		"gl_FragColor = texture2D(tex, v_uv) * v_color;\n"
+		"FragColor = texture(tex, v_uv) * v_color;\n"
 	};
 	
 	static ShaderData shaderDataPolygonBatcher = {
@@ -1044,11 +1436,69 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 		// "gl_Position = vec4(a.x, a.y, vertex.z, 1.0);\n"
 		,
 		// Fragment Shader
-		"gl_FragColor = v_color;\n"
+		"FragColor = v_color;\n"
 	};
 
-	static Shader shaderSpriteBatcher;
-	static Shader shaderPolygonBatcher;
+	static const char* SOCK_FILTER_LINEAR = "linear";
+	static const char* SOCK_FILTER_NEAREST = "nearest";
+
+	static const char* SOCK_WRAP_CLAMP = "clamp";
+	static const char* SOCK_WRAP_REPEAT = "repeat";
+	static const char* SOCK_WRAP_MIRROR = "mirror";
+
+	GLuint filterStringToGlEnum(const char* filter) {
+		if (strcmp(SOCK_FILTER_LINEAR, filter) == 0) return GL_LINEAR;
+		if (strcmp(SOCK_FILTER_NEAREST, filter) == 0) return GL_NEAREST;
+		return 0;
+	}
+	
+	GLuint wrapStringToGlEnum(const char* wrap) {
+		if (strcmp(SOCK_WRAP_CLAMP, wrap) == 0) return GL_CLAMP_TO_EDGE;
+		if (strcmp(SOCK_WRAP_REPEAT, wrap) == 0) return GL_REPEAT;
+		if (strcmp(SOCK_WRAP_MIRROR, wrap) == 0) return GL_MIRRORED_REPEAT;
+		return 0;
+	}
+
+	GLuint wren_filterStringToGlEnum(WrenVM* vm, int slot) {
+		if (wrenGetSlotType(vm, slot) != WREN_TYPE_STRING) {
+			wrenAbort(vm, "filter type must be a string");
+			return 0;
+		}
+		
+		GLuint filter = filterStringToGlEnum(wrenGetSlotString(vm, slot));
+		if (filter == 0) {
+			wrenAbort(vm, "invalid filter type");
+		}
+		
+		return filter;
+	}
+	
+	GLuint wren_wrapStringToGlEnum(WrenVM* vm, int slot) {
+		if (wrenGetSlotType(vm, slot) != WREN_TYPE_STRING) {
+			wrenAbort(vm, "wrap type must be a string");
+			return 0;
+		}
+		
+		GLuint filter = wrapStringToGlEnum(wrenGetSlotString(vm, slot));
+		if (filter == 0) {
+			wrenAbort(vm, "invalid wrap type");
+		}
+
+		return filter;
+	}
+
+	const char* glFilterEnumToString(GLuint filter) {
+		if (filter == GL_LINEAR) return SOCK_FILTER_LINEAR;
+		if (filter == GL_NEAREST) return SOCK_FILTER_NEAREST;
+		return NULL;
+	}
+	
+	const char* glWrapEnumToString(GLuint wrap) {
+		if (wrap == GL_CLAMP_TO_EDGE) return SOCK_WRAP_CLAMP;
+		if (wrap == GL_REPEAT) return SOCK_WRAP_REPEAT;
+		if (wrap == GL_MIRRORED_REPEAT) return SOCK_WRAP_MIRROR;
+		return NULL;
+	}
 
 
 	// === SOCK WREN API ===
@@ -1078,7 +1528,220 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 		glClear(GL_COLOR_BUFFER_BIT);
 	}
 
-	// Game
+	// CAMERA
+
+	void wren_CameraUpdate_3(WrenVM* vm) {
+		for (int i = 1; i <= 3; i++) {
+			if (wrenGetSlotType(vm, i) != WREN_TYPE_NUM) {
+				wrenAbort(vm, "args must be numbers");
+				return;
+			}
+		}
+
+		camera.centerX = (float)wrenGetSlotDouble(vm, 1);
+		camera.centerY = (float)wrenGetSlotDouble(vm, 2);
+		camera.scale = (float)wrenGetSlotDouble(vm, 3);
+		cameraMatrixDirty = true;
+	}
+
+	// SPRITE
+
+	void wren_spriteAllocate(WrenVM* vm) {
+		Sprite* spr = (Sprite*)wrenSetSlotNewForeign(vm, 0, 0, sizeof(Sprite));
+		
+		spr->texture.width = 0;
+		spr->texture.height = 0;
+		spr->texture.filter = defaultSpriteFilter;
+		spr->texture.wrap = defaultSpriteWrap;
+		spr->texture.id = 0;
+		spr->transform.matrix[0] = 0.0f;
+		spr->transform.matrix[1] = 0.0f;
+		spr->transform.matrix[2] = 0.0f;
+		spr->transform.matrix[3] = 0.0f;
+		spr->transform.matrix[4] = 0.0f;
+		spr->transform.matrix[5] = 0.0f;
+		spr->transform.originX = 0.0f;
+		spr->transform.originY = 0.0f;
+		spr->path = NULL;
+
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+	}
+
+	void wren_spriteFinalize(void* data) {
+		Sprite* spr = (Sprite*)data;
+		
+		// glDeleteTextures silently ignores 0's.
+		glDeleteTextures(1, &spr->texture.id);
+
+		if (spr->path) {
+			free(spr->path);
+		}
+	}
+
+	void wren_sprite_width(WrenVM* vm) {
+		Sprite* spr = (Sprite*)wrenGetSlotForeign(vm, 0);
+		wrenSetSlotDouble(vm, 0, spr->texture.width);
+	}
+	
+	void wren_sprite_height(WrenVM* vm) {
+		Sprite* spr = (Sprite*)wrenGetSlotForeign(vm, 0);
+		wrenSetSlotDouble(vm, 0, spr->texture.height);
+	}
+
+	void wren_sprite_load_(WrenVM* vm) {
+		if (wrenGetSlotType(vm, 1) != WREN_TYPE_STRING) {
+			wrenAbort(vm, "path must be a string");
+			return;
+		}
+
+		Sprite* spr = (Sprite*)wrenGetSlotForeign(vm, 0);
+
+		const char* path = wrenGetSlotString(vm, 1);
+
+		// Load from file.
+		int64_t imgSize;
+		char* img = readAsset(path, &imgSize);
+		if (!img) {
+			wrenAbort(vm, quitError);
+			quitError = NULL;
+			return;
+		}
+
+		int width, height, channelCount;
+		stbi_uc* data = stbi_load_from_memory(img, (int)imgSize, &width, &height, &channelCount, 4);
+		
+		free(img);
+
+		if (!data) {
+			wrenAbort(vm, stbi_failure_reason());
+			return;
+		}
+
+		// Load into WebGL texture.
+		GLuint id;
+		glGenTextures(1, &id);
+		glBindTexture(GL_TEXTURE_2D, id);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, spr->texture.wrap);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, spr->texture.wrap);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, spr->texture.filter);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, spr->texture.filter);
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
+
+		stbi_image_free(data);
+
+		// Save texture info.
+		spr->texture.width = width;
+		spr->texture.height = height;
+		spr->texture.id = id;
+		spr->path = _strdup(path);
+
+		// Return loaded.
+		wrenSetSlotNull(vm, 0);
+	}
+
+	void wren_sprite_scaleFilter(WrenVM* vm) {
+		Sprite* spr = (Sprite*)wrenGetSlotForeign(vm, 0);
+		wrenSetSlotString(vm, 0, glFilterEnumToString(spr->texture.filter));
+	}
+	
+	void wren_sprite_scaleFilter_set(WrenVM* vm) {
+		GLuint filter = wren_filterStringToGlEnum(vm, 1);
+
+		if (filter != 0) {
+			Sprite* spr = (Sprite*)wrenGetSlotForeign(vm, 0);
+			spr->texture.filter = filter;
+
+			if (spr->texture.id != 0) {
+				glBindTexture(GL_TEXTURE_2D, spr->texture.id);
+				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, filter);
+				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, filter);
+			}
+		}
+	}
+	
+	void wren_sprite_wrapMode(WrenVM* vm) {
+		Sprite* spr = (Sprite*)wrenGetSlotForeign(vm, 0);
+		wrenSetSlotString(vm, 0, glWrapEnumToString(spr->texture.wrap));
+	}
+	
+	void wren_sprite_wrapMode_set(WrenVM* vm) {
+		GLuint wrap = wren_wrapStringToGlEnum(vm, 1);
+		
+		if (wrap != 0) {
+			Sprite* spr = (Sprite*)wrenGetSlotForeign(vm, 0);
+			spr->texture.wrap = wrap;
+
+			if (spr->texture.id != 0) {
+				glBindTexture(GL_TEXTURE_2D, spr->texture.id);
+				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, wrap);
+				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, wrap);
+			}
+		}
+	}
+	
+	void wren_sprite_beginBatch(WrenVM* vm) {
+		Sprite* spr = (Sprite*)wrenGetSlotForeign(vm, 0);
+		
+		if (spr->batcher) {
+			wrenAbort(vm, "batch already started");
+		} else {
+			spr->batcher = spriteBatcherGet();
+			spriteBatcherBegin(spr->batcher);
+		}
+	}
+	
+	void wren_sprite_endBatch(WrenVM* vm) {
+		Sprite* spr = (Sprite*)wrenGetSlotForeign(vm, 0);
+		
+		if (spr->batcher) {
+			spriteBatcherEnd(spr->batcher, spr);
+			spriteBatcherPut(spr->batcher);
+			spr->batcher = NULL;
+		} else {
+			wrenAbort(vm, "batch not yet started");
+		}
+	}
+
+	void wren_sprite_draw5(WrenVM* vm) {
+		for (int i = 1; i <= 5; i++) {
+			if (wrenGetSlotType(vm, i) != WREN_TYPE_NUM) {
+				wrenAbort(vm, "args must be numbers");
+				return;
+			}
+		}
+
+		Sprite* spr = (Sprite*)wrenGetSlotForeign(vm, 0);
+		float x1 = (float)wrenGetSlotDouble(vm, 1);
+		float y1 = (float)wrenGetSlotDouble(vm, 2);
+		float x2 = x1 + (float)wrenGetSlotDouble(vm, 3);
+		float y2 = y1 + (float)wrenGetSlotDouble(vm, 4);
+		uint32_t color = (uint32_t)wrenGetSlotDouble(vm, 5);
+
+		SpriteBatcher* sb = spr->batcher;
+		if (!sb) {
+			sb = spriteBatcherTemp();
+			spriteBatcherBegin(sb);
+		}
+
+		spriteBatcherDrawQuad(sb, x1, y1, x2, y2, 0, 0, 0, 1, 1, color, NULL);
+
+		if (!spr->batcher) spriteBatcherEnd(sb, spr);
+	}
+
+	void wren_sprite_toString(WrenVM* vm) {
+		Sprite* spr = (Sprite*)wrenGetSlotForeign(vm, 0);
+
+		if (spr->path) {
+			wrenSetSlotString(vm, 0, spr->path);
+		} else {
+			char buffer[32];
+			sprintf_s(buffer, 32, "Sprite#%p", &spr);
+			wrenSetSlotString(vm, 0, buffer);
+		}
+	}
+
+
+	// GAME
 
 	void wren_Game_ready_(WrenVM* vm) {
 		game_ready = true;
@@ -1102,7 +1765,42 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 				}
 			} else if (strcmp(className, "Camera") == 0) {
 				if (isStatic) {
-					if (strcmp(signature, "update_(_,_,_)") == 0) return wren_methodTODO;
+					if (strcmp(signature, "update_(_,_,_)") == 0) return wren_CameraUpdate_3;
+				}
+			} else if (strcmp(className, "Storage") == 0) {
+				if (isStatic) {
+					if (strcmp(signature, "load_(_)") == 0) return wren_methodTODO;
+					if (strcmp(signature, "save_(_,_)") == 0) return wren_methodTODO;
+					if (strcmp(signature, "contains(_)") == 0) return wren_methodTODO;
+					if (strcmp(signature, "remove(_)") == 0) return wren_methodTODO;
+					if (strcmp(signature, "keys") == 0) return wren_methodTODO;
+				}
+			} else if (strcmp(className, "Sprite") == 0) {
+				if (isStatic) {
+					// TODO
+					if (strcmp(signature, "defaultScaleFilter") == 0) return wren_methodTODO;
+					if (strcmp(signature, "defaultScaleFilter=(_)") == 0) return wren_methodTODO;
+					if (strcmp(signature, "defaultWrapMode") == 0) return wren_methodTODO;
+					if (strcmp(signature, "defaultWrapMode=(_)") == 0) return wren_methodTODO;
+				} else {
+					if (strcmp(signature, "width") == 0) return wren_sprite_width;
+					if (strcmp(signature, "height") == 0) return wren_sprite_height;
+					if (strcmp(signature, "load_(_)") == 0) return wren_sprite_load_;
+					if (strcmp(signature, "scaleFilter") == 0) return wren_sprite_scaleFilter;
+					if (strcmp(signature, "scaleFilter=(_)") == 0) return wren_sprite_scaleFilter_set;
+					if (strcmp(signature, "wrapMode") == 0) return wren_sprite_wrapMode;
+					if (strcmp(signature, "wrapMode=(_)") == 0) return wren_sprite_wrapMode_set;
+					if (strcmp(signature, "beginBatch()") == 0) return wren_sprite_beginBatch;
+					if (strcmp(signature, "endBatch()") == 0) return wren_sprite_endBatch;
+					if (strcmp(signature, "draw_(_,_,_,_,_)") == 0) return wren_sprite_draw5;
+					if (strcmp(signature, "toString") == 0) return wren_sprite_toString;
+
+					// TODO
+					if (strcmp(signature, "transform_") == 0) return wren_methodTODO;
+					if (strcmp(signature, "setTransform_(_,_,_,_,_,_)") == 0) return wren_methodTODO;
+					if (strcmp(signature, "transformOrigin_") == 0) return wren_methodTODO;
+					if (strcmp(signature, "setTransformOrigin(_,_)") == 0) return wren_methodTODO;
+					if (strcmp(signature, "draw_(_,_,_,_,_,_,_,_,_)") == 0) return wren_methodTODO;
 				}
 			} else if (strcmp(className, "Game") == 0) {
 				if (isStatic) {
@@ -1139,9 +1837,9 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 			methods.finalize = NULL;
 
 			if (strcmp(moduleName, "sock") == 0) {
-				if (strcmp(className, "StringBuilder") == 0) {
-					methods.allocate = wren_sbAllocate;
-					methods.finalize = wren_sbFinalize;
+				if (strcmp(className, "Sprite") == 0) {
+					methods.allocate = wren_spriteAllocate;
+					methods.finalize = wren_spriteFinalize;
 				}
 			}
 		}
@@ -1196,7 +1894,7 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 			quitError = "SDL_GetBasePath";
 			return -1;
 		}
-		basePathLen = strlen(basePath);
+		basePathLen = (int)strlen(basePath);
 
 		// Create window and GL context.
 		window = SDL_CreateWindow("Sock", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 640, 480, SDL_WINDOW_OPENGL);
@@ -1219,24 +1917,15 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 		printf("Loaded OpenGL %d.%d\n", GLVersion.major, GLVersion.minor);
 
 		// Load shaders.
-		// shaderSpriteBatcher = compileShader(&shaderDataSpriteBatcher);
+		shaderSpriteBatcher = compileShader(&shaderDataSpriteBatcher);
+		if (shaderSpriteBatcher.program == 0) {
+			return -1;
+		}
+
 		shaderPolygonBatcher = compileShader(&shaderDataPolygonBatcher);
 		if (shaderPolygonBatcher.program == 0) {
 			return -1;
 		}
-
-		// DEBUG triangle.
-		float triangleData[] = {
-			-0.5f, -0.5f, 0.0f, 1.0f,    1.0f, 0.0f, 0.0f, 1.0f,
-			0.5f,  -0.5f, 0.0f, 1.0f,    0.0f, 1.0f, 0.0f, 1.0f,
-			0.0f,  0.5f,  0.0f, 1.0f,    0.0f, 0.0f, 1.0f, 1.0f,
-		};
-
-		GLuint triangleBuffer;
-		glGenBuffers(1, &triangleBuffer);
-
-		glBindBuffer(GL_ARRAY_BUFFER, triangleBuffer);
-		glBufferData(GL_ARRAY_BUFFER, sizeof(triangleData), triangleData, GL_STATIC_DRAW);
 
 		// Final GL setup.
 		glViewport(0, 0, 640, 480);
@@ -1254,6 +1943,7 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 		vm = wrenNewVM(&config);
 
 		// Make call handles.
+		callHandle_init_2 = wrenMakeCallHandle(vm, "init_(_,_)");
 		callHandle_update_0 = wrenMakeCallHandle(vm, "update_()");
 		callHandle_update_2 = wrenMakeCallHandle(vm, "update_(_,_)");
 		
@@ -1275,8 +1965,11 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 		handle_Input = wren_getHandle("sock", "Input");
 		handle_Game = wren_getHandle("sock", "Game");
 
+		// Init modules.
+		initGameModule();
+
 		// Load user main Wren.
-		char* mainSource = fileReadRelative("assets/main.wren");
+		char* mainSource = readAsset("/main.wren", NULL);
 		if (mainSource == NULL) return -1;
 
 		WrenInterpretResult mainResult = wrenInterpret(vm, "sock", mainSource);
@@ -1331,18 +2024,6 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 						inLoop = 0;
 					}
 				}
-
-				// DEBUG Triangle
-				glUseProgram(shaderPolygonBatcher.program);
-
-				glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 8 * 4, (void*)0);
-				glEnableVertexAttribArray(0);
-
-				glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE, 8 * 4, (void*)(4 * 4));
-				glEnableVertexAttribArray(1);
-
-				glBindVertexArray(triangleBuffer);
-    			glDrawArrays(GL_TRIANGLES, 0, 3);
 
 				// Finalize GL.
 				SDL_GL_SwapWindow(window);

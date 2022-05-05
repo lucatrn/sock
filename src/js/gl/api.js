@@ -11,7 +11,7 @@ export const GL_FILTER_MAP = {
 export const GL_WRAP_MAP = {
 	clamp: gl.CLAMP_TO_EDGE,
 	repeat: gl.REPEAT,
-	mirrored: gl.MIRRORED_REPEAT,
+	mirror: gl.MIRRORED_REPEAT,
 };
 
 /**

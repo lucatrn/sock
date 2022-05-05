@@ -64,18 +64,3 @@ addForeignMethod("", "Camera", true, "update_(_,_,_)", () => {
 	cameraScale = wrenGetSlotDouble(3);
 	cameraMatrixDirty = true;
 });
-
-
-// JS -> Wren
-
-let handle_Camera = 0;
-
-export function initCameraModule() {
-	wrenEnsureSlots(1);
-	wrenGetVariable("sock", "Camera", 0);
-	handle_Camera = wrenGetSlotHandle(0);
-
-	// wrenEnsureSlotss(1);
-	wrenSetSlotHandle(0, handle_Camera);
-	wrenCall(callHandle_init_0);
-}
