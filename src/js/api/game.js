@@ -1,12 +1,13 @@
 import { canvas } from "../canvas.js";
 import { Color } from "../color.js";
+import { device } from "../device.js";
 import { addClassForeignStaticMethods } from "../foreign.js";
 import { glFilterStringToNumber } from "../gl/api.js";
 import { mainFramebuffer } from "../gl/framebuffer.js";
 import { computedLayout, layoutOptions, queueLayout } from "../layout.js";
 import { systemFontDraw, SYSTEM_FONT } from "../system-font.js";
 import { callHandle_init_2, callHandle_update_0, callHandle_update_2 } from "../vm-call-handles.js";
-import { abortFiber, getSlotBytes, wrenCall, wrenEnsureSlots, wrenGetSlotBool, wrenGetSlotDouble, wrenGetSlotHandle, wrenGetSlotString, wrenGetSlotType, wrenGetVariable, wrenSetSlotDouble, wrenSetSlotHandle, wrenSetSlotString } from "../vm.js";
+import { abortFiber, getSlotBytes, wrenCall, wrenEnsureSlots, wrenGetSlotBool, wrenGetSlotDouble, wrenGetSlotHandle, wrenGetSlotString, wrenGetSlotType, wrenGetVariable, wrenSetSlotDouble, wrenSetSlotHandle, wrenSetSlotNull, wrenSetSlotString } from "../vm.js";
 
 // Wren -> JS
 
@@ -49,10 +50,26 @@ addClassForeignStaticMethods("sock", "Game", {
 		mainFramebuffer.setFilter(filter);
 	},
 	"fps"() {
-		wrenSetSlotDouble(0, fps);
+		if (fps < 0) {
+			wrenSetSlotNull(0);
+		} else {
+			wrenSetSlotDouble(0, fps);
+		}
 	},
 	"fps=(_)"() {
-		fps = wrenGetSlotDouble(1);
+		let type = wrenGetSlotType(1);
+		if (type === 5) {
+			fps = -1;
+		} else if (type === 1) {
+			let value = wrenGetSlotDouble(1);
+			if (fps <= 0) {
+				abortFiber("fps must be positive");
+			} else {
+				fps = value;
+			}
+		} else {
+			abortFiber("fps must be Num or null");
+		}
 	},
 	"cursor"() {
 		wrenSetSlotString(0, cursor);
@@ -100,6 +117,22 @@ addClassForeignStaticMethods("sock", "Game", {
 	"setPrintColor_(_)"() {
 		printColor = wrenGetSlotDouble(1);
 	},
+	"os"() {
+		wrenSetSlotString(0, device.os);
+	},
+	"browser"() {
+		wrenSetSlotString(0, device.browser);
+	},
+	"openWebURL(_)"() {
+		if (wrenGetSlotType(1) !== 6) {
+			abortFiber("url must be a string");
+			return;
+		}
+
+		let url = wrenGetSlotString(1);
+
+		open(url, "_blank", "noreferrer");
+	},
 });
 
 /**
@@ -108,10 +141,10 @@ addClassForeignStaticMethods("sock", "Game", {
  * @type {Record<string, string>}
  */
 let cursorSockToCSS = {
-	"none": "",
 	"default": "",
 	"pointer": "",
 	"wait": "progress",
+	"hidden": "none",
 };
 
 

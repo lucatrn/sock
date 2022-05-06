@@ -1,3 +1,4 @@
+import { wrenJSONToJS } from "../json.js";
 import { callHandle_toString } from "../vm-call-handles.js";
 import { wrenCall, wrenEnsureSlots, wrenGetSlotString, wrenGetVariable, wrenHasVariable, wrenInterpret } from "../vm.js";
 
@@ -132,22 +133,7 @@ function getVariableAsJavaScript(varName, json=false) {
 		let toStr = wrenGetSlotString(0);
 
 		if (json) {
-			return JSON.parse(toStr, (key, value) => {
-				if (Array.isArray(value) && value.length === 2 && typeof value[0] === "string" && value[0][0] === "»") {
-					let type = value[0].slice(1);
-					value = value[1];
-
-					if (type === "Vec") return { x: value[0], y: value[1] };
-					if (type === "Color") {
-						let u8 = new Uint8Array(new Uint32Array([ value ]).buffer);
-						return { r: u8[0], g: u8[1], b: u8[2], a: u8[3] };
-					}
-					if (type === "Array") return fromBase64(value);
-					// console.warn(`unhandled type "${type}"`);
-				}
-
-				return value;
-			});
+			return wrenJSONToJS(toStr);
 		} else {
 			return toStr;
 		}

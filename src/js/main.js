@@ -14,6 +14,7 @@ import { terminalInterpret } from "./debug/terminal.js";
 import { loadEmscripten, wrenAddImplicitImportModule, wrenCall, wrenErrorString, wrenHasError, wrenInterpret } from "./vm.js";
 import { makeCallHandles } from "./vm-call-handles.js";
 import { initSystemFont } from "./system-font.js";
+import { initJavaScriptModule } from "./api/javascript.js";
 
 /** @type {number} */
 let prevTime = null;
@@ -21,11 +22,10 @@ let time = 0;
 let frame = 0;
 let remainingTime = 0;
 let quit = false;
-let Module;
 
 async function init() {
 	// Get scripts in parallel.
-	let promSockScript = httpGET("sock.wren", "arraybuffer");
+	let promSockScript = httpGET("sock-web.wren", "arraybuffer");
 	let promGameMainScript = httpGET("assets/main.wren", "arraybuffer");
 
 	// Load Wren VM.
@@ -55,6 +55,7 @@ async function init() {
 	initAssetModule();
 	initGameModule();
 	initInputModule();
+	initJavaScriptModule();
 
 	// Init WebGL.
 	mainFramebuffer.updateResolution();

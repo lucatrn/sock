@@ -7,5 +7,7 @@ import "./storage.js";
 import "./camera.js";
 import "./sprite.js";
 import "./game.js";
+import "./screen.js";
 import "./polygon.js";
 import "./input.js";
+import "./javascript.js";

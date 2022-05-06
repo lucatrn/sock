@@ -10,6 +10,15 @@ class Vec {
 		_y = y
 	}
 
+	construct of(a) {
+		if (a is List) {
+			_x = a[0]
+			_y = a[1]
+		} else {
+			_x = _y = 0
+		}
+	}
+
 	x { _x }
 	y { _y }
 

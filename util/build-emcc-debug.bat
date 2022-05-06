@@ -26,6 +26,6 @@ call emcc ^
   || echo ERROR && exit /b
 
 
-echo Moving [tmp/sock_c.js] to [src/js-generated/sock_c.js]
+echo Copying [tmp/sock_c.js] to [src/js-generated/sock_c.js]
 
-move tmp\sock_c.js src\js-generated  || echo ERROR && exit /b
+copy tmp\sock_c.js src\js-generated  || echo ERROR && exit /b

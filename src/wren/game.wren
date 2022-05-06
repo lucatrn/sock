@@ -1,53 +1,61 @@
 
+//#define __IS_PIXEL_PERFECT __pp
+//#define __SIZE_MAX __szm
+//#define __SIZE_IS_FIXED __szf
+//#define __SIZE __sz
+//#define __SCALE_MAX __km
+
 class Game {
 	foreign static title
 
 	foreign static title=(s)
 
-	static size { __size }
+	static size { __SIZE }
 
-	static width { __size.x }
+	static width { __SIZE.x }
 	
-	static height { __size.y }
+	static height { __SIZE.y }
 
-	static center { __size / 2 }
+	static center { __SIZE / 2 }
 
-	static size=(v) {
+	fixedSize { __SIZE_IS_FIXED ? __SIZE : null }
+
+	static fixedSize=(v) {
 		if (v == null) {
-			if (__fixed) {
-				__size.x = __screen.x
-				__size.y = __screen.y
-				__fixed = false
+			if (__SIZE_IS_FIXED) {
+				__SIZE.x = __SIZE_MAX.x
+				__SIZE.y = __SIZE_MAX.y
+				__SIZE_IS_FIXED = false
 				layoutChanged_()
 			}
 		} else {
-			if (!__fixed || __size != v) {
-				__size.x = v.x.floor.clamp(1, 2048)
-				__size.y = v.y.floor.clamp(1, 2048)
-				__fixed = true
-				layoutChanged_()
-			}
+			setFixedSize(v.x, v.y)
 		}
 	}
 
-	static width=(w) { size = Vec.new(w, __size.y) }
+	static setFixedSize(x, y) {
+		if (!__SIZE_IS_FIXED || __SIZE.x != x || __SIZE.y != y) {
+			__SIZE.x = x.floor.clamp(1, 2048)
+			__SIZE.y = y.floor.clamp(1, 2048)
+			__SIZE_IS_FIXED = true
+			layoutChanged_()
+		}
+	}
 
-	static height=(h) { size = Vec.new(__size.x, h) }
-
-	static isFixedSize { __fixed }
-
-	static pixelPerfectScaling { __pp }
+	static pixelPerfectScaling { __IS_PIXEL_PERFECT }
 
 	static pixelPerfectScaling=(pp) {
-		__pp = pp
+		__IS_PIXEL_PERFECT = pp
 		layoutChanged_()
 	}
 
-	static maxScale { __maxs }
+	static maxScale { __SCALE_MAX }
 
-	static maxScale=(maxs) {
-		__maxs = maxs
-		layoutChanged_()
+	static maxScale=(s) {
+		if (__SCALE_MAX != s) {
+			__SCALE_MAX = s
+			layoutChanged_()
+		}
 	}
 
 	foreign static scaleFilter
@@ -59,7 +67,7 @@ class Game {
 	foreign static fps=(fps)
 
 	static layoutChanged_() {
-		layoutChanged_(__size.x, __size.y, __fixed, __pp, __maxs)
+		layoutChanged_(__SIZE.x, __SIZE.y, __SIZE_IS_FIXED, __IS_PIXEL_PERFECT, __SCALE_MAX)
 	}
 
 	foreign static layoutChanged_(x, y, fixed, pp, maxs)
@@ -88,23 +96,39 @@ class Game {
 
 	foreign static setPrintColor_(d)
 
-	static init_(sx, sy) {
-		__size = Vec.new(sx, sy)
-		__screen = Vec.new(sx, sy)
-		__fixed = false
-		__maxs = Num.infinity
-		__pp = false
+	foreign static platform
+
+	foreign static os
+
+	foreign static openWebURL(url)
+
+	//#if WEB
+
+		foreign static browser
+
+	//#else
+
+		static browser { null }
+
+	//#endif
+
+	static init_(w, h) {
+		__SIZE_IS_FIXED = false
+		__SIZE_MAX = Vec.new(w, h)
+		__SIZE = Vec.new(w, h)
+		__SCALE_MAX = Num.infinity
+		__IS_PIXEL_PERFECT = false
 		__drawX = __drawY = 4
 		__drawC = Color.white
 	}
 
-	static update_(sx, sy) {
-		__screen.x = sx
-		__screen.y = sy
+	static update_(w, h) {
+		__SIZE_MAX.x = w
+		__SIZE_MAX.y = h
 
-		if (!__fixed) {
-			__size.x = sx
-			__size.y = sy
+		if (!__SIZE_IS_FIXED) {
+			__SIZE.x = w
+			__SIZE.y = h
 		}
 	}
 

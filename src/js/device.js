@@ -1,10 +1,8 @@
 
 /** @type {"Windows"|"macOS"|"iOS"|"Linux"|"Android"} */
 let os;
-/** @type {null|"Chrome"|"Firefox"|"Safari"} */
+/** @type {null|"Chrome"|"Edge"|"Firefox"|"Safari"} */
 let browser;
-/** @type {null|"Edge"|"Google"} */
-let vendor = null;
 let mobile = false;
 
 let platform = navigator.platform;
@@ -25,11 +23,9 @@ if (platform === "Win32") {
 }
 
 if (ua.includes("Edg/")) {
-	browser = "Chrome";
-	vendor = "Edge";
+	browser = "Edge";
 } else if (ua.includes("Chrome/")) {
 	browser = "Chrome";
-	vendor = "Google";
 } else if (ua.includes("Safari/")) {
 	browser = "Safari";
 } else if (ua.includes("Firefox/")) {
@@ -42,6 +38,5 @@ if (ua.includes("Edg/")) {
 export let device = {
 	os: os,
 	browser: browser,
-	browserVendor: vendor,
 	mobile: mobile,
 };

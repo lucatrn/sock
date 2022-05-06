@@ -9,9 +9,10 @@
 
 	#define SOCK_DESKTOP
 	#define SOCK_WIN
+	#define SOCK_PLATFORM "Windows"
 
 	#include "SDL2/SDL.h"
-	#include "glad/glad.h" 
+	#include "glad/gl.h"
 	#define STBI_NO_STDIO
 	#define STBI_NO_PSD
 	#define STBI_NO_TGA
@@ -21,14 +22,21 @@
 	#define STB_IMAGE_IMPLEMENTATION
 	#define STBI_FAILURE_USERMSG
    	#include "stb_image.h"
+	#include <windows.h>
 
 #elif defined __EMSCRIPTEN__
 
 	#define SOCK_WEB
+	#define SOCK_PLATFORM "Web"
 
 	#include "emscripten.h"
 
+	#define _strdup strdup
+
 #endif
+
+#define PRINT_BUFFER_SIZE 128
+static char printBuffer[PRINT_BUFFER_SIZE];
 
 int strLastIndex(const char* str, char c) {
 	int i = -1;
@@ -45,6 +53,35 @@ void wrenAbort(WrenVM* vm, const char* msg) {
 	wrenEnsureSlots(vm, 1);
 	wrenSetSlotString(vm, 0, msg);
 	wrenAbortFiber(vm, 0);
+}
+
+bool wrenEnsureArgString(WrenVM* vm, int slot, const char* arg) {
+	if (wrenGetSlotType(vm, slot) != WREN_TYPE_STRING) {
+		snprintf(printBuffer, PRINT_BUFFER_SIZE, "%s must be a String", arg);
+		wrenAbort(vm, printBuffer);
+		return true;
+	}
+	return false;
+}
+
+bool wrenEnsureArgNum(WrenVM* vm, int slot, const char* arg) {
+	if (wrenGetSlotType(vm, slot) != WREN_TYPE_NUM) {
+		snprintf(printBuffer, PRINT_BUFFER_SIZE, "%s must be a Num", arg);
+		wrenAbort(vm, printBuffer);
+		return true;
+	}
+	return false;
+}
+
+void wrenReturnNumList2(WrenVM* vm, double d1, double d2) {
+	wrenEnsureSlots(vm, 2);
+	wrenSetSlotNewList(vm, 0);
+
+	wrenSetSlotDouble(vm, 1, d1);
+	wrenInsertInList(vm, 0, -1, 1);
+
+	wrenSetSlotDouble(vm, 1, d2);
+	wrenInsertInList(vm, 0, -1, 1);
 }
 
 char nibbleAsHuamnChar(unsigned char b) {
@@ -617,6 +654,13 @@ void wren_color_toString(WrenVM* vm) {
 }
 
 
+// Game
+
+void wren_Game_platform(WrenVM* vm) {
+	wrenSetSlotString(vm, 0, SOCK_PLATFORM);
+}
+
+
 // Debug font: Cozette - MIT License - Copyright (c) 2020, Slavfox
 // https://github.com/slavfox/Cozette/blob/master/LICENSE
 // In GIF format.
@@ -692,6 +736,10 @@ WrenForeignMethodFn wren_coreBindForeignMethod(WrenVM* vm, const char* moduleNam
 			if (isStatic) {
 				if (strcmp(signature, "path(_,_)") == 0) return wren_Asset_resolvePath;
 			}
+		} else if (strcmp(className, "Game") == 0) {
+			if (isStatic) {
+				if (strcmp(signature, "platform") == 0) return wren_Game_platform;
+			}
 		}
 	}
 
@@ -720,9 +768,6 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 
 	static const char* quitError = NULL;
 
-	#define PRINT_BUFFER_SIZE 128
-	static char printBuffer[PRINT_BUFFER_SIZE];
-
 	static char* basePath = NULL;
 	static int basePathLen = 0;
 	static SDL_Window* window = NULL;
@@ -730,12 +775,15 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 	static GLint defaultSpriteFilter = GL_NEAREST;
 	static GLint defaultSpriteWrap = GL_CLAMP_TO_EDGE;
 
-	static int game_screenWidth = 640;
-	static int game_screenHeight = 480;
-	static int game_resolutionWidth = 640;
-	static int game_resolutionHeight = 480;
+	static int game_screenWidth = 400;
+	static int game_screenHeight = 300;
+	static int game_resolutionWidth = 400;
+	static int game_resolutionHeight = 300;
 	static double game_fps = 60.0;
 	static bool game_ready = false;
+	static bool game_quit = false;
+	static SDL_SystemCursor game_cursor = SDL_SYSTEM_CURSOR_ARROW;
+	static SDL_Cursor* game_sdl_cursor = NULL;
 
 	static WrenVM* vm = NULL;
 
@@ -764,7 +812,7 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 		SDL_RWops *file = SDL_RWFromFile(fileName, "rb");
 		if (file == NULL) {
 			quitError = printBuffer;
-			sprintf_s(printBuffer, PRINT_BUFFER_SIZE, "open file %s", fileName);
+			snprintf(printBuffer, PRINT_BUFFER_SIZE, "open file %s", fileName);
 			return NULL;
 		}
 
@@ -774,14 +822,14 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 		Sint64 size = SDL_RWsize(file);
 		if (size < 0) {
 			quitError = printBuffer;
-			sprintf_s(printBuffer, PRINT_BUFFER_SIZE, "read file size %s", fileName);
+			snprintf(printBuffer, PRINT_BUFFER_SIZE, "read file size %s", fileName);
 		} else {
 			// Allocated memory for entire file.
 			res = (char*)malloc(size + 1);
 
 			if (res == NULL) {
 				quitError = printBuffer;
-				sprintf_s(printBuffer, PRINT_BUFFER_SIZE, "alloc file memory %Id bytes %s", size, fileName);
+				snprintf(printBuffer, PRINT_BUFFER_SIZE, "alloc file memory %Id bytes %s", size, fileName);
 			} else {
 				// Read into buffer bit by bit.
 				Sint64 nb_read_total = 0;
@@ -799,7 +847,7 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 					free(res);
 					res = NULL;
 					quitError = printBuffer;
-					sprintf_s(printBuffer, PRINT_BUFFER_SIZE, "only read %Id of %Id bytes from %s", nb_read_total, size, fileName);
+					snprintf(printBuffer, PRINT_BUFFER_SIZE, "only read %Id of %Id bytes from %s", nb_read_total, size, fileName);
 				} else {
 					// Null terminate.
 					res[nb_read_total] = '\0';
@@ -825,7 +873,7 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 		char* absPath = malloc(len + 1);
 		if (absPath == NULL) {
 			quitError = printBuffer;
-			sprintf_s(printBuffer, PRINT_BUFFER_SIZE, "alloc memory %s", path);
+			snprintf(printBuffer, PRINT_BUFFER_SIZE, "alloc memory %s", path);
 			return NULL;
 		} else {
 			memcpy(absPath, basePath, basePathLen);
@@ -843,7 +891,7 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 	char* readAsset(const char* path, int64_t* size) {
 		if (path[0] != '/') {
 			quitError = printBuffer;
-			sprintf_s(printBuffer, PRINT_BUFFER_SIZE, "path must start with /: %s", path);
+			snprintf(printBuffer, PRINT_BUFFER_SIZE, "path must start with /: %s", path);
 			return NULL;
 		}
 
@@ -853,7 +901,7 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 		char* absPath = malloc(len + 1);
 		if (absPath == NULL) {
 			quitError = printBuffer;
-			sprintf_s(printBuffer, PRINT_BUFFER_SIZE, "alloc memory %s", path);
+			snprintf(printBuffer, PRINT_BUFFER_SIZE, "alloc memory %s", path);
 			return NULL;
 		} else {
 			memcpy(absPath, basePath, basePathLen);
@@ -894,6 +942,78 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 
 
 	// === OpenGL ===
+
+	#if DEBUG
+
+		void GLAPIENTRY myGlDebugCallback( GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei length, const GLchar* message, const void* userParam) {
+			const char* sErrorType = "?";
+			const char* sSeverity = "?";
+			
+			switch (type) {
+				case GL_DEBUG_TYPE_ERROR:
+					sErrorType = "ERROR";
+					break;
+				case GL_DEBUG_TYPE_DEPRECATED_BEHAVIOR:
+					sErrorType = "DEPRECATED_BEHAVIOR";
+					break;
+				case GL_DEBUG_TYPE_UNDEFINED_BEHAVIOR:
+					sErrorType = "UNDEFINED_BEHAVIOR";
+					break;
+				case GL_DEBUG_TYPE_PORTABILITY:
+					sErrorType = "PORTABILITY";
+					break;
+				case GL_DEBUG_TYPE_PERFORMANCE:
+					sErrorType = "PERFORMANCE";
+					break;
+				case GL_DEBUG_TYPE_OTHER:
+					sErrorType = "OTHER";
+					break;
+			}
+			
+			switch (severity){
+				case GL_DEBUG_SEVERITY_LOW:
+					sSeverity = "LOW";
+					break;
+				case GL_DEBUG_SEVERITY_MEDIUM:
+					sSeverity = "MEDM";
+					break;
+				case GL_DEBUG_SEVERITY_HIGH:
+					sSeverity = "HIGH";
+					break;
+				case GL_DEBUG_SEVERITY_NOTIFICATION:
+					sSeverity = "INFO";
+					break;
+			}
+			
+			printf("[GL] type=%s id=%d severity=%s: %s\n", sErrorType, id, sSeverity, message);
+		}
+
+		bool debug_checkGlError(const char* where) {
+			GLenum error;
+			while ((error = glGetError()) != 0) {
+				const char* msg = "?";
+				if (error == GL_INVALID_ENUM) msg = "invalid enum";
+				else if (error == GL_INVALID_VALUE) msg = "invalid value";
+				else if (error == GL_INVALID_OPERATION) msg = "invalid operation";
+				else if (error == GL_INVALID_FRAMEBUFFER_OPERATION) msg = "invalid framebuffer operation";
+				else if (error == GL_OUT_OF_MEMORY) msg = "out of memory";
+				// missing constants from glad...
+				else if (error == 0x504) msg = "stack underflow";
+				else if (error == 0x503) msg = "stack overflow";
+
+				printf("[GL] error at '%s': %s\n", where, msg);
+
+				return true;
+			}
+
+			return false;
+		}
+
+	#else
+
+		#define debug_checkGlError(x) (false)
+
+	#endif
 
 	typedef struct {
 		int attributeCount;
@@ -1013,6 +1133,12 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 			glGenBuffers(1, &sb->vertexBuffer);
 			glGenBuffers(1, &sb->indexBuffer);
 			glGenVertexArrays(1, &sb->vertexArray);
+
+			#if DEBUG
+
+				printf("new sprite batcher: vertexBuffer=%d indexBuffer=%d vertexArray=%d\n", sb->vertexBuffer, sb->indexBuffer, sb->vertexArray);
+
+			#endif
 		}
 
 		return sb;
@@ -1070,6 +1196,8 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 	
 	void spriteBatcherEnd(SpriteBatcher* sb, Sprite* spr) {
 		if (sb && sb->vertexCount != 0) {
+			glUseProgram(shaderSpriteBatcher.program);
+
 			glBindVertexArray(sb->vertexArray);
 
 			// Put vertex data.
@@ -1166,8 +1294,6 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 			}
 
 			// Draw!
-			glUseProgram(shaderSpriteBatcher.program);
-
 			glBindVertexArray(sb->vertexArray);
 
 			glDrawElements(GL_TRIANGLES, indexCount, GL_UNSIGNED_SHORT, 0);
@@ -1240,7 +1366,7 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 			GLint location = glGetUniformLocation(shader->program, name);
 			if (location == -1) {
 				quitError = printBuffer;
-				sprintf_s(printBuffer, PRINT_BUFFER_SIZE, "invalid uniform name %s", name);
+				snprintf(printBuffer, PRINT_BUFFER_SIZE, "invalid uniform name %s", name);
 				return false;
 			}
 			shader->uniforms[index++] = location;
@@ -1735,16 +1861,160 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 			wrenSetSlotString(vm, 0, spr->path);
 		} else {
 			char buffer[32];
-			sprintf_s(buffer, 32, "Sprite#%p", &spr);
+			snprintf(buffer, 32, "Sprite#%p", &spr);
 			wrenSetSlotString(vm, 0, buffer);
 		}
 	}
 
+	// SCREEN
+
+	void wren_Screen_size_(WrenVM* vm) {
+		// Get screen size using SDL API.
+		int displayIndex = SDL_GetWindowDisplayIndex(window);
+		if (displayIndex >= 0) {
+			SDL_DisplayMode mode;
+			if (SDL_GetCurrentDisplayMode(displayIndex, &mode) == 0) {
+				wrenReturnNumList2(vm, mode.w, mode.h);
+				return;
+			}
+		}
+
+		wrenAbort(vm, SDL_GetError());
+	}
+
+	void wren_Screen_sizeAvail_(WrenVM* vm) {
+		#ifdef SOCK_WIN
+
+			// Use win32 api to get [MONITORINFO.rcWork];
+			// NOTE do we need to get the exact monitor, or is the primary good enough?
+
+			POINT pt = { 0, 0 };
+			HMONITOR monitor = MonitorFromPoint(pt, MONITOR_DEFAULTTOPRIMARY);
+			if (monitor) {
+				MONITORINFO minfo;
+				minfo.cbSize = sizeof(MONITORINFO);
+
+				if (GetMonitorInfoA(monitor, &minfo)) {
+					wrenReturnNumList2(vm,
+						minfo.rcWork.right - minfo.rcWork.left,
+						minfo.rcWork.bottom - minfo.rcWork.top
+					);
+
+					return;
+				}
+			}
+
+			#if DEBUG
+
+				printf("unable to get MONITORINFO.rcWork\n");
+
+			#endif
+
+		#endif
+
+		// Default to SDL's screen size.
+		wren_Screen_size_(vm);
+	}
 
 	// GAME
 
 	void wren_Game_ready_(WrenVM* vm) {
 		game_ready = true;
+	}
+
+	void wren_Game_title(WrenVM* vm) {
+		wrenSetSlotString(vm, 0, SDL_GetWindowTitle(window));
+	}
+	
+	void wren_Game_title_set(WrenVM* vm) {
+		if (wrenEnsureArgString(vm, 1, "title")) return;
+
+		SDL_SetWindowTitle(window, wrenGetSlotString(vm, 1));
+	}
+	
+	void wren_Game_fps(WrenVM* vm) {
+		if (game_fps < 0) {
+			wrenSetSlotNull(vm, 0);
+		} else {
+			wrenSetSlotDouble(vm, 0, game_fps);
+		}
+	}
+	
+	void wren_Game_fps_set(WrenVM* vm) {
+		WrenType argType = wrenGetSlotType(vm, 1);
+
+		if (argType == WREN_TYPE_NULL) {
+			game_fps = -1.0;
+		} else if (argType == WREN_TYPE_NUM) {
+			double fps = wrenGetSlotDouble(vm, 1);
+			if (fps <= 0) {
+				wrenAbort(vm, "fps must be positive");
+			} else {
+				game_fps = fps;
+			}
+		} else {
+			wrenAbort(vm, "fps must be Num or null");
+		}
+	}
+
+	static const char* CURSOR_DEFAULT = "default";
+	static const char* CURSOR_POINTER = "pointer";
+	static const char* CURSOR_WAIT = "wait";
+	static const char* CURSOR_HIDDEN = "hidden";
+	
+	void wren_Game_cursor(WrenVM* vm) {
+		const char* cursor = CURSOR_DEFAULT;
+
+		if (game_cursor == SDL_SYSTEM_CURSOR_ARROW) { cursor = CURSOR_DEFAULT; }
+		else if (game_cursor == SDL_SYSTEM_CURSOR_HAND) { cursor = CURSOR_POINTER; }
+		else if (game_cursor == SDL_SYSTEM_CURSOR_WAIT) { cursor = CURSOR_WAIT; }
+		else if (game_cursor == SDL_NUM_SYSTEM_CURSORS) { cursor = CURSOR_HIDDEN; }
+
+		wrenSetSlotString(vm, 0, cursor);
+	}
+	
+	void wren_Game_cursor_set(WrenVM* vm) {
+		SDL_SystemCursor cursor = game_cursor;
+
+		WrenType argType = wrenGetSlotType(vm, 1);
+
+		if (argType == WREN_TYPE_NULL) {
+			cursor = SDL_SYSTEM_CURSOR_ARROW;
+		} else if (argType == WREN_TYPE_STRING) {
+			const char* name = wrenGetSlotString(vm, 1);
+
+			if (strcmp(CURSOR_DEFAULT, name) == 0) { cursor = SDL_SYSTEM_CURSOR_ARROW; }
+			else if (strcmp(CURSOR_POINTER, name) == 0) { cursor = SDL_SYSTEM_CURSOR_HAND; }
+			else if (strcmp(CURSOR_WAIT, name) == 0) { cursor = SDL_SYSTEM_CURSOR_WAIT; }
+			else if (strcmp(CURSOR_HIDDEN, name) == 0) { cursor = SDL_NUM_SYSTEM_CURSORS; }
+			else {
+				wrenAbort(vm, "invalid cursor type");
+				return;
+			}
+		} else {
+			wrenAbort(vm, "cursor must be null or a String");
+			return;
+		}
+
+		if (cursor != game_cursor) {
+			if (cursor == SDL_NUM_SYSTEM_CURSORS) {
+				SDL_ShowCursor(SDL_DISABLE);
+			} else {
+				if (game_sdl_cursor) {
+					SDL_FreeCursor(game_sdl_cursor);
+				}
+
+				game_sdl_cursor = SDL_CreateSystemCursor(cursor);
+				SDL_SetCursor(game_sdl_cursor);
+				SDL_ShowCursor(SDL_ENABLE);
+			}
+
+			game_cursor = cursor;
+		}
+	}
+
+	void wren_Game_quit_(WrenVM* vm) {
+		game_quit = true;
 	}
 
 	// API Binding
@@ -1802,21 +2072,26 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 					if (strcmp(signature, "setTransformOrigin(_,_)") == 0) return wren_methodTODO;
 					if (strcmp(signature, "draw_(_,_,_,_,_,_,_,_,_)") == 0) return wren_methodTODO;
 				}
+			} else if (strcmp(className, "Screen") == 0) {
+				if (isStatic) {
+					if (strcmp(signature, "sz_") == 0) return wren_Screen_size_;
+					if (strcmp(signature, "sza_") == 0) return wren_Screen_sizeAvail_;
+				}
 			} else if (strcmp(className, "Game") == 0) {
 				if (isStatic) {
-					if (strcmp(signature, "title") == 0) return wren_methodTODO;
-					if (strcmp(signature, "title=(_)") == 0) return wren_methodTODO;
+					if (strcmp(signature, "title") == 0) return wren_Game_title;
+					if (strcmp(signature, "title=(_)") == 0) return wren_Game_title_set;
 					if (strcmp(signature, "scaleFilter") == 0) return wren_methodTODO;
 					if (strcmp(signature, "scaleFilter=(_)") == 0) return wren_methodTODO;
-					if (strcmp(signature, "fps") == 0) return wren_methodTODO;
-					if (strcmp(signature, "fps=(_)") == 0) return wren_methodTODO;
+					if (strcmp(signature, "fps") == 0) return wren_Game_fps;
+					if (strcmp(signature, "fps=(_)") == 0) return wren_Game_fps_set;
 					if (strcmp(signature, "layoutChanged_(_,_,_,_,_)") == 0) return wren_methodTODO;
-					if (strcmp(signature, "cursor") == 0) return wren_methodTODO;
-					if (strcmp(signature, "cursor=(_)") == 0) return wren_methodTODO;
+					if (strcmp(signature, "cursor") == 0) return wren_Game_cursor;
+					if (strcmp(signature, "cursor=(_)") == 0) return wren_Game_cursor_set;
 					if (strcmp(signature, "print_(_,_,_)") == 0) return wren_methodTODO;
 					if (strcmp(signature, "setPrintColor_(_)") == 0) return wren_methodTODO;
 					if (strcmp(signature, "ready_()") == 0) return wren_Game_ready_;
-					if (strcmp(signature, "quit_()") == 0) return wren_methodTODO;
+					if (strcmp(signature, "quit_()") == 0) return wren_Game_quit_;
 				}
 			}
 		}
@@ -1896,25 +2171,55 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 		}
 		basePathLen = (int)strlen(basePath);
 
-		// Create window and GL context.
-		window = SDL_CreateWindow("Sock", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 640, 480, SDL_WINDOW_OPENGL);
+		// Set wanted OpenGL attributes.
+		SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, SDL_GL_CONTEXT_FORWARD_COMPATIBLE_FLAG);
+		SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
+		SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 4);
+		SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3);
+		SDL_GL_SetAttribute(SDL_GL_RED_SIZE, 8);
+		SDL_GL_SetAttribute(SDL_GL_GREEN_SIZE, 8);
+		SDL_GL_SetAttribute(SDL_GL_BLUE_SIZE, 8);
+		SDL_GL_SetAttribute(SDL_GL_ALPHA_SIZE, 8);
+
+		// Create window.
+		window = SDL_CreateWindow("sock", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, game_screenWidth, game_screenHeight, SDL_WINDOW_OPENGL | SDL_WINDOW_HIDDEN | SDL_WINDOW_RESIZABLE);
 		if (!window) {
 			quitError = "SDL_CreateWindow";
 			return -1;
 		}
 
+		// Create OpenGL context.
 		SDL_GLContext* glContext = SDL_GL_CreateContext(window);
 		if (!glContext) {
 			quitError = "SDL_GL_CreateContext";
 			return -1;
 		}
 
-		if (!gladLoadGLLoader(SDL_GL_GetProcAddress)) {
+		int gladVersion = gladLoadGL((GLADloadfunc)SDL_GL_GetProcAddress);
+		if (!gladVersion) {
 			quitError = "gladLoadGLLoader";
 			return -1;
 		}
 
-		printf("Loaded OpenGL %d.%d\n", GLVersion.major, GLVersion.minor);
+		#ifdef DEBUG
+
+			printf("Loaded Glad %d.%d\n", GLAD_VERSION_MAJOR(gladVersion), GLAD_VERSION_MINOR(gladVersion));
+
+			int glv;
+			SDL_GL_GetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, &glv); printf("CONTEXT_MAJOR_VERSION=%d\n", glv);
+			SDL_GL_GetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, &glv); printf("CONTEXT_MINOR_VERSION=%d\n", glv);
+			SDL_GL_GetAttribute(SDL_GL_RED_SIZE, &glv); printf("RED_SIZE=%d\n", glv);
+			SDL_GL_GetAttribute(SDL_GL_GREEN_SIZE, &glv); printf("GREEN_SIZE=%d\n", glv);
+			SDL_GL_GetAttribute(SDL_GL_BLUE_SIZE, &glv); printf("BLUE_SIZE=%d\n", glv);
+			SDL_GL_GetAttribute(SDL_GL_ALPHA_SIZE, &glv); printf("ALPHA_SIZE=%d\n", glv);
+			SDL_GL_GetAttribute(SDL_GL_DOUBLEBUFFER, &glv); printf("DOUBLEBUFFER=%d\n", glv);
+
+			// Setup debugging.
+
+			glEnable(GL_DEBUG_OUTPUT);
+			glDebugMessageCallback(myGlDebugCallback, NULL);
+
+		#endif
 
 		// Load shaders.
 		shaderSpriteBatcher = compileShader(&shaderDataSpriteBatcher);
@@ -1928,7 +2233,7 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 		}
 
 		// Final GL setup.
-		glViewport(0, 0, 640, 480);
+		glViewport(0, 0, game_screenWidth, game_screenHeight);
 
 		// Create Wren VM.
 		WrenConfiguration config;
@@ -1968,7 +2273,7 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 		// Init modules.
 		initGameModule();
 
-		// Load user main Wren.
+		// Intepret user main Wren.
 		char* mainSource = readAsset("/main.wren", NULL);
 		if (mainSource == NULL) return -1;
 
@@ -1978,6 +2283,9 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 		if (mainResult != WREN_RESULT_SUCCESS) {
 			return -1;
 		}
+
+		// We can show the window now!
+		SDL_ShowWindow(window);
 
 		// Setup
 		int inLoop = 1;
@@ -2023,31 +2331,16 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 					if (updateResult != WREN_RESULT_SUCCESS) {
 						inLoop = 0;
 					}
+					if (game_quit) {
+						inLoop = 0;
+					}
 				}
 
 				// Finalize GL.
 				SDL_GL_SwapWindow(window);
 
 				// Check for GL errors.
-				#if DEBUG
-
-					GLenum error = glGetError();
-					if (error != 0) {
-						const char* msg = "?";
-						if (error == GL_INVALID_ENUM) msg = "invalid enum";
-						else if (error == GL_INVALID_VALUE) msg = "invalid value";
-						else if (error == GL_INVALID_OPERATION) msg = "invalid operation";
-						else if (error == GL_INVALID_FRAMEBUFFER_OPERATION) msg = "invalid framebuffer operation";
-						else if (error == GL_OUT_OF_MEMORY) msg = "out of memory";
-						else if (error == GL_STACK_UNDERFLOW) msg = "stack underflow";
-						else if (error == GL_STACK_OVERFLOW) msg = "stack overflow";
-
-						printf("OpenGL error %d: %s\n", error, msg);
-
-						inLoop = 0;
-					}
-
-				#endif
+				if (debug_checkGlError("post update")) inLoop = 0;
 			}
 
 			// Wait and loop.

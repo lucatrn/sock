@@ -14,6 +14,7 @@ export let callHandle_loaded_3 = 0;
 export let callHandle_update_0 = 0;
 export let callHandle_update_1 = 0;
 export let callHandle_update_2 = 0;
+export let callHandle_update_3 = 0;
 export let callHandle_toString = 0;
 export let callHandle_updateMouse_3 = 0;
 
@@ -30,6 +31,7 @@ export function makeCallHandles() {
 	callHandle_update_0 = wrenMakeCallHandle("update_()");
 	callHandle_update_1 = wrenMakeCallHandle("update_(_)");
 	callHandle_update_2 = wrenMakeCallHandle("update_(_,_)");
+	callHandle_update_3 = wrenMakeCallHandle("update_(_,_,_)");
 	callHandle_toString = wrenMakeCallHandle("toString");
 	callHandle_updateMouse_3 = wrenMakeCallHandle("updateMouse_(_,_,_)")
 }

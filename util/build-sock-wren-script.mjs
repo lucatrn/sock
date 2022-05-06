@@ -8,12 +8,34 @@ import { promises as fs } from "fs";
 
 let argv = process.argv;
 
-let names = argv.slice(2).filter(arg => arg[0] !== "-");
+let targets = argv.slice(2).filter(arg => arg[0] !== "-");
 
-if (names.length === 0) {
-	names = JSON.parse(await fs.readFile("src/wren/order.json", { encoding: "utf8" }));
-	names = names.filter(name => name && !name.startsWith("//"));
+// Get Wren scripts we need to get.
+let names = [];
+
+await getFileList("");
+
+for (let target of targets) {
+	await getFileList(target);
 }
+
+async function getFileList(name) {
+	let path = "src/wren/";
+	if (name) {
+		path += name + "/";
+	}
+	path += "order.json";
+	
+	let files = JSON.parse(await fs.readFile(path, { encoding: "utf8" }));
+	files = files.filter(file => file && !file.startsWith("//"));
+
+	if (name) {
+		files = files.map(file => name + "/" + file);
+	}
+
+	names = names.concat(files);
+}
+
 
 // Get all files and join into single string.
 let files = await Promise.all(names.map(name => fs.readFile("src/wren/" + name + ".wren", "utf8")));
@@ -25,12 +47,16 @@ let megaScript = files.map(file => {
 
 	let min = "";
 	let defines = null;
+	let ifStack = [];
+	let ifBranch = null;
+	let ifCurrBranch = null;
 
 	for (let line of file.split(/[\r\n]+/g)) {
 		line = line.trim();
 	
 		let comment = line.indexOf("//");
 		if (comment === 0) {
+			// If comment is at start of line, check for preprocessor.
 			line = line.slice(2);
 			
 			// Get defines.
@@ -39,10 +65,50 @@ let megaScript = files.map(file => {
 				if (!defines) defines = Object.create(null);
 				defines[r[1]] = r[2];
 			}
+
+			// #if
+			r = /^#if (\S+)$/.exec(line);
+			if (r) {
+				ifStack.push([ifBranch, ifCurrBranch]);
+
+				ifCurrBranch = "if";
+
+				if (targets.includes(r[1].toLowerCase()) || ((defines != null) && (r[1] in defines))) {
+					ifBranch = ifCurrBranch;
+				} else {
+					ifBranch = null;
+				}
+			}
+
+			// #else
+			if (line === "#else") {
+				if (ifStack.length === 0) {
+					throw "no #if associated with #else";
+				}
+
+				ifCurrBranch = "else";
+
+				if (ifBranch == null) {
+					ifBranch = "else";
+				}
+			}
+
+			// #endif
+			if (line === "#endif") {
+				if (ifStack.length === 0) {
+					throw "no #if associated with #endif";
+				}
+
+				[ifBranch, ifCurrBranch] = ifStack.pop();
+			}
 			
 			continue;
 		}
 
+		// Skip if not in matching conditional proprocessor block.
+		if (ifBranch !== ifCurrBranch) continue;
+
+		// If comment is at end of line after code, trip off the comment.
 		if (comment >= 0) {
 			line = line.slice(0, comment);
 		}
@@ -84,8 +150,14 @@ let megaScript = files.map(file => {
 
 
 // Print or write to file.
-if (argv[2] === "--debug" || argv[2] === "-d") {
+if (argv.includes("--debug") || argv.includes("-d")) {
 	console.log(megaScript);
 } else {
-	await fs.writeFile("tmp/sock.wren", megaScript, { encoding: "utf8" })
+	let outName = "tmp/sock";
+	for (let target of targets) {
+		outName += "-" + target;
+	}
+	outName += ".wren";
+
+	await fs.writeFile(outName, megaScript, { encoding: "utf8" })
 }
