@@ -10,9 +10,6 @@ In order of importance.
 
 * Fullscreen
 
-* Desktop builds.
-	* 😱
-
 * Audio
 	* Designing this API is going to be quite tricky!  
 	  Wait until we can implement in both Web and Desktop in parallel, there are
@@ -33,13 +30,6 @@ In order of importance.
 
 ## Would Be Cool
 
-* OS Info - `OS` class?
-	* Browser Name - `Device.browser`
-	* Browser Version - `Device.browserVersion`
-	* OS Name - `Device.OS`
-	* OS Version - `Device.OSVersion`
-	* Is Mobile - `Device.isMobile`
-
 * Command Line / URL Arguments
 	* To keep things simple, we could only support named arguments.
 		* e.g. `mygame.exe -frog -cat 42` => `{ "frog": true, "cat": "42" }`
@@ -56,9 +46,6 @@ In order of importance.
 	* Put into `Sprite` with `sprite.setPixels(pal, array)`
 
 * Control graphics blend function (is this transferable to Metal?)
-
-* Open web link e.g. `Game.openWebURL(s)` or `Device.openWebURL(s)` (`Game` APIs should be related to the game/application itself)
-
 * `Array.fromHexString(s)` e.g. `Array.fromHexString("8f14a0")`
 
 * HTTP Requests - `HTTP` class?

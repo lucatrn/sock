@@ -217,6 +217,13 @@ addForeignClass("sock", "Sprite", [
 		}
 	},
 	"setTransform_(_,_,_,_,_,_)"() {
+		for (let i = 1; i <= 6; i++) {
+			if (wrenGetSlotType(i) !== 1) {
+				abortFiber("args must be Nums");
+				return;
+			}
+		}
+
 		let spr = getSprite();
 		let n0 = wrenGetSlotDouble(1);
 
@@ -249,6 +256,13 @@ addForeignClass("sock", "Sprite", [
 		}
 	},
 	"setTransformOrigin(_,_)"() {
+		for (let i = 1; i <= 2; i++) {
+			if (wrenGetSlotType(i) !== 1) {
+				abortFiber("args must be Nums");
+				return;
+			}
+		}
+
 		let spr = getSprite();
 		let n0 = wrenGetSlotDouble(1);
 

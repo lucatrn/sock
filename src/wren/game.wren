@@ -100,7 +100,7 @@ class Game {
 
 	foreign static os
 
-	foreign static openWebURL(url)
+	foreign static openURL(url)
 
 	//#if WEB
 

@@ -46,22 +46,22 @@ addClassForeignStaticMethods("sock", "Storage", {
 			localStorage.setItem(keyPrefix + key, value);
 		}
 	},
-	"remove(_)"() {
+	"delete(_)"() {
 		let key = validateKey(1);
 		if (key != null) {
 			localStorage.removeItem(keyPrefix + key);
 		}
 	},
-	"keys"() {
-		wrenEnsureSlots(2);
-		wrenSetSlotNewList(0);
-
-		for (let i = 0; i < localStorage.length; i++) {
-			let key = localStorage.key(i);
-			if (key.startsWith(keyPrefix)) {
-				wrenSetSlotString(1, key.slice(keyPrefix.length));
-				wrenInsertInList(0, -1, 1);
-			}
-		}
-	}
+// 	"keys"() {
+// 		wrenEnsureSlots(2);
+// 		wrenSetSlotNewList(0);
+// 
+// 		for (let i = 0; i < localStorage.length; i++) {
+// 			let key = localStorage.key(i);
+// 			if (key.startsWith(keyPrefix)) {
+// 				wrenSetSlotString(1, key.slice(keyPrefix.length));
+// 				wrenInsertInList(0, -1, 1);
+// 			}
+// 		}
+// 	}
 });

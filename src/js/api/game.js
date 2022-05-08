@@ -27,15 +27,35 @@ addClassForeignStaticMethods("sock", "Game", {
 		document.title = title = wrenGetSlotString(1);
 	},
 	"layoutChanged_(_,_,_,_,_)"() {
-		let sx = wrenGetSlotDouble(1);
-		let sy = wrenGetSlotDouble(2);
+		if (
+			wrenGetSlotType(1) !== 1
+			||
+			wrenGetSlotType(2) !== 1
+			||
+			wrenGetSlotType(3) !== 0
+			||
+			wrenGetSlotType(4) !== 0
+			||
+			wrenGetSlotType(5) !== 1
+		) {
+			abortFiber("invalid args");
+			return;
+		}
+
+		let width = wrenGetSlotDouble(1);
+		let height = wrenGetSlotDouble(2);
 		let isFixed = wrenGetSlotBool(3);
 		let isPixelPerfect = wrenGetSlotBool(4);
 		let maxScale = wrenGetSlotDouble(5);
 
+		if (width < 1 || height < 1 || maxScale < 1) {
+			abortFiber("resolution/scale must be positive");
+			return;
+		}
+
 		layoutOptions.pixelScaling = isPixelPerfect;
-		layoutOptions.resolution = isFixed ? [ sx, sy ] : null;
-		layoutOptions.maxScale = maxScale;
+		layoutOptions.resolution = isFixed ? [ Math.trunc(width), Math.trunc(height) ] : null;
+		layoutOptions.maxScale = Math.trunc(maxScale);
 
 		queueLayout();
 	},
@@ -102,7 +122,7 @@ addClassForeignStaticMethods("sock", "Game", {
 	},
 	"print_(_,_,_)"() {
 		if (wrenGetSlotType(1) !== 6 || wrenGetSlotType(2) !== 1 || wrenGetSlotType(3) !== 1) {
-			abortFiber("invalid Game.print arguments");
+			abortFiber("invalid args");
 			return;
 		}
 
@@ -115,6 +135,11 @@ addClassForeignStaticMethods("sock", "Game", {
 		wrenSetSlotDouble(0, resultY);
 	},
 	"setPrintColor_(_)"() {
+		if (wrenGetSlotType(1) !== 1) {
+			abortFiber("color must be a Num");
+			return;
+		}
+
 		printColor = wrenGetSlotDouble(1);
 	},
 	"os"() {
@@ -123,7 +148,7 @@ addClassForeignStaticMethods("sock", "Game", {
 	"browser"() {
 		wrenSetSlotString(0, device.browser);
 	},
-	"openWebURL(_)"() {
+	"openURL(_)"() {
 		if (wrenGetSlotType(1) !== 6) {
 			abortFiber("url must be a string");
 			return;

@@ -47,7 +47,7 @@ foreign class Sprite is Asset {
 
 	transform=(t) {
 		if (t) {
-			setTransform_(t.n0, t.n1, t.n2, t.n3, t.n4, t.n5)
+			setTransform_(t[0], t[1], t[2], t[3], t[4], t[5])
 		} else {
 			setTransform_(Num.nan, 0, 0, 0, 0, 0)
 		}

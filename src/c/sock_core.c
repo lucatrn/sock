@@ -9,7 +9,8 @@
 
 	#define SOCK_DESKTOP
 	#define SOCK_WIN
-	#define SOCK_PLATFORM "Windows"
+	#define SOCK_PLATFORM "Desktop"
+	#define SOCK_OS "Windows"
 
 	#include "SDL2/SDL.h"
 	#include "glad/gl.h"
@@ -34,6 +35,18 @@
 	#define _strdup strdup
 
 #endif
+
+typedef struct {
+	int x;
+	int y;
+	int w;
+	int h;
+} SockIntRect;
+
+typedef struct {
+	int x;
+	int y;
+} SockIntPoint;
 
 #define PRINT_BUFFER_SIZE 128
 static char printBuffer[PRINT_BUFFER_SIZE];
@@ -665,6 +678,8 @@ void wren_Game_platform(WrenVM* vm) {
 // https://github.com/slavfox/Cozette/blob/master/LICENSE
 // In GIF format.
 #define COZETTE_LENGTH 750
+#define COZETTE_WIDTH 96
+#define COZETTE_HEIGHT 72
 static const unsigned char COZETTE[COZETTE_LENGTH] = { 71, 73, 70, 56, 55, 97, 96, 0, 72, 0, 119, 0, 0, 33, 249, 4, 9, 10, 0, 0, 0, 44, 0, 0, 0, 0, 96, 0, 72, 0, 128, 0, 0, 0, 255, 255, 255, 2, 255, 132, 143, 23, 176, 137, 109, 160, 74, 50, 78, 135, 179, 198, 245, 121, 184, 128, 65, 19, 126, 222, 121, 109, 234, 106, 101, 82, 105, 145, 204, 76, 203, 47, 133, 179, 186, 187, 117, 202, 56, 154, 117, 110, 26, 31, 136, 214, 218, 113, 122, 76, 17, 49, 2, 115, 24, 81, 73, 37, 117, 89, 68, 10, 171, 50, 158, 20, 10, 100, 0, 141, 227, 44, 211, 85, 142, 213, 90, 190, 106, 74, 11, 183, 182, 119, 176, 210, 177, 110, 206, 109, 223, 193, 226, 51, 191, 228, 164, 23, 52, 87, 49, 199, 113, 216, 23, 103, 229, 197, 248, 182, 120, 198, 114, 232, 72, 137, 5, 9, 88, 153, 169, 185, 201, 217, 233, 249, 73, 167, 168, 21, 6, 246, 53, 38, 2, 214, 71, 42, 54, 153, 73, 122, 36, 150, 18, 245, 18, 245, 56, 113, 103, 171, 50, 133, 50, 187, 167, 151, 100, 247, 123, 130, 203, 70, 251, 213, 136, 19, 236, 54, 10, 27, 242, 186, 10, 172, 122, 33, 42, 138, 116, 106, 107, 99, 45, 172, 230, 214, 11, 60, 13, 29, 41, 14, 171, 157, 43, 116, 125, 43, 171, 126, 21, 137, 14, 71, 14, 63, 152, 156, 206, 198, 203, 107, 188, 109, 254, 67, 82, 134, 30, 94, 163, 104, 149, 161, 128, 248, 160, 88, 98, 119, 9, 148, 66, 125, 11, 27, 186, 114, 8, 49, 162, 196, 137, 20, 209, 8, 98, 117, 81, 96, 191, 52, 255, 175, 192, 209, 234, 101, 136, 30, 192, 46, 190, 64, 210, 35, 217, 77, 36, 57, 19, 107, 30, 56, 139, 85, 82, 27, 49, 95, 223, 66, 94, 137, 103, 170, 92, 186, 151, 49, 157, 129, 236, 104, 143, 35, 208, 125, 1, 3, 21, 53, 17, 204, 164, 157, 126, 34, 107, 10, 227, 167, 115, 74, 23, 155, 91, 148, 85, 37, 164, 242, 93, 83, 173, 220, 162, 158, 76, 201, 13, 107, 87, 167, 93, 241, 112, 85, 135, 83, 230, 86, 98, 98, 71, 254, 36, 200, 207, 73, 219, 125, 223, 88, 209, 149, 201, 180, 108, 169, 138, 124, 251, 250, 253, 11, 56, 176, 96, 37, 67, 239, 46, 35, 122, 55, 141, 93, 140, 38, 245, 206, 244, 41, 205, 220, 76, 121, 143, 189, 146, 237, 153, 117, 93, 46, 146, 187, 48, 143, 213, 220, 120, 13, 103, 62, 249, 90, 93, 134, 108, 216, 50, 30, 111, 99, 255, 44, 51, 141, 145, 236, 16, 208, 97, 99, 82, 161, 138, 77, 7, 85, 214, 117, 203, 205, 42, 250, 7, 247, 35, 216, 54, 71, 167, 77, 187, 231, 248, 177, 167, 186, 165, 88, 141, 123, 155, 26, 203, 227, 28, 145, 193, 22, 55, 56, 223, 40, 139, 213, 178, 135, 42, 212, 221, 187, 248, 229, 7, 117, 249, 233, 220, 156, 194, 117, 100, 218, 203, 51, 68, 95, 143, 60, 168, 235, 109, 18, 201, 113, 239, 42, 140, 98, 141, 170, 250, 195, 197, 69, 109, 144, 75, 189, 161, 18, 215, 69, 203, 133, 134, 32, 23, 153, 197, 49, 85, 80, 158, 45, 82, 217, 110, 140, 41, 168, 215, 107, 159, 225, 146, 224, 129, 106, 57, 248, 75, 101, 22, 46, 134, 214, 131, 187, 180, 149, 96, 51, 28, 234, 52, 13, 133, 85, 109, 8, 9, 86, 251, 253, 183, 215, 59, 250, 241, 65, 4, 60, 217, 120, 243, 143, 95, 196, 37, 52, 222, 125, 233, 245, 152, 223, 122, 64, 138, 119, 20, 76, 21, 9, 201, 137, 112, 72, 62, 212, 151, 146, 223, 201, 21, 91, 42, 81, 70, 152, 213, 29, 251, 49, 135, 70, 44, 84, 126, 182, 157, 99, 41, 142, 70, 218, 77, 195, 76, 184, 165, 75, 43, 153, 120, 35, 109, 209, 200, 167, 229, 85, 51, 122, 233, 197, 19, 217, 172, 56, 224, 135, 195, 165, 184, 87, 153, 199, 200, 73, 26, 91, 91, 129, 197, 144, 53, 252, 213, 18, 101, 158, 2, 77, 231, 17, 100, 43, 157, 181, 66, 33, 131, 57, 42, 230, 143, 108, 54, 217, 131, 141, 132, 249, 241, 87, 142, 11, 21, 0, 0, 59 };
 
 const unsigned char* sock_font() {
@@ -774,14 +789,26 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 
 	static GLint defaultSpriteFilter = GL_NEAREST;
 	static GLint defaultSpriteWrap = GL_CLAMP_TO_EDGE;
+	static GLuint mainFramebuffer = 0;
+	static GLuint mainFramebufferTex;
+	static GLuint mainFramebufferVertexArray;
+	static GLuint mainFramebufferTriangles;
+	static GLint mainFramebufferScaleFilter = GL_NEAREST;
 
-	static int game_screenWidth = 400;
-	static int game_screenHeight = 300;
+	static int game_windowWidth = 400;
+	static int game_windowHeight = 300;
 	static int game_resolutionWidth = 400;
 	static int game_resolutionHeight = 300;
+	static SockIntRect game_renderRect = { 0, 0, 400, 300 };
+	static float game_renderScale = 1.0f;
+	static bool game_resolutionIsFixed = false;
+	static bool game_layoutPixelScaling = false;
+	static float game_layoutMaxScale = 1.0f;
 	static double game_fps = 60.0;
 	static bool game_ready = false;
 	static bool game_quit = false;
+	static bool game_layoutQueued = false;
+	static uint32_t game_printColor = 0xffffffffU;
 	static SDL_SystemCursor game_cursor = SDL_SYSTEM_CURSOR_ARROW;
 	static SDL_Cursor* game_sdl_cursor = NULL;
 
@@ -935,8 +962,8 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 	void initGameModule() {
 		wrenEnsureSlots(vm, 3);
 		wrenSetSlotHandle(vm, 0, handle_Game);
-		wrenSetSlotDouble(vm, 1, game_screenWidth);
-		wrenSetSlotDouble(vm, 2, game_screenHeight);
+		wrenSetSlotDouble(vm, 1, game_windowWidth);
+		wrenSetSlotDouble(vm, 2, game_windowHeight);
 		wrenCall(vm, callHandle_init_2);
 	}
 
@@ -1037,6 +1064,7 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 
 	static Shader shaderSpriteBatcher;
 	static Shader shaderPolygonBatcher;
+	static Shader shaderFramebuffer;
 
 	typedef struct {
 		uint32_t width;
@@ -1136,7 +1164,7 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 
 			#if DEBUG
 
-				printf("new sprite batcher: vertexBuffer=%d indexBuffer=%d vertexArray=%d\n", sb->vertexBuffer, sb->indexBuffer, sb->vertexArray);
+				printf("new sprite batcher\n");
 
 			#endif
 		}
@@ -1194,7 +1222,7 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 		sb->vertexCount = 0;
 	}
 	
-	void spriteBatcherEnd(SpriteBatcher* sb, Sprite* spr) {
+	void spriteBatcherEnd(SpriteBatcher* sb, GLuint textureID) {
 		if (sb && sb->vertexCount != 0) {
 			glUseProgram(shaderSpriteBatcher.program);
 
@@ -1255,7 +1283,7 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 
 			// Set shader texture.
 			glActiveTexture(GL_TEXTURE0);
-			glBindTexture(GL_TEXTURE_2D, spr->texture.id);
+			glBindTexture(GL_TEXTURE_2D, textureID);
 			glUniform1i(shaderSpriteBatcher.uniforms[1], 0);
 		
 			// Setup index buffer.
@@ -1299,6 +1327,7 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 			glDrawElements(GL_TRIANGLES, indexCount, GL_UNSIGNED_SHORT, 0);
 
 			// Clean up.
+			glUseProgram(0);
 			glBindVertexArray(0);
 			glDisableVertexAttribArray(0);
 			glDisableVertexAttribArray(1);
@@ -1341,10 +1370,32 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 		sb->vertexCount++;
 	}
 	
-	void spriteBatcherDrawQuad(SpriteBatcher* sb, float x1, float y1, float x2, float y2, float z, float u1, float v1, float u2, float v2, uint32_t color, Transform* tf) {
+	void spriteBatcherDrawQuad(SpriteBatcher* sb, float x1, float y1, float x2, float y2, float z, float u1, float v1, float u2, float v2, uint32_t color, Transform* transform) {
 		if (spriteBatcherCheckResize(sb, 4)) {
-			if (tf) {
-				// TODO handle transform.
+			if (transform) {
+				float* tf = transform->matrix;
+				float tfox = transform->originX;
+				float tfoy = transform->originY;
+				bool haveOrigin = !isnan(tfox);
+
+				float tx1 = x1 * tf[0] + y1 * tf[2] + tf[4];
+				float ty1 = x1 * tf[1] + y1 * tf[3] + tf[5];
+				float tx2 = x1 * tf[0] + y2 * tf[2] + tf[4];
+				float ty2 = x1 * tf[1] + y2 * tf[3] + tf[5];
+				float tx3 = x2 * tf[0] + y1 * tf[2] + tf[4];
+				float ty3 = x2 * tf[1] + y1 * tf[3] + tf[5];
+				float tx4 = x2 * tf[0] + y2 * tf[2] + tf[4];
+				float ty4 = x2 * tf[1] + y2 * tf[3] + tf[5];
+
+				tfox = haveOrigin ? (x1 + tfox) : ((x1 + x2) / 2);
+				tfoy = haveOrigin ? (y1 + tfoy) : ((y1 + y2) / 2);
+				float dx = tfox - tf[0] * tfox - tf[2] * tfoy;
+				float dy = tfoy - tf[1] * tfox - tf[3] * tfoy;
+
+				spriteBatcherAddVertex(sb, tx1 + dx, ty1 + dy, z, color, u1, v1);
+				spriteBatcherAddVertex(sb, tx2 + dx, ty2 + dy, z, color, u1, v2);
+				spriteBatcherAddVertex(sb, tx3 + dx, ty3 + dy, z, color, u2, v1);
+				spriteBatcherAddVertex(sb, tx4 + dx, ty4 + dy, z, color, u2, v2);
 			} else {
 				spriteBatcherAddVertex(sb, x1, y1, z, color, u1, v1);
 				spriteBatcherAddVertex(sb, x1, y2, z, color, u1, v2);
@@ -1485,6 +1536,8 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 					bool vuOK = compilerShaderUniformLocations(&result, data->vertexUnifomCount, data->vertexUniforms, 0);
 					bool fuOK = compilerShaderUniformLocations(&result, data->fragmentUnifomCount, data->fragmentUniforms, data->vertexUnifomCount);
 
+					glUseProgram(0);
+
 					if (!vuOK || !fuOK) {
 						glDeleteProgram(result.program);
 						result.program = 0;
@@ -1530,7 +1583,6 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 		// Vertex Shader
 		"v_color = color;\n"
 		"v_uv = uv;\n"
-		// "gl_Position = vec4(vertex, 1.0);\n"
 		"vec3 a = m * vec3(vertex.xy, 1.0);\n"
 		"gl_Position = vec4(a.xy, vertex.z, 1.0);\n"
 		,
@@ -1558,11 +1610,34 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 		// Vertex Shader
 		"v_color = color;\n"
 		"gl_Position = vec4(vertex, 1.0);\n"
-		// "vec3 a = mat * vec3(vertex.x, vertex.y, 1.0);\n"
-		// "gl_Position = vec4(a.x, a.y, vertex.z, 1.0);\n"
+		// "vec3 a = mat * vec3(vertex.x, vertex.y, 1.0);"
+		// "gl_Position = vec4(a.x, a.y, vertex.z, 1.0);"
 		,
 		// Fragment Shader
 		"FragColor = v_color;\n"
+	};
+	
+	static ShaderData shaderDataFramebuffer = {
+		// Attributes
+		1, {
+			"vec2 vertex",
+		},
+		// Vertex Uniforms
+		0, { 0 },
+		// Fragment Uniforms
+		1, {
+			"sampler2D tex",
+		},
+		// Varyings
+		1, {
+			"vec2 v_uv",
+		},
+		// Vertex Shader
+		"v_uv = 0.5 + vertex * 0.5;\n"
+		"gl_Position = vec4(vertex, 0.0, 1.0);\n"
+		,
+		// Fragment Shader
+		"FragColor = texture(tex, v_uv);\n"
 	};
 
 	static const char* SOCK_FILTER_LINEAR = "linear";
@@ -1626,6 +1701,102 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 		return NULL;
 	}
 
+	static GLuint systemFontTexture = 0;
+
+	int systemFontDraw(const char* str, int cornerX, int cornerY, uint32_t color) {
+		// Load GIF sprite.
+		if (systemFontTexture == 0) {
+			// Load from constant.
+			int width, height, channelCount;
+			stbi_uc* data = stbi_load_from_memory(COZETTE, COZETTE_LENGTH, &width, &height, &channelCount, 4);
+
+			if (!data) {
+				wrenAbort(vm, stbi_failure_reason());
+				return cornerY;
+			}
+
+			// Load into WebGL texture.
+			glGenTextures(1, &systemFontTexture);
+			glBindTexture(GL_TEXTURE_2D, systemFontTexture);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+			glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
+
+			stbi_image_free(data);
+		}
+
+		// Set camera matrix to pixel matrix.
+		Camera cameraOld = camera;
+
+		camera.centerX = game_resolutionWidth / 2.0f;
+		camera.centerY = game_resolutionHeight / 2.0f;
+		camera.scale = 1.0f;
+		cameraMatrixDirty = true;
+
+		// Draw sprites.
+		SpriteBatcher* sb = spriteBatcherTemp();
+
+		spriteBatcherBegin(sb);
+
+		int dx = cornerX;
+		int dy = cornerY;
+		int screenWidth = game_resolutionWidth - 8;
+		char c;
+		int i = 0;
+
+		while ((c = str[i]) != '\0') {
+			if (c == '\t') {
+				// Tab
+				dx += 24;
+			} else if (c == '\n') {
+				// Newline
+				dx = cornerX;
+				dy += 14;
+			} else if (c == '\r') {
+				// Carriage return
+			} else if (c == ' ') {
+				// Space
+				dx += 6;
+			} else {
+				// Convert out of range characters to heart glyph
+				if (!(c >= ' ' && c <= '~')) c = 127;
+
+				// Draw the character!
+				int idx = c - 32;
+				int spx = (idx % 16) * 6;
+				int spy = (idx / 16) * 12;
+
+				spriteBatcherDrawQuad(sb,
+					(float)(dx),     (float)(dy),
+					(float)(dx + 6), (float)(dy + 12),
+					0,
+					spx / (float)COZETTE_WIDTH, spy / (float)COZETTE_HEIGHT,
+					(spx + 6) / (float)COZETTE_WIDTH, (spy + 12) / (float)COZETTE_HEIGHT,
+					color,
+					NULL
+				);
+		
+				dx += 6;
+			}
+
+			if (dx >= screenWidth) {
+				dx = cornerX;
+				dy += 14;
+			}
+
+			i++;
+		}
+
+		spriteBatcherEnd(sb, systemFontTexture);
+
+		camera = cameraOld;
+		cameraMatrixDirty = true;
+
+		return dy;
+	}
+
 
 	// === SOCK WREN API ===
 
@@ -1654,9 +1825,66 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 		glClear(GL_COLOR_BUFFER_BIT);
 	}
 
+	// ARRAY
+
+	void wren_Array_load_(WrenVM* vm) {
+		if (wrenGetSlotType(vm, 1) != WREN_TYPE_STRING) {
+			wrenAbort(vm, "path must be a string");
+			return;
+		}
+
+		Array* array = (Array*)wrenGetSlotForeign(vm, 0);
+
+		const char* path = wrenGetSlotString(vm, 1);
+
+		// Load from file.
+		int64_t arrayLength;
+		char* data = readAsset(path, &arrayLength);
+		if (!data) {
+			wrenAbort(vm, quitError);
+			quitError = NULL;
+			return;
+		}
+
+		// Free old.
+		if (array->data) {
+			free(array->data);
+		}
+
+		array->data = data;
+		array->length = (uint32_t)arrayLength;
+
+		// Return loaded.
+		wrenSetSlotNull(vm, 0);
+	}
+
+	// ASSET
+
+	void wren_Asset_loadString_(WrenVM* vm) {
+		if (wrenGetSlotType(vm, 1) != WREN_TYPE_LIST) {
+			wrenAbort(vm, "path must be a string");
+			return;
+		}
+
+		Array* array = (Array*)wrenGetSlotForeign(vm, 0);
+
+		const char* path = wrenGetSlotString(vm, 1);
+
+		// Load from asset.
+		int64_t strLength;
+		char* str = readAsset(path, &strLength);
+		if (!str) {
+			wrenAbort(vm, quitError);
+			quitError = NULL;
+			return;
+		}
+
+		wrenSetSlotBytes(vm, 0, str, strLength);
+	}
+
 	// CAMERA
 
-	void wren_CameraUpdate_3(WrenVM* vm) {
+	void wren_Camera_update_3(WrenVM* vm) {
 		for (int i = 1; i <= 3; i++) {
 			if (wrenGetSlotType(vm, i) != WREN_TYPE_NUM) {
 				wrenAbort(vm, "args must be numbers");
@@ -1680,13 +1908,13 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 		spr->texture.filter = defaultSpriteFilter;
 		spr->texture.wrap = defaultSpriteWrap;
 		spr->texture.id = 0;
-		spr->transform.matrix[0] = 0.0f;
+		spr->transform.matrix[0] = NAN;
 		spr->transform.matrix[1] = 0.0f;
 		spr->transform.matrix[2] = 0.0f;
 		spr->transform.matrix[3] = 0.0f;
 		spr->transform.matrix[4] = 0.0f;
 		spr->transform.matrix[5] = 0.0f;
-		spr->transform.originX = 0.0f;
+		spr->transform.originX = NAN;
 		spr->transform.originY = 0.0f;
 		spr->path = NULL;
 
@@ -1775,12 +2003,15 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 
 		if (filter != 0) {
 			Sprite* spr = (Sprite*)wrenGetSlotForeign(vm, 0);
-			spr->texture.filter = filter;
 
-			if (spr->texture.id != 0) {
-				glBindTexture(GL_TEXTURE_2D, spr->texture.id);
-				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, filter);
-				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, filter);
+			if (filter != spr->texture.filter) {
+				spr->texture.filter = filter;
+
+				if (spr->texture.id != 0) {
+					glBindTexture(GL_TEXTURE_2D, spr->texture.id);
+					glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, filter);
+					glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, filter);
+				}
 			}
 		}
 	}
@@ -1820,7 +2051,7 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 		Sprite* spr = (Sprite*)wrenGetSlotForeign(vm, 0);
 		
 		if (spr->batcher) {
-			spriteBatcherEnd(spr->batcher, spr);
+			spriteBatcherEnd(spr->batcher, spr->texture.id);
 			spriteBatcherPut(spr->batcher);
 			spr->batcher = NULL;
 		} else {
@@ -1828,7 +2059,82 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 		}
 	}
 
-	void wren_sprite_draw5(WrenVM* vm) {
+	void wren_sprite_transform_(WrenVM* vm) {
+		Sprite* spr = (Sprite*)wrenGetSlotForeign(vm, 0);
+
+		if (isnan(spr->transform.matrix[0])) {
+			wrenSetSlotNull(vm, 0);
+		} else {
+			wrenEnsureSlots(vm, 2);
+			wrenSetSlotNewList(vm, 0);
+	
+			for (int i = 0; i < 6; i++) {
+				wrenSetSlotDouble(vm, 1, spr->transform.matrix[i]);
+				wrenInsertInList(vm, 0, -1, 1);
+			}
+		}
+	}
+	
+	void wren_sprite_setTransform_(WrenVM* vm) {
+		for (int i = 1; i <= 6; i++) {
+			if (wrenGetSlotType(vm, i) != WREN_TYPE_NUM) {
+				wrenAbort(vm, "args must be Nums");
+				return;
+			}
+		}
+
+		Sprite* spr = (Sprite*)wrenGetSlotForeign(vm, 0);
+		double n0 = wrenGetSlotDouble(vm, 1);
+
+		if (isnan(n0)) {
+			spr->transform.matrix[0] = NAN;
+		} else {
+			spr->transform.matrix[0] = (float)n0;
+			spr->transform.matrix[1] = (float)wrenGetSlotDouble(vm, 2);
+			spr->transform.matrix[2] = (float)wrenGetSlotDouble(vm, 3);
+			spr->transform.matrix[3] = (float)wrenGetSlotDouble(vm, 4);
+			spr->transform.matrix[4] = (float)wrenGetSlotDouble(vm, 5);
+			spr->transform.matrix[5] = (float)wrenGetSlotDouble(vm, 6);
+		}
+	}
+
+	void wren_sprite_transformOrigin_(WrenVM* vm) {
+		Sprite* spr = (Sprite*)wrenGetSlotForeign(vm, 0);
+
+		if (isnan(spr->transform.originX)) {
+			wrenSetSlotNull(vm, 0);
+		} else {
+			wrenEnsureSlots(vm, 2);
+			wrenSetSlotNewList(vm, 0);
+	
+			wrenSetSlotDouble(vm, 1, spr->transform.originX);
+			wrenInsertInList(vm, 0, -1, 1);
+
+			wrenSetSlotDouble(vm, 1, spr->transform.originY);
+			wrenInsertInList(vm, 0, -1, 1);
+		}
+	}
+	
+	void wren_sprite_setTransformOrigin_(WrenVM* vm) {
+		for (int i = 1; i <= 2; i++) {
+			if (wrenGetSlotType(vm, i) != WREN_TYPE_NUM) {
+				wrenAbort(vm, "args must be Nums");
+				return;
+			}
+		}
+
+		Sprite* spr = (Sprite*)wrenGetSlotForeign(vm, 0);
+		double n0 = wrenGetSlotDouble(vm, 1);
+
+		if (isnan(n0)) {
+			spr->transform.originX = NAN;
+		} else {
+			spr->transform.originX = (float)n0;
+			spr->transform.originY = (float)wrenGetSlotDouble(vm, 2);
+		}
+	}
+
+	void wren_sprite_draw_5(WrenVM* vm) {
 		for (int i = 1; i <= 5; i++) {
 			if (wrenGetSlotType(vm, i) != WREN_TYPE_NUM) {
 				wrenAbort(vm, "args must be numbers");
@@ -1849,9 +2155,39 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 			spriteBatcherBegin(sb);
 		}
 
-		spriteBatcherDrawQuad(sb, x1, y1, x2, y2, 0, 0, 0, 1, 1, color, NULL);
+		spriteBatcherDrawQuad(sb, x1, y1, x2, y2, 0, 0, 0, 1, 1, color, isnan(spr->transform.matrix[0]) ? NULL : &spr->transform);
 
-		if (!spr->batcher) spriteBatcherEnd(sb, spr);
+		if (!spr->batcher) spriteBatcherEnd(sb, spr->texture.id);
+	}
+	
+	void wren_sprite_draw_9(WrenVM* vm) {
+		for (int i = 1; i <= 9; i++) {
+			if (wrenGetSlotType(vm, i) != WREN_TYPE_NUM) {
+				wrenAbort(vm, "args must be numbers");
+				return;
+			}
+		}
+
+		Sprite* spr = (Sprite*)wrenGetSlotForeign(vm, 0);
+		float x1 = (float)wrenGetSlotDouble(vm, 1);
+		float y1 = (float)wrenGetSlotDouble(vm, 2);
+		float x2 = x1 + (float)wrenGetSlotDouble(vm, 3);
+		float y2 = y1 + (float)wrenGetSlotDouble(vm, 4);
+		float u1 = (float)(wrenGetSlotDouble(vm, 5) / spr->texture.width);
+		float v1 = (float)(wrenGetSlotDouble(vm, 6) / spr->texture.height);
+		float u2 = u1 + (float)(wrenGetSlotDouble(vm, 7) / spr->texture.width);
+		float v2 = v1 + (float)(wrenGetSlotDouble(vm, 8) / spr->texture.height);
+		uint32_t color = (uint32_t)wrenGetSlotDouble(vm, 9);
+
+		SpriteBatcher* sb = spr->batcher;
+		if (!sb) {
+			sb = spriteBatcherTemp();
+			spriteBatcherBegin(sb);
+		}
+
+		spriteBatcherDrawQuad(sb, x1, y1, x2, y2, 0, u1, v1, u2, v2, color, isnan(spr->transform.matrix[0]) ? NULL : &spr->transform);
+
+		if (!spr->batcher) spriteBatcherEnd(sb, spr->texture.id);
 	}
 
 	void wren_sprite_toString(WrenVM* vm) {
@@ -1863,6 +2199,30 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 			char buffer[32];
 			snprintf(buffer, 32, "Sprite#%p", &spr);
 			wrenSetSlotString(vm, 0, buffer);
+		}
+	}
+
+	void wren_Sprite_defaultScaleFilter(WrenVM* vm) {
+		wrenSetSlotString(vm, 0, glFilterEnumToString(defaultSpriteFilter));
+	}
+	
+	void wren_Sprite_defaultScaleFilter_set(WrenVM* vm) {
+		GLuint filter = wren_filterStringToGlEnum(vm, 1);
+
+		if (filter != 0) {
+			defaultSpriteFilter = filter;
+		}
+	}
+	
+	void wren_Sprite_defaultWrapMode(WrenVM* vm) {
+		wrenSetSlotString(vm, 0, glWrapEnumToString(defaultSpriteWrap));
+	}
+	
+	void wren_Sprite_defaultWrapMode_set(WrenVM* vm) {
+		GLuint wrap = wren_wrapStringToGlEnum(vm, 1);
+		
+		if (wrap != 0) {
+			defaultSpriteWrap = wrap;
 		}
 	}
 
@@ -2013,6 +2373,138 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 		}
 	}
 
+	void wren_Game_print_(WrenVM* vm) {
+		if (wrenGetSlotType(vm, 1) != WREN_TYPE_STRING || wrenGetSlotType(vm, 2) != WREN_TYPE_NUM || wrenGetSlotType(vm, 3) != WREN_TYPE_NUM) {
+			wrenAbort(vm, "invalid args");
+			return;
+		}
+
+		const char* str = wrenGetSlotString(vm, 1);
+		int x = (int)wrenGetSlotDouble(vm, 2);
+		int y = (int)wrenGetSlotDouble(vm, 3);
+
+		int resultY = systemFontDraw(str, x, y, game_printColor);
+
+		wrenSetSlotDouble(vm, 0, resultY);
+	}
+
+	void wren_Game_printColorSet_(WrenVM* vm) {
+		if (wrenGetSlotType(vm, 1) != WREN_TYPE_NUM) {
+			wrenAbort(vm, "invalid args");
+			return;
+		}
+
+		game_printColor = (uint32_t)wrenGetSlotDouble(vm, 1);
+	}
+
+	void wren_Game_os(WrenVM* vm) {
+		wrenSetSlotString(vm, 0, SOCK_OS);
+	}
+
+	void wren_Game_openURL(WrenVM* vm) {
+		if (wrenGetSlotType(vm, 1) != WREN_TYPE_STRING) {
+			wrenAbort(vm, "url must be a String");
+			return;
+		}
+
+		if (SDL_OpenURL(wrenGetSlotString(vm, 1)) == -1) {
+			wrenAbort(vm, SDL_GetError());
+		}
+	}
+
+	void doScreenLayout() {
+		if (game_resolutionIsFixed) {
+			float scaleX = (float)game_windowWidth / (float)game_resolutionWidth;
+			float scaleY = (float)game_windowHeight / (float)game_resolutionHeight;
+
+			game_renderScale = min(scaleX, scaleY);
+			game_renderScale = min(game_renderScale, game_layoutMaxScale);
+
+			if (game_layoutPixelScaling && game_renderScale > 1.0f) {
+				game_renderScale = floorf(game_renderScale);
+			}
+
+			game_renderRect.w = (int)(game_renderScale * game_resolutionWidth);
+			game_renderRect.h = (int)(game_renderScale * game_resolutionHeight);
+			game_renderRect.x = (game_windowWidth - game_renderRect.w) / 2;
+			game_renderRect.y = (game_windowHeight - game_renderRect.h) / 2;
+		} else {
+			game_renderRect.x = 0;
+			game_renderRect.y = 0;
+			game_renderRect.w = game_windowWidth;
+			game_renderRect.h = game_windowHeight;
+			game_renderScale = 1.0f;
+		}
+	}
+
+	void resizeFramebuffer() {
+		glBindTexture(GL_TEXTURE_2D, mainFramebufferTex);
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, game_resolutionWidth, game_resolutionHeight, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+	}
+
+	void wren_Game_layoutChanged_(WrenVM* vm) {
+		if (
+			wrenGetSlotType(vm, 1) != WREN_TYPE_NUM
+			||
+			wrenGetSlotType(vm, 2) != WREN_TYPE_NUM
+			||
+			wrenGetSlotType(vm, 3) != WREN_TYPE_BOOL
+			||
+			wrenGetSlotType(vm, 4) != WREN_TYPE_BOOL
+			||
+			wrenGetSlotType(vm, 5) != WREN_TYPE_NUM
+		) {
+			wrenAbort(vm, "invalid args");
+			return;
+		}
+
+		int width = (int)wrenGetSlotDouble(vm, 1);
+		int height = (int)wrenGetSlotDouble(vm, 2);
+		bool isFixed = wrenGetSlotBool(vm, 3);
+		bool isPixelPerfect = wrenGetSlotBool(vm, 4);
+		float maxScale = (float)wrenGetSlotDouble(vm, 5);
+
+		if (width < 1 || height < 1 || maxScale < 1) {
+			wrenAbort(vm, "resolution/scale must be positive");
+			return;
+		}
+
+		if (!isFixed) {
+			width = game_windowWidth;
+			height = game_windowHeight;
+		}
+
+		if (width != game_resolutionWidth || height != game_resolutionHeight) {
+			// Resize framebuffer.
+			game_resolutionWidth = width;
+			game_resolutionHeight = height;
+
+			resizeFramebuffer();
+		}
+		
+		game_resolutionIsFixed = isFixed;
+		game_layoutPixelScaling = isPixelPerfect;
+		game_layoutMaxScale = maxScale;
+
+		doScreenLayout();
+	}
+
+	void wren_Game_scaleFilter(WrenVM* vm) {
+		wrenSetSlotString(vm, 0, glFilterEnumToString(mainFramebufferScaleFilter));
+	}
+	
+	void wren_Game_scaleFilter_set(WrenVM* vm) {
+		GLuint filter = wren_filterStringToGlEnum(vm, 1);
+
+		if (filter != 0 && filter != mainFramebufferScaleFilter) {
+			mainFramebufferScaleFilter = filter;
+
+			glBindTexture(GL_TEXTURE_2D, mainFramebufferTex);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, filter);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, filter);
+		}
+	}
+
 	void wren_Game_quit_(WrenVM* vm) {
 		game_quit = true;
 	}
@@ -2023,11 +2515,11 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 		if (strcmp(moduleName, "sock") == 0) {
 			if (strcmp(className, "Array") == 0) {
 				if (!isStatic) {
-					if (strcmp(signature, "load_(_)") == 0) return wren_methodTODO;
+					if (strcmp(signature, "load_(_)") == 0) return wren_Array_load_;
 				}
 			} else if (strcmp(className, "Asset") == 0) {
 				if (isStatic) {
-					if (strcmp(signature, "loadString_(_,_)") == 0) return wren_methodTODO;
+					if (strcmp(signature, "loadString_(_)") == 0) return wren_Asset_loadString_;
 				}
 			} else if (strcmp(className, "Graphics") == 0) {
 				if (isStatic) {
@@ -2035,23 +2527,21 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 				}
 			} else if (strcmp(className, "Camera") == 0) {
 				if (isStatic) {
-					if (strcmp(signature, "update_(_,_,_)") == 0) return wren_CameraUpdate_3;
+					if (strcmp(signature, "update_(_,_,_)") == 0) return wren_Camera_update_3;
 				}
 			} else if (strcmp(className, "Storage") == 0) {
 				if (isStatic) {
 					if (strcmp(signature, "load_(_)") == 0) return wren_methodTODO;
 					if (strcmp(signature, "save_(_,_)") == 0) return wren_methodTODO;
 					if (strcmp(signature, "contains(_)") == 0) return wren_methodTODO;
-					if (strcmp(signature, "remove(_)") == 0) return wren_methodTODO;
-					if (strcmp(signature, "keys") == 0) return wren_methodTODO;
+					if (strcmp(signature, "delete(_)") == 0) return wren_methodTODO;
 				}
 			} else if (strcmp(className, "Sprite") == 0) {
 				if (isStatic) {
-					// TODO
-					if (strcmp(signature, "defaultScaleFilter") == 0) return wren_methodTODO;
-					if (strcmp(signature, "defaultScaleFilter=(_)") == 0) return wren_methodTODO;
-					if (strcmp(signature, "defaultWrapMode") == 0) return wren_methodTODO;
-					if (strcmp(signature, "defaultWrapMode=(_)") == 0) return wren_methodTODO;
+					if (strcmp(signature, "defaultScaleFilter") == 0) return wren_Sprite_defaultScaleFilter;
+					if (strcmp(signature, "defaultScaleFilter=(_)") == 0) return wren_Sprite_defaultScaleFilter_set;
+					if (strcmp(signature, "defaultWrapMode") == 0) return wren_Sprite_defaultWrapMode;
+					if (strcmp(signature, "defaultWrapMode=(_)") == 0) return wren_Sprite_defaultWrapMode_set;
 				} else {
 					if (strcmp(signature, "width") == 0) return wren_sprite_width;
 					if (strcmp(signature, "height") == 0) return wren_sprite_height;
@@ -2062,15 +2552,13 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 					if (strcmp(signature, "wrapMode=(_)") == 0) return wren_sprite_wrapMode_set;
 					if (strcmp(signature, "beginBatch()") == 0) return wren_sprite_beginBatch;
 					if (strcmp(signature, "endBatch()") == 0) return wren_sprite_endBatch;
-					if (strcmp(signature, "draw_(_,_,_,_,_)") == 0) return wren_sprite_draw5;
+					if (strcmp(signature, "draw_(_,_,_,_,_)") == 0) return wren_sprite_draw_5;
+					if (strcmp(signature, "draw_(_,_,_,_,_,_,_,_,_)") == 0) return wren_sprite_draw_9;
+					if (strcmp(signature, "transform_") == 0) return wren_sprite_transform_;
+					if (strcmp(signature, "setTransform_(_,_,_,_,_,_)") == 0) return wren_sprite_setTransform_;
+					if (strcmp(signature, "transformOrigin_") == 0) return wren_sprite_transformOrigin_;
+					if (strcmp(signature, "setTransformOrigin(_,_)") == 0) return wren_sprite_setTransformOrigin_;
 					if (strcmp(signature, "toString") == 0) return wren_sprite_toString;
-
-					// TODO
-					if (strcmp(signature, "transform_") == 0) return wren_methodTODO;
-					if (strcmp(signature, "setTransform_(_,_,_,_,_,_)") == 0) return wren_methodTODO;
-					if (strcmp(signature, "transformOrigin_") == 0) return wren_methodTODO;
-					if (strcmp(signature, "setTransformOrigin(_,_)") == 0) return wren_methodTODO;
-					if (strcmp(signature, "draw_(_,_,_,_,_,_,_,_,_)") == 0) return wren_methodTODO;
 				}
 			} else if (strcmp(className, "Screen") == 0) {
 				if (isStatic) {
@@ -2081,15 +2569,17 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 				if (isStatic) {
 					if (strcmp(signature, "title") == 0) return wren_Game_title;
 					if (strcmp(signature, "title=(_)") == 0) return wren_Game_title_set;
-					if (strcmp(signature, "scaleFilter") == 0) return wren_methodTODO;
-					if (strcmp(signature, "scaleFilter=(_)") == 0) return wren_methodTODO;
+					if (strcmp(signature, "scaleFilter") == 0) return wren_Game_scaleFilter;
+					if (strcmp(signature, "scaleFilter=(_)") == 0) return wren_Game_scaleFilter_set;
 					if (strcmp(signature, "fps") == 0) return wren_Game_fps;
 					if (strcmp(signature, "fps=(_)") == 0) return wren_Game_fps_set;
-					if (strcmp(signature, "layoutChanged_(_,_,_,_,_)") == 0) return wren_methodTODO;
+					if (strcmp(signature, "layoutChanged_(_,_,_,_,_)") == 0) return wren_Game_layoutChanged_;
 					if (strcmp(signature, "cursor") == 0) return wren_Game_cursor;
 					if (strcmp(signature, "cursor=(_)") == 0) return wren_Game_cursor_set;
-					if (strcmp(signature, "print_(_,_,_)") == 0) return wren_methodTODO;
-					if (strcmp(signature, "setPrintColor_(_)") == 0) return wren_methodTODO;
+					if (strcmp(signature, "print_(_,_,_)") == 0) return wren_Game_print_;
+					if (strcmp(signature, "setPrintColor_(_)") == 0) return wren_Game_printColorSet_;
+					if (strcmp(signature, "os") == 0) return wren_Game_os;
+					if (strcmp(signature, "openURL(_)") == 0) return wren_Game_openURL;
 					if (strcmp(signature, "ready_()") == 0) return wren_Game_ready_;
 					if (strcmp(signature, "quit_()") == 0) return wren_Game_quit_;
 				}
@@ -2123,15 +2613,15 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 	}
 
 	void wren_write(WrenVM* vm, const char* text) {
-		printf("%s", text);
+		printf("[WREN] %s", text);
 	}
 
 	void wren_error(WrenVM* vm, WrenErrorType type, const char* moduleName, int line, const char* message) {
 		if (type == WREN_ERROR_COMPILE) {
-			printf("[WREN] Compile Error at %s:%d %s\n", moduleName, line, message);
+			printf("[WREN Compile Error] at %s:%d %s\n", moduleName, line, message);
 		}
 		else if (type == WREN_ERROR_RUNTIME) {
-			printf("[WREN] Runtime Error %s\n", message);
+			printf("[WREN Runtime Error] %s\n", message);
 		}
 		else if (type == WREN_ERROR_STACK_TRACE) {
 			printf("  at %s:%d %s\n", moduleName, line, message);
@@ -2182,7 +2672,7 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 		SDL_GL_SetAttribute(SDL_GL_ALPHA_SIZE, 8);
 
 		// Create window.
-		window = SDL_CreateWindow("sock", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, game_screenWidth, game_screenHeight, SDL_WINDOW_OPENGL | SDL_WINDOW_HIDDEN | SDL_WINDOW_RESIZABLE);
+		window = SDL_CreateWindow("sock", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, game_windowWidth, game_windowHeight, SDL_WINDOW_OPENGL | SDL_WINDOW_HIDDEN | SDL_WINDOW_RESIZABLE);
 		if (!window) {
 			quitError = "SDL_CreateWindow";
 			return -1;
@@ -2221,6 +2711,10 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 
 		#endif
 
+		// Setup OpenGL.
+		glEnable(GL_BLEND);
+		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
 		// Load shaders.
 		shaderSpriteBatcher = compileShader(&shaderDataSpriteBatcher);
 		if (shaderSpriteBatcher.program == 0) {
@@ -2231,9 +2725,49 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 		if (shaderPolygonBatcher.program == 0) {
 			return -1;
 		}
+		
+		shaderFramebuffer = compileShader(&shaderDataFramebuffer);
+		if (shaderFramebuffer.program == 0) {
+			return -1;
+		}
+
+		// Create main framebuffer.
+		glGenVertexArrays(1, &mainFramebufferVertexArray);
+
+		float triangles[12] = {
+			-1, -1,
+			+1, -1,
+			-1, +1,
+			-1, +1,
+			+1, -1,
+			+1, +1,
+		};
+		glGenBuffers(1, &mainFramebufferTriangles);
+		glBindBuffer(GL_ARRAY_BUFFER, mainFramebufferTriangles);
+		glBufferData(GL_ARRAY_BUFFER, sizeof(triangles), triangles, GL_STATIC_DRAW);
+
+		glGenFramebuffers(1, &mainFramebuffer);
+		glBindFramebuffer(GL_FRAMEBUFFER, mainFramebuffer);
+
+		glGenTextures(1, &mainFramebufferTex);
+		glBindTexture(GL_TEXTURE_2D, mainFramebufferTex);
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, game_windowWidth, game_windowHeight, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+
+		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, mainFramebufferTex, 0);
+
+		if (debug_checkGlError("create framebuffer")) {
+			return -1;
+		}
+
+		if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
+			quitError = "main framebuffer not complete";
+			return -1;
+		}
 
 		// Final GL setup.
-		glViewport(0, 0, game_screenWidth, game_screenHeight);
+		glViewport(0, 0, game_windowWidth, game_windowHeight);
 
 		// Create Wren VM.
 		WrenConfiguration config;
@@ -2293,16 +2827,44 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 		uint64_t prevTime = SDL_GetTicks64();
 		double remainingTime = 0;
 		double totalTime = 60;
+		bool windowResized = false;
 
 		while (inLoop) {
 			// Get SDL events.
 			SDL_Event event;
 			while ( SDL_PollEvent(&event) ) {
-               if ( event.type == SDL_QUIT ) {
-                   inLoop = 0;
-               } else if ( event.type == SDL_KEYDOWN ) {
-                   // TODO
-               }
+				if (event.type == SDL_QUIT) {
+					inLoop = 0;
+				} else if (event.type == SDL_KEYDOWN) {
+					// TODO
+				} else if (event.type == SDL_WINDOWEVENT) {
+					switch (event.window.event) {
+						case SDL_WINDOWEVENT_RESIZED: {
+							windowResized = true;
+							game_windowWidth = event.window.data1;
+							game_windowHeight = event.window.data2;
+						} break;
+					}
+				}
+			}
+
+			// Resize game.
+			if (windowResized) {
+				windowResized = false;
+
+				if (!game_resolutionIsFixed) {
+					game_resolutionWidth = game_windowWidth;
+					game_resolutionHeight = game_windowHeight;
+					resizeFramebuffer();
+				}
+
+				doScreenLayout();
+
+				wrenEnsureSlots(vm, 3);
+				wrenSetSlotHandle(vm, 0, handle_Game);
+				wrenSetSlotDouble(vm, 1, game_windowWidth);
+				wrenSetSlotDouble(vm, 2, game_windowHeight);
+				wrenCall(vm, callHandle_update_2);
 			}
 
 			// Update time stuff..
@@ -2310,7 +2872,7 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 			uint64_t delta = min(66, now - prevTime);
 			prevTime = now;
 
-			remainingTime -= (double)delta;
+			remainingTime -= (double)delta / 1000.0;
 
 			if (remainingTime <= 0) {
 				remainingTime += 1.0 / game_fps;
@@ -2323,6 +2885,10 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 					frame++;
 					totalTime += 1.0 / game_fps;
 
+					// Prepare WebGL.
+					glBindFramebuffer(GL_FRAMEBUFFER, mainFramebuffer);
+					glViewport(0, 0, game_resolutionWidth, game_resolutionHeight);
+
 					// Call update fn.
 					wrenEnsureSlots(vm, 1);
 					wrenSetSlotHandle(vm, 0, handle_Game);
@@ -2334,13 +2900,34 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 					if (game_quit) {
 						inLoop = 0;
 					}
+					
+					// Finalize GL.
+					glBindFramebuffer(GL_FRAMEBUFFER, 0);
+					glViewport(game_renderRect.x, game_renderRect.y, game_renderRect.w, game_renderRect.h);
+
+					glUseProgram(shaderFramebuffer.program);
+
+					glBindVertexArray(mainFramebufferVertexArray);
+
+					glActiveTexture(GL_TEXTURE0);
+					glBindTexture(GL_TEXTURE_2D, mainFramebufferTex);
+					glUniform1i(shaderFramebuffer.uniforms[0], 0);
+
+					glBindBuffer(GL_ARRAY_BUFFER, mainFramebufferTriangles);
+					glVertexAttribPointer(0, 2, GL_FLOAT, false, 0, (void*)0);
+					glEnableVertexAttribArray(0);
+
+					glDrawArrays(GL_TRIANGLES, 0, 6);
+
+					glUseProgram(0);
+					glBindVertexArray(0);
+					glDisableVertexAttribArray(0);
+
+					SDL_GL_SwapWindow(window);
+
+					// Check for GL errors.
+					if (debug_checkGlError("post update")) inLoop = 0;
 				}
-
-				// Finalize GL.
-				SDL_GL_SwapWindow(window);
-
-				// Check for GL errors.
-				if (debug_checkGlError("post update")) inLoop = 0;
 			}
 
 			// Wait and loop.
