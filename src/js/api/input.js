@@ -1,8 +1,52 @@
 import { canvas } from "../canvas.js";
-import { debugGlobals } from "../debug/globals.js";
+import { addClassForeignStaticMethods } from "../foreign.js";
+import { keyboardLayout } from "../keyboard-layout.js";
 import { computedLayout } from "../layout.js";
 import { callHandle_updateMouse_3, callHandle_update_2 } from "../vm-call-handles.js";
-import { wrenCall, wrenEnsureSlots, wrenGetSlotBool, wrenGetSlotDouble, wrenGetSlotHandle, wrenGetSlotString, wrenGetVariable, wrenSetSlotDouble, wrenSetSlotHandle, wrenSetSlotString } from "../vm.js";
+import { abortFiber, wrenCall, wrenEnsureSlots, wrenGetSlotBool, wrenGetSlotDouble, wrenGetSlotHandle, wrenGetSlotString, wrenGetSlotType, wrenGetVariable, wrenSetSlotDouble, wrenSetSlotHandle, wrenSetSlotNull, wrenSetSlotString } from "../vm.js";
+
+addClassForeignStaticMethods("sock", "Input", {
+	"localize(_)"() {
+		let idType = wrenGetSlotType(1);
+		if (idType === 5) {
+			wrenSetSlotNull(0);
+			return;
+		}
+
+		if (idType !== 6) {
+			abortFiber("input ID must be a String");
+			return;
+		}
+
+		let id = wrenGetSlotString(1);
+
+		if (keyboardLayout === "AZERTY") {
+			if (id === "Q") {
+				id = "A";
+			} else if (id === "A") {
+				id = "Q";
+			} else if (id === "Z") {
+				id = "W";
+			} else if (id === "W") {
+				id = "Z";
+			} else if (id === "M") {
+				id = "Comma";
+			} else if (id === "Comma") {
+				id = "Semicolon";
+			} else if (id === "Semicolon") {
+				id = "M";
+			}
+		} else if (keyboardLayout === "QWERTZ") {
+			if (id === "Z") {
+				id = "Y";
+			} else if (id === "Y") {
+				id = "Z";
+			}
+		}
+
+		wrenSetSlotString(0, id);
+	}
+})
 
 let handle_Input = 0;
 
@@ -18,8 +62,6 @@ let queuedInputs = new Set();
 let inputTable = Object.create(null);
 
 let mouseData = { x: 0, y: 0, exactX: 0, exactY: 0, wheel: 0 };
-
-debugGlobals.input = { mouse: mouseData, queued: queuedInputs, inputs: inputTable };
 
 export function initInputModule() {
 	wrenEnsureSlots(1);
@@ -159,7 +201,7 @@ canvas.addEventListener("contextmenu", (event) => {
 	event.preventDefault();
 });
 
-addEventListener("touchstart", (event) => {
+canvas.addEventListener("touchstart", (event) => {
 	event.preventDefault();
 	if (event.changedTouches.length === event.touches.length) {
 		let touch = event.changedTouches[0];
@@ -169,13 +211,13 @@ addEventListener("touchstart", (event) => {
 	}
 }, { passive: false });
 
-addEventListener("touchmove", (event) => {
+canvas.addEventListener("touchmove", (event) => {
 	event.preventDefault();
 	let touch = event.changedTouches[0];
 	updateMousePosition(touch.clientX, touch.clientY);
 }, { passive: false });
 
-addEventListener("touchend", (event) => {
+canvas.addEventListener("touchend", (event) => {
 	event.preventDefault();
 	if (event.touches.length === 0) {
 		updateInputValue("Tap", 0);

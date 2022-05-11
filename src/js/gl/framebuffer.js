@@ -47,6 +47,19 @@ export class Framebuffer {
 			]),
 			gl.STATIC_DRAW
 		);
+
+		gl.bindTexture(gl.TEXTURE_2D, this.texture);
+		gl.texImage2D(
+			gl.TEXTURE_2D,
+			0,
+			gl.RGBA,
+			8,
+			8,
+			0,
+			gl.RGBA,
+			gl.UNSIGNED_BYTE,
+			null,
+		);
 	}
 
 	updateResolution() {

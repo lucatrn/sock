@@ -1,5 +1,5 @@
-import { vm, wrenCall, wrenEnsureSlots, wrenGetSlotHandle, wrenGetVariable, wrenSetSlotDouble, wrenSetSlotHandle } from "../vm.js";
-import { callHandle_update_2 } from "../vm-call-handles.js";
+import { wrenCall, wrenEnsureSlots, wrenGetSlotHandle, wrenGetVariable, wrenSetSlotDouble, wrenSetSlotHandle } from "../vm.js";
+import { callHandle_update_3 } from "../vm-call-handles.js";
 
 let handle_Time = 0;
 
@@ -12,11 +12,13 @@ export function initTimeModule() {
 /**
  * @param {number} frame
  * @param {number} time
+ * @param {number} tick
  */
-export function updateTimeModule(frame, time) {
-	wrenEnsureSlots(3);
+export function updateTimeModule(frame, tick, time) {
+	wrenEnsureSlots(4);
 	wrenSetSlotHandle(0, handle_Time);
 	wrenSetSlotDouble(1, frame);
-	wrenSetSlotDouble(2, time);
-	wrenCall(callHandle_update_2);
+	wrenSetSlotDouble(2, tick);
+	wrenSetSlotDouble(3, time);
+	wrenCall(callHandle_update_3);
 }

@@ -77,6 +77,8 @@ class Input {
 		return whichPressed != null
 	}
 
+	foreign static localize(_)
+
 	static inputs_(ids) {
 		if (ids is String) {
 			// return [ __inputs[ids] ]
@@ -88,13 +90,19 @@ class Input {
 		}
 	}
 
-	static update_(id, value) {
+	static update_(id, v) {
 		var s = __inputs[id]
 		if (s) {
-			s.update(value)
+			s.update_(v)
 		} else {
-			__inputs[id] = InputState.new(value)
+			__inputs[id] = s = InputState.new(id, v)
 		}
+
+		if (__f) __f.call(s)
+	}
+
+	static setCallback(f) {
+		__f = f
 	}
 
 	// static update_(negID, posID, value) {
@@ -111,12 +119,16 @@ class Input {
 Input.init_()
 
 class InputState {
-	construct new(v) {
+	construct new(id, v) {
+		// Input ID (for client API).
+		_id = id
 		// Value 0..1
 		_v = v
 		// Frame the value last moved across [Input.holdCutoff]
 		_t = Time.frame
 	}
+
+	id { _id }
 
 	value { _v }
 
@@ -134,7 +146,7 @@ class InputState {
 
 	released { _t == Time.frame && !held }
 
-	update(v) {
+	update_(v) {
 		var wasHeld = held
 		_v = v
 		if (wasHeld != held) _t = Time.frame

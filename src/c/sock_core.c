@@ -805,6 +805,7 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 	static bool game_layoutPixelScaling = false;
 	static float game_layoutMaxScale = 1.0f;
 	static double game_fps = 60.0;
+	static bool game_isFullscreen = false;
 	static bool game_ready = false;
 	static bool game_quit = false;
 	static bool game_layoutQueued = false;
@@ -821,6 +822,8 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 	static WrenHandle* callHandle_init_2 = NULL;
 	static WrenHandle* callHandle_update_0 = NULL;
 	static WrenHandle* callHandle_update_2 = NULL;
+	static WrenHandle* callHandle_update_3 = NULL;
+	static WrenHandle* callHandle_updateMouse_3 = NULL;
 
 
 	// === IO UTILS ==
@@ -956,9 +959,6 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 
 	// === GAME / LAYOUT ===
 
-	// void updateLayout() {
-	// }
-
 	void initGameModule() {
 		wrenEnsureSlots(vm, 3);
 		wrenSetSlotHandle(vm, 0, handle_Game);
@@ -966,6 +966,149 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 		wrenSetSlotDouble(vm, 2, game_windowHeight);
 		wrenCall(vm, callHandle_init_2);
 	}
+
+
+	// === Input ===
+
+	static const char* INPUT_ID_A = "A";
+	static const char* INPUT_ID_B = "B";
+	static const char* INPUT_ID_C = "C";
+	static const char* INPUT_ID_D = "D";
+	static const char* INPUT_ID_E = "E";
+	static const char* INPUT_ID_F = "F";
+	static const char* INPUT_ID_G = "G";
+	static const char* INPUT_ID_H = "H";
+	static const char* INPUT_ID_I = "I";
+	static const char* INPUT_ID_J = "J";
+	static const char* INPUT_ID_K = "K";
+	static const char* INPUT_ID_L = "L";
+	static const char* INPUT_ID_M = "M";
+	static const char* INPUT_ID_N = "N";
+	static const char* INPUT_ID_O = "O";
+	static const char* INPUT_ID_P = "P";
+	static const char* INPUT_ID_Q = "Q";
+	static const char* INPUT_ID_R = "R";
+	static const char* INPUT_ID_S = "S";
+	static const char* INPUT_ID_T = "T";
+	static const char* INPUT_ID_U = "U";
+	static const char* INPUT_ID_V = "V";
+	static const char* INPUT_ID_W = "W";
+	static const char* INPUT_ID_X = "X";
+	static const char* INPUT_ID_Y = "Y";
+	static const char* INPUT_ID_Z = "Z";
+	static const char* INPUT_ID_1 = "1";
+	static const char* INPUT_ID_2 = "2";
+	static const char* INPUT_ID_3 = "3";
+	static const char* INPUT_ID_4 = "4";
+	static const char* INPUT_ID_5 = "5";
+	static const char* INPUT_ID_6 = "6";
+	static const char* INPUT_ID_7 = "7";
+	static const char* INPUT_ID_8 = "8";
+	static const char* INPUT_ID_9 = "9";
+	static const char* INPUT_ID_0 = "0";
+	static const char* INPUT_ID_BACKSPACE = "Backspace";
+	static const char* INPUT_ID_ENTER = "Enter";
+	static const char* INPUT_ID_TAB = "Tab";
+	static const char* INPUT_ID_CAPSLOCK = "CapsLock";
+	static const char* INPUT_ID_SHIFT_LEFT  = "ShiftLeft";
+	static const char* INPUT_ID_SHIFT_RIGHT = "ShiftRight";
+	static const char* INPUT_ID_CONTROL_LEFT  = "ControlLeft";
+	static const char* INPUT_ID_CONTROL_RIGHT = "ControlRight";
+	static const char* INPUT_ID_ALT_LEFT  = "AltLeft";
+	static const char* INPUT_ID_ALT_RIGHT = "AltRight";
+	static const char* INPUT_ID_CONTROL_SPACE = "Space";
+	static const char* INPUT_ID_ESCAPE = "Escape";
+	static const char* INPUT_ID_ARROW_LEFT = "ArrowLeft";
+	static const char* INPUT_ID_ARROW_RIGHT = "ArrowRight";
+	static const char* INPUT_ID_ARROW_UP = "ArrowUp";
+	static const char* INPUT_ID_ARROW_DOWN = "ArrowDown";
+
+	static const char* INPUT_ID_MOUSE_LEFT = "MouseLeft";
+	static const char* INPUT_ID_MOUSE_MIDDLE = "MouseMiddle";
+	static const char* INPUT_ID_MOUSE_RIGHT = "MouseRight";
+
+	static int mouseWindowPosX = 0;
+	static int mouseWindowPosY = 0;
+	static int mouseWheel = 0;
+
+	const char* sdlScancodeToInputID(SDL_Scancode code) {
+		switch (code) {
+			// Alphabet.
+			case SDL_SCANCODE_A: return INPUT_ID_A;
+			case SDL_SCANCODE_B: return INPUT_ID_B;
+			case SDL_SCANCODE_C: return INPUT_ID_C;
+			case SDL_SCANCODE_D: return INPUT_ID_D;
+			case SDL_SCANCODE_E: return INPUT_ID_E;
+			case SDL_SCANCODE_F: return INPUT_ID_F;
+			case SDL_SCANCODE_G: return INPUT_ID_G;
+			case SDL_SCANCODE_H: return INPUT_ID_H;
+			case SDL_SCANCODE_I: return INPUT_ID_I;
+			case SDL_SCANCODE_J: return INPUT_ID_J;
+			case SDL_SCANCODE_K: return INPUT_ID_K;
+			case SDL_SCANCODE_L: return INPUT_ID_L;
+			case SDL_SCANCODE_M: return INPUT_ID_M;
+			case SDL_SCANCODE_N: return INPUT_ID_N;
+			case SDL_SCANCODE_O: return INPUT_ID_O;
+			case SDL_SCANCODE_P: return INPUT_ID_P;
+			case SDL_SCANCODE_Q: return INPUT_ID_Q;
+			case SDL_SCANCODE_R: return INPUT_ID_R;
+			case SDL_SCANCODE_S: return INPUT_ID_S;
+			case SDL_SCANCODE_T: return INPUT_ID_T;
+			case SDL_SCANCODE_U: return INPUT_ID_U;
+			case SDL_SCANCODE_V: return INPUT_ID_V;
+			case SDL_SCANCODE_W: return INPUT_ID_W;
+			case SDL_SCANCODE_X: return INPUT_ID_X;
+			case SDL_SCANCODE_Y: return INPUT_ID_Y;
+			case SDL_SCANCODE_Z: return INPUT_ID_Z;
+			// Number row.
+			case SDL_SCANCODE_1: return INPUT_ID_1;
+			case SDL_SCANCODE_2: return INPUT_ID_2;
+			case SDL_SCANCODE_3: return INPUT_ID_3;
+			case SDL_SCANCODE_4: return INPUT_ID_4;
+			case SDL_SCANCODE_5: return INPUT_ID_5;
+			case SDL_SCANCODE_6: return INPUT_ID_6;
+			case SDL_SCANCODE_7: return INPUT_ID_7;
+			case SDL_SCANCODE_8: return INPUT_ID_8;
+			case SDL_SCANCODE_9: return INPUT_ID_9;
+			case SDL_SCANCODE_0: return INPUT_ID_0;
+			// Middle stuff.
+			case SDL_SCANCODE_BACKSPACE: return INPUT_ID_BACKSPACE;
+			case SDL_SCANCODE_RETURN: return INPUT_ID_ENTER;
+			case SDL_SCANCODE_RETURN2: return INPUT_ID_ENTER;
+			case SDL_SCANCODE_TAB: return INPUT_ID_TAB;
+			case SDL_SCANCODE_CAPSLOCK: return INPUT_ID_CAPSLOCK;
+			case SDL_SCANCODE_LSHIFT: return INPUT_ID_SHIFT_LEFT;
+			case SDL_SCANCODE_RSHIFT: return INPUT_ID_SHIFT_RIGHT;
+			// Bottom row.
+			case SDL_SCANCODE_LCTRL: return INPUT_ID_CONTROL_LEFT;
+			case SDL_SCANCODE_RCTRL: return INPUT_ID_CONTROL_RIGHT;
+			case SDL_SCANCODE_LALT: return INPUT_ID_ALT_LEFT;
+			case SDL_SCANCODE_RALT: return INPUT_ID_ALT_RIGHT;
+			// Top row.
+			case SDL_SCANCODE_ESCAPE: return INPUT_ID_ESCAPE;
+			// Arrows.
+			case SDL_SCANCODE_LEFT: return INPUT_ID_ARROW_LEFT;
+			case SDL_SCANCODE_RIGHT: return INPUT_ID_ARROW_RIGHT;
+			case SDL_SCANCODE_UP: return INPUT_ID_ARROW_UP;
+			case SDL_SCANCODE_DOWN: return INPUT_ID_ARROW_DOWN;
+		}
+
+		return NULL;
+	}
+
+// 	// Converts a temp string to a const input ID pointer.
+// 	const char* resolveInputID(const char* id) {
+// 		int len = (int)strlen(id);
+// 
+// 		if (len == 1) {
+// 			char c = id[0];
+// 			if (c >= 'A' && c <= 'Z') return sdlScancodeToInputID(SDL_SCANCODE_A + (c - 'A'));
+// 			if (c == '0') return INPUT_ID_0;
+// 			if (c >= '1' && c <= '9') return sdlScancodeToInputID(SDL_SCANCODE_1 + (c - '1'));
+// 		}
+// 
+// 		return NULL;
+// 	}
 
 
 	// === OpenGL ===
@@ -1008,8 +1151,7 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 					sSeverity = "HIGH";
 					break;
 				case GL_DEBUG_SEVERITY_NOTIFICATION:
-					sSeverity = "INFO";
-					break;
+					return;
 			}
 			
 			printf("[GL] type=%s id=%d severity=%s: %s\n", sErrorType, id, sSeverity, message);
@@ -1806,17 +1948,62 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 
 	// TIME
 
-	void updateTimeModule(uint64_t frame, double time) {
-		wrenEnsureSlots(vm, 3);
+	void updateTimeModule(uint64_t frame, uint64_t tick, double time) {
+		wrenEnsureSlots(vm, 4);
 		wrenSetSlotHandle(vm, 0, handle_Time);
 		wrenSetSlotDouble(vm, 1, (double)frame);
-		wrenSetSlotDouble(vm, 2, time);
-		wrenCall(vm, callHandle_update_2);
+		wrenSetSlotDouble(vm, 2, (double)tick);
+		wrenSetSlotDouble(vm, 3, time);
+		wrenCall(vm, callHandle_update_3);
+	}
+
+	// INPUT
+
+	void updateInputMouse() {
+		double x = floor((mouseWindowPosX - game_renderRect.x) / game_renderScale);
+		double y = floor((mouseWindowPosY - game_renderRect.y) / game_renderScale);
+
+		wrenEnsureSlots(vm, 4);
+		wrenSetSlotHandle(vm, 0, handle_Input);
+		wrenSetSlotDouble(vm, 1, x);
+		wrenSetSlotDouble(vm, 2, y);
+		wrenSetSlotDouble(vm, 3, (double)mouseWheel);
+		wrenCall(vm, callHandle_updateMouse_3);
+
+		mouseWheel = 0;
+	}
+
+	bool updateInput(const char* id, float value) {
+		wrenEnsureSlots(vm, 3);
+		wrenSetSlotHandle(vm, 0, handle_Input);
+		wrenSetSlotString(vm, 1, id);
+		wrenSetSlotDouble(vm, 2, value);
+		return wrenCall(vm, callHandle_update_2) == WREN_RESULT_SUCCESS;
+	}
+
+	void wren_input_localize(WrenVM* vm) {
+		if (wrenGetSlotType(vm, 1) != WREN_TYPE_STRING) {
+			wrenAbort(vm, "id must be String");
+			return;
+		}
+
+		const char* id = wrenGetSlotString(vm, 1);
+
+		// TODO!
+
+		wrenSetSlotString(vm, 0, id);
 	}
 
 	// GRAPHICS
 
 	void wren_Graphics_clear3(WrenVM* vm) {
+		for (int i = 1; i <= 3; i++) {
+			if (wrenGetSlotType(vm, i) != WREN_TYPE_NUM) {
+				wrenAbort(vm, "args must be Nums");
+				return;
+			}
+		}
+
 		float r = (float)wrenGetSlotDouble(vm, 1);
 		float g = (float)wrenGetSlotDouble(vm, 2);
 		float b = (float)wrenGetSlotDouble(vm, 3);
@@ -2278,6 +2465,46 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 
 	// GAME
 
+	void resizeFramebuffer() {
+		glBindTexture(GL_TEXTURE_2D, mainFramebufferTex);
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, game_resolutionWidth, game_resolutionHeight, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+	}
+
+	void doScreenLayout() {
+		if (game_resolutionIsFixed) {
+			float scaleX = (float)game_windowWidth / (float)game_resolutionWidth;
+			float scaleY = (float)game_windowHeight / (float)game_resolutionHeight;
+
+			game_renderScale = min(scaleX, scaleY);
+			game_renderScale = min(game_renderScale, game_layoutMaxScale);
+
+			if (game_layoutPixelScaling && game_renderScale > 1.0f) {
+				game_renderScale = floorf(game_renderScale);
+			}
+
+			game_renderRect.w = (int)(game_renderScale * game_resolutionWidth);
+			game_renderRect.h = (int)(game_renderScale * game_resolutionHeight);
+			game_renderRect.x = (game_windowWidth - game_renderRect.w) / 2;
+			game_renderRect.y = (game_windowHeight - game_renderRect.h) / 2;
+		} else {
+			game_renderRect.x = 0;
+			game_renderRect.y = 0;
+			game_renderRect.w = game_windowWidth;
+			game_renderRect.h = game_windowHeight;
+			game_renderScale = 1.0f;
+		}
+	}
+
+	void handleWindowResize() {
+		if (!game_resolutionIsFixed) {
+			game_resolutionWidth = game_windowWidth;
+			game_resolutionHeight = game_windowHeight;
+			resizeFramebuffer();
+		}
+
+		doScreenLayout();
+	}
+
 	void wren_Game_ready_(WrenVM* vm) {
 		game_ready = true;
 	}
@@ -2373,6 +2600,39 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 		}
 	}
 
+	void wren_Game_fullscreen(WrenVM* vm) {
+		wrenSetSlotBool(vm, 0, game_isFullscreen);
+	}
+
+	void wren_Game_setFullscreen_(WrenVM* vm) {
+		if (wrenGetSlotType(vm, 1) != WREN_TYPE_BOOL) {
+			wrenAbort(vm, "fullscreen must be a Bool");
+			return;
+		}
+
+		bool fullscreen = wrenGetSlotBool(vm, 1);
+
+		if (fullscreen != game_isFullscreen) {
+			if (SDL_SetWindowFullscreen(window, fullscreen ? SDL_WINDOW_FULLSCREEN_DESKTOP : 0) < 0) {
+				wrenAbort(vm, SDL_GetError());
+				return;
+			}
+			game_isFullscreen = fullscreen;
+
+			// Do re-layout.
+			SDL_GetWindowSize(window, &game_windowWidth, &game_windowHeight);
+
+			wrenEnsureSlots(vm, 2);
+			wrenSetSlotNewList(vm, 0);
+			wrenSetSlotDouble(vm, 1, (double)game_windowWidth);
+			wrenInsertInList(vm, 0, -1, 1);
+			wrenSetSlotDouble(vm, 1, (double)game_windowHeight);
+			wrenInsertInList(vm, 0, -1, 1);
+
+			handleWindowResize();
+		}
+	}
+
 	void wren_Game_print_(WrenVM* vm) {
 		if (wrenGetSlotType(vm, 1) != WREN_TYPE_STRING || wrenGetSlotType(vm, 2) != WREN_TYPE_NUM || wrenGetSlotType(vm, 3) != WREN_TYPE_NUM) {
 			wrenAbort(vm, "invalid args");
@@ -2410,36 +2670,6 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 		if (SDL_OpenURL(wrenGetSlotString(vm, 1)) == -1) {
 			wrenAbort(vm, SDL_GetError());
 		}
-	}
-
-	void doScreenLayout() {
-		if (game_resolutionIsFixed) {
-			float scaleX = (float)game_windowWidth / (float)game_resolutionWidth;
-			float scaleY = (float)game_windowHeight / (float)game_resolutionHeight;
-
-			game_renderScale = min(scaleX, scaleY);
-			game_renderScale = min(game_renderScale, game_layoutMaxScale);
-
-			if (game_layoutPixelScaling && game_renderScale > 1.0f) {
-				game_renderScale = floorf(game_renderScale);
-			}
-
-			game_renderRect.w = (int)(game_renderScale * game_resolutionWidth);
-			game_renderRect.h = (int)(game_renderScale * game_resolutionHeight);
-			game_renderRect.x = (game_windowWidth - game_renderRect.w) / 2;
-			game_renderRect.y = (game_windowHeight - game_renderRect.h) / 2;
-		} else {
-			game_renderRect.x = 0;
-			game_renderRect.y = 0;
-			game_renderRect.w = game_windowWidth;
-			game_renderRect.h = game_windowHeight;
-			game_renderScale = 1.0f;
-		}
-	}
-
-	void resizeFramebuffer() {
-		glBindTexture(GL_TEXTURE_2D, mainFramebufferTex);
-		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, game_resolutionWidth, game_resolutionHeight, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
 	}
 
 	void wren_Game_layoutChanged_(WrenVM* vm) {
@@ -2521,6 +2751,10 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 				if (isStatic) {
 					if (strcmp(signature, "loadString_(_)") == 0) return wren_Asset_loadString_;
 				}
+			} else if (strcmp(className, "Input") == 0) {
+				if (isStatic) {
+					if (strcmp(signature, "localize(_)") == 0) return wren_input_localize;
+				}
 			} else if (strcmp(className, "Graphics") == 0) {
 				if (isStatic) {
 					if (strcmp(signature, "clear(_,_,_)") == 0) return wren_Graphics_clear3;
@@ -2576,6 +2810,8 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 					if (strcmp(signature, "layoutChanged_(_,_,_,_,_)") == 0) return wren_Game_layoutChanged_;
 					if (strcmp(signature, "cursor") == 0) return wren_Game_cursor;
 					if (strcmp(signature, "cursor=(_)") == 0) return wren_Game_cursor_set;
+					if (strcmp(signature, "fullscreen") == 0) return wren_Game_fullscreen;
+					if (strcmp(signature, "setFullscreen_(_)") == 0) return wren_Game_setFullscreen_;
 					if (strcmp(signature, "print_(_,_,_)") == 0) return wren_Game_print_;
 					if (strcmp(signature, "setPrintColor_(_)") == 0) return wren_Game_printColorSet_;
 					if (strcmp(signature, "os") == 0) return wren_Game_os;
@@ -2785,6 +3021,8 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 		callHandle_init_2 = wrenMakeCallHandle(vm, "init_(_,_)");
 		callHandle_update_0 = wrenMakeCallHandle(vm, "update_()");
 		callHandle_update_2 = wrenMakeCallHandle(vm, "update_(_,_)");
+		callHandle_update_3 = wrenMakeCallHandle(vm, "update_(_,_,_)");
+		callHandle_updateMouse_3 = wrenMakeCallHandle(vm, "updateMouse_(_,_,_)");
 		
 		// Load sock Wren code.
 		char* sockSource = fileReadRelative("sock.wren");
@@ -2824,19 +3062,52 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 		// Setup
 		int inLoop = 1;
 		uint64_t frame = 0;
+		uint64_t tick = 0;
 		uint64_t prevTime = SDL_GetTicks64();
 		double remainingTime = 0;
 		double totalTime = 60;
 		bool windowResized = false;
 
 		while (inLoop) {
+			// Update Sock time state.
+			updateTimeModule(frame, tick, totalTime);
+
 			// Get SDL events.
+			bool anyInputs = false;
 			SDL_Event event;
 			while ( SDL_PollEvent(&event) ) {
 				if (event.type == SDL_QUIT) {
 					inLoop = 0;
-				} else if (event.type == SDL_KEYDOWN) {
-					// TODO
+				} else if (event.type == SDL_KEYDOWN || event.type == SDL_KEYUP) {
+					if (!event.key.repeat) {
+						const char* id = sdlScancodeToInputID(event.key.keysym.scancode);
+						if (id) {
+							if (!updateInput(id, event.type == SDL_KEYDOWN ? 1.0f : 0.0f)) {
+								inLoop = 0;
+							}
+						}
+					}
+				} else if (event.type == SDL_MOUSEBUTTONDOWN || event.type == SDL_MOUSEBUTTONUP) {
+					const char* id = NULL;
+
+					if (event.button.button == SDL_BUTTON_LEFT) {
+						id = INPUT_ID_MOUSE_LEFT;
+					} else if (event.button.button == SDL_BUTTON_MIDDLE) {
+						id = INPUT_ID_MOUSE_MIDDLE;
+					} else if (event.button.button == SDL_BUTTON_RIGHT) {
+						id = INPUT_ID_MOUSE_RIGHT;
+					}
+					
+					if (id) {
+						if (!updateInput(id, event.type == SDL_MOUSEBUTTONDOWN ? 1.0f : 0.0f)) {
+							inLoop = 0;
+						}
+					}
+				} else if (event.type == SDL_MOUSEWHEEL) {
+					mouseWheel += event.wheel.y;
+				} else if (event.type == SDL_MOUSEMOTION) {
+					mouseWindowPosX = event.motion.x;
+					mouseWindowPosY = event.motion.y;
 				} else if (event.type == SDL_WINDOWEVENT) {
 					switch (event.window.event) {
 						case SDL_WINDOWEVENT_RESIZED: {
@@ -2852,13 +3123,7 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 			if (windowResized) {
 				windowResized = false;
 
-				if (!game_resolutionIsFixed) {
-					game_resolutionWidth = game_windowWidth;
-					game_resolutionHeight = game_windowHeight;
-					resizeFramebuffer();
-				}
-
-				doScreenLayout();
+				handleWindowResize();
 
 				wrenEnsureSlots(vm, 3);
 				wrenSetSlotHandle(vm, 0, handle_Game);
@@ -2879,11 +3144,8 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 
 				// Do update.
 				if (game_ready) {
-					// Update modules.
-					updateTimeModule(frame, totalTime);
-
-					frame++;
-					totalTime += 1.0 / game_fps;
+					// Update mouse position.
+					updateInputMouse();
 
 					// Prepare WebGL.
 					glBindFramebuffer(GL_FRAMEBUFFER, mainFramebuffer);
@@ -2927,11 +3189,16 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 
 					// Check for GL errors.
 					if (debug_checkGlError("post update")) inLoop = 0;
+
+					// Update local time state.
+					frame++;
+					totalTime += 1.0 / game_fps;
 				}
 			}
 
 			// Wait and loop.
 			SDL_Delay(2);
+			tick++;
 		}
 
 		return 0;

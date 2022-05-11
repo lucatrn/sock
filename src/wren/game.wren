@@ -58,6 +58,15 @@ class Game {
 		}
 	}
 
+	foreign static fullscreen
+
+	static fullscreen=(v) {
+		var a = setFullscreen_(v)
+		if (a is List) update_(a[0], a[1])
+	}
+
+	foreign static setFullscreen_(value)
+
 	foreign static scaleFilter
 
 	foreign static scaleFilter=(value)

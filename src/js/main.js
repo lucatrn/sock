@@ -1,6 +1,7 @@
+import "./polyfill.js";
 import "./api/add-all-api.js";
 import { initTimeModule, updateTimeModule } from "./api/time.js";
-import { fps, gameIsReady, gameUpdate, initGameModule, quitFromAPI } from "./api/game.js";
+import { fps, gameBusyWithDOMFallback, gameIsReady, gameUpdate, initGameModule, quitFromAPI } from "./api/game.js";
 import { initAssetModule } from "./api/asset.js";
 import { initInputModule, updateInputModule } from "./api/input.js";
 import { httpGET } from "./network/http.js";
@@ -20,6 +21,7 @@ import { initJavaScriptModule } from "./api/javascript.js";
 let prevTime = null;
 let time = 0;
 let frame = 0;
+let tick = 0;
 let remainingTime = 0;
 let quit = false;
 
@@ -90,9 +92,10 @@ async function init() {
 function update() {
 	let now = performance.now() / 1000;
 	let delta = Math.min(4 / 60, prevTime == null ? 0 : now - prevTime);
+	let isBusy = gameBusyWithDOMFallback();
 	prevTime = now;
 	
-	if (gameIsReady) {
+	if (gameIsReady && !isBusy) {
 		remainingTime -= delta;
 	
 		if (remainingTime <= 0) {
@@ -100,7 +103,7 @@ function update() {
 			remainingTime += 1 / fps;
 	
 			// Update module state.
-			updateTimeModule(frame, time);
+			updateTimeModule(frame, tick, time);
 			updateInputModule();
 
 			frame++;
@@ -133,6 +136,7 @@ function update() {
 		canvas.classList.add("quit");
 		finalize();
 	} else {
+		tick++;
 		requestAnimationFrame(update);
 	}
 }

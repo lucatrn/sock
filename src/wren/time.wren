@@ -2,12 +2,15 @@
 class Time {
 	static frame { __f }
 
-	static time { __t }
+	static tick { __t }
 
-	static update_(f, t) {
+	static time { __s }
+
+	static update_(f, t, s) {
 		__f = f
 		__t = t
+		__s = s
 	}
 }
 
-Time.update_(0, 0)
+Time.update_(0, 0, 0)

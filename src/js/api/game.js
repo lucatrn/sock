@@ -4,10 +4,11 @@ import { device } from "../device.js";
 import { addClassForeignStaticMethods } from "../foreign.js";
 import { glFilterStringToNumber } from "../gl/api.js";
 import { mainFramebuffer } from "../gl/framebuffer.js";
+import { createElement } from "../html.js";
 import { computedLayout, layoutOptions, queueLayout } from "../layout.js";
 import { systemFontDraw, SYSTEM_FONT } from "../system-font.js";
 import { callHandle_init_2, callHandle_update_0, callHandle_update_2 } from "../vm-call-handles.js";
-import { abortFiber, getSlotBytes, wrenCall, wrenEnsureSlots, wrenGetSlotBool, wrenGetSlotDouble, wrenGetSlotHandle, wrenGetSlotString, wrenGetSlotType, wrenGetVariable, wrenSetSlotDouble, wrenSetSlotHandle, wrenSetSlotNull, wrenSetSlotString } from "../vm.js";
+import { abortFiber, getSlotBytes, wrenCall, wrenEnsureSlots, wrenGetSlotBool, wrenGetSlotDouble, wrenGetSlotHandle, wrenGetSlotString, wrenGetSlotType, wrenGetVariable, wrenSetSlotBool, wrenSetSlotDouble, wrenSetSlotHandle, wrenSetSlotNull, wrenSetSlotString } from "../vm.js";
 
 // Wren -> JS
 
@@ -18,6 +19,12 @@ export let quitFromAPI = false;
 export let gameIsReady = false;
 let cursor = "default";
 let printColor = 0xffffffff;
+let wantFullscreen = false;
+let gettingDOMFullscreen = false;
+
+export function gameBusyWithDOMFallback() {
+	return gettingDOMFullscreen;
+}
 
 addClassForeignStaticMethods("sock", "Game", {
 	"title"() {
@@ -68,6 +75,75 @@ addClassForeignStaticMethods("sock", "Game", {
 		let filter = glFilterStringToNumber(name);
 
 		mainFramebuffer.setFilter(filter);
+	},
+	"fullscreenAllowed"() {
+		wrenSetSlotBool(0, document.fullscreenEnabled);
+	},
+	"fullscreen"() {
+		wrenSetSlotBool(0, wantFullscreen || document.fullscreenElement != null);
+	},
+	"setFullscreen_(_)"() {
+		if (wrenGetSlotType(1) !== 0) {
+			abortFiber("fullscreen must be a Bool");
+			return;
+		}
+
+		let fullscreen = wrenGetSlotBool(1);
+
+		if (fullscreen) {
+			if (!wantFullscreen && !document.fullscreenElement) {
+				// Check if the browser will even let us use fullscreen at all.
+				if (!document.fullscreenEnabled) {
+					console.warn("fullscreen is blocked by the browser, see Game.fullscreenAllowed");
+					return;
+				}
+
+				// Since fullscreen request may be async, track that we're going to trigger request.
+				wantFullscreen = true;
+				
+				// Request fullscreen.
+				// Note that this may fail if the browser doesn't think this was triggered by a user interaction.
+				// (e.g. Safari almost always thinks this, since we don't handle inputs directly within input callbacks)
+				document.body.requestFullscreen().then(() => {
+					wantFullscreen = false;
+				}, () => {
+					gettingDOMFullscreen = true;
+
+					// TODO this message needs to be localised.
+					let input = device.mobile ? "tap" : "press any mouse or keyboard button";
+					let message = `Please ${input} to enter fullscreen.`;
+
+					let dialog = createElement("div", { class: "overlay" }, [
+						createElement("img", { style: "width: 185px; margin-bottom: 14px;", class: "pixel", alt: "icons of a mouse, keyboard, and fullscreen warning", src: "data:image/png;base64,R0lGODdhJQAJAJAAAAAAAP///yH5BAkKAAAALAAAAAAlAAkAAAIzjB+ge2zrEFIJVHgxpJvW311Z6H2g1Wkph5rSuMFqY43ySrZenKOsGrP1gJGXMfQoIY0FADs=" }),
+						message,
+					]);
+
+					
+					let triggerFullscreen = () => {
+						document.body.requestFullscreen().catch((error) => {
+							console.warn("DOM fullscreen fallback failed", error);
+						}).then(() => {
+							wantFullscreen = false;
+							gettingDOMFullscreen = false;
+
+							dialog.remove();
+
+							removeEventListener("keydown", triggerFullscreen);
+						});
+					};
+
+					dialog.onclick = triggerFullscreen;
+					addEventListener("keydown", triggerFullscreen);
+
+					document.body.append(dialog);
+				});
+			}
+		} else {
+			wantFullscreen = false;
+			if (document.fullscreenElement) {
+				document.exitFullscreen();
+			}
+		}
 	},
 	"fps"() {
 		if (fps < 0) {
