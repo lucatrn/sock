@@ -8,16 +8,16 @@ Wren based game engine with an emphasis on portability and useful APIs.
 
 | Feature | Desktop | Web |
 | -- | -- | -- |
-| OS Abstraction<br>(Windowing) | SDL | - |
+| Written in | C++ | C (Emscripten) & JavaScript |
+| OS Abstraction<br>(Windowing etc.) | SDL | JavaScript |
 | Graphics | OpenGL 4.3 | WebGL 1 |
 | Image Loading | `stb_img.h` | `<img>`
-| Audio | Soloud w/ SDL backend | WebAudio |
+| Audio | SoLoud w/ SDL backend | WebAudio |
 | Audio Loading | _TODO_ | WebAudio `decodeAudioData()` <br> `stb_ogg.h` fallback on Safari |
 | Input | SDL | DOM |
 | Storage | OS specific app-data folder | `localStorage` |
-| Wren Interpreter <br> + Other C Code | Native | Emscripten |
 
-### Platform Specific Libraries/APIs
+### Windows Specific Libraries/APIs
 
 | Feature | Library |
 | -- | -- |

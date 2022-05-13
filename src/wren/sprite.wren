@@ -1,5 +1,5 @@
 
-foreign class Sprite is Asset {
+foreign class Sprite {
 	construct new() {}
 
 	static load(p) {

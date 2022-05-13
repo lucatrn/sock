@@ -8,8 +8,6 @@ In order of importance.
 * Primitive drawing - `Draw` class? `Graphics.drawXYZ()`?
   * `Polygon.buid`
 
-* Fullscreen
-
 * Audio
 	* Designing this API is going to be quite tricky!  
 	  Wait until we can implement in both Web and Desktop in parallel, there are
@@ -26,6 +24,14 @@ In order of importance.
 	* e.g. `Input.textIsActive`
 	* e.g. `Input.textString`
 	* e.g. `Input.textSelection` (as range e.g. `0..3`)
+
+* Window module (for desktop)
+
+### Win32
+
+* Rest of keyboard input
+* Gamepad Input
+* Storage API
 
 
 ## Would Be Cool
@@ -46,14 +52,10 @@ In order of importance.
 	* Put into `Sprite` with `sprite.setPixels(pal, array)`
 
 * Control graphics blend function (is this transferable to Metal?)
+
 * `Array.fromHexString(s)` e.g. `Array.fromHexString("8f14a0")`
 
 * HTTP Requests - `HTTP` class?
 
-
-## Desktop Module
-
-* Window management
-
-* DLL/.so
+* Dynamic usage of DLL/.so
 	* e.g. for Steam/Discord APIs

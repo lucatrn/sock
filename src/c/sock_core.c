@@ -24,6 +24,7 @@
 	#define STBI_FAILURE_USERMSG
    	#include "stb_image.h"
 	#include <windows.h>
+	#include "sock_audio.h"
 
 #elif defined __EMSCRIPTEN__
 
@@ -2012,6 +2013,33 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 		glClear(GL_COLOR_BUFFER_BIT);
 	}
 
+	// AUDIO
+
+	void wren_audio_load_(WrenVM* vm) {
+		if (wrenGetSlotType(vm, 1) != WREN_TYPE_STRING) {
+			wrenAbort(vm, "path must be a string");
+			return;
+		}
+
+		const char* path = wrenGetSlotString(vm, 1);
+
+		int64_t len;
+		const char* data = readAsset(path, &len);
+		if (!data) {
+			wrenAbort(vm, quitError);
+			quitError = NULL;
+			return;
+		}
+
+		printf("file size = %d\n", (int)len);
+
+		if (wren_audio_loadHandler(vm, data, (unsigned int)len)) {
+			wrenSetSlotNull(vm, 0);
+		} else {
+			free(data);
+		}
+	}
+
 	// ARRAY
 
 	void wren_Array_load_(WrenVM* vm) {
@@ -2759,6 +2787,19 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 				if (isStatic) {
 					if (strcmp(signature, "clear(_,_,_)") == 0) return wren_Graphics_clear3;
 				}
+			} else if (strcmp(className, "Audio") == 0) {
+				if (!isStatic) {
+					if (strcmp(signature, "load_(_)") == 0) return wren_audio_load_;
+					if (strcmp(signature, "voice()") == 0) return wren_audio_voice;
+					if (strcmp(signature, "setEffect_(_,_,_,_,_,_)") == 0) return wren_audio_setEffect_;
+					if (strcmp(signature, "getEffect_(_)") == 0) return wren_audio_getEffect_;
+					if (strcmp(signature, "getParam_(_,_,_)") == 0) return wren_audio_getParam_;
+					if (strcmp(signature, "setParam_(_,_,_,_,_)") == 0) return wren_audio_setParam_;
+				}
+			} else if (strcmp(className, "Voice") == 0) {
+				if (!isStatic) {
+					if (strcmp(signature, "play()") == 0) return wren_voice_play;
+				}
 			} else if (strcmp(className, "Camera") == 0) {
 				if (isStatic) {
 					if (strcmp(signature, "update_(_,_,_)") == 0) return wren_Camera_update_3;
@@ -2825,9 +2866,6 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 		return wren_coreBindForeignMethod(vm, moduleName, className, isStatic, signature);
 	}
 
-
-	// === WREN CONFIG CALLBACKS ===
-
 	WrenForeignClassMethods wren_bindForeignClass(WrenVM* vm, const char* moduleName, const char* className) {
 		// Default to core.
 		WrenForeignClassMethods methods = wren_coreBindForeignClass(vm, moduleName, className);
@@ -2841,6 +2879,12 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 				if (strcmp(className, "Sprite") == 0) {
 					methods.allocate = wren_spriteAllocate;
 					methods.finalize = wren_spriteFinalize;
+				} else if (strcmp(className, "Audio") == 0) {
+					methods.allocate = wren_audioAllocate;
+					methods.finalize = wren_audioFinalize;
+				} else if (strcmp(className, "Voice") == 0) {
+					methods.allocate = wren_voiceAllocate;
+					methods.allocate = wren_voiceFinalize;
 				}
 			}
 		}
@@ -2896,6 +2940,11 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 			return -1;
 		}
 		basePathLen = (int)strlen(basePath);
+
+		// Setup audio.
+		if (!sockAudioInit()) {
+			return -1;
+		}
 
 		// Set wanted OpenGL attributes.
 		SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, SDL_GL_CONTEXT_FORWARD_COMPATIBLE_FLAG);
@@ -3206,7 +3255,7 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 
 	int main(int argc, char** argv) {
 		// Init SDL.
-		if (SDL_Init(SDL_INIT_VIDEO) < 0) {
+		if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO) < 0) {
 			printf("ERR SDL_Init %s", SDL_GetError());
 		} else {
 			int code = mainWithSDL(argc, argv);
@@ -3215,6 +3264,7 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 				printf("ERR %s %s", quitError, SDL_GetError());
 			}
 
+			sockAudioQuit();
 			SDL_Quit();
 		}
 
