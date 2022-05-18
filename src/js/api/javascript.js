@@ -1,7 +1,7 @@
 import { addClassForeignStaticMethods } from "../foreign.js";
 import { jsToWrenJSON, wrenJSONToJS } from "../json.js";
 import { callHandle_update_3 } from "../vm-call-handles.js";
-import { abortFiber, wrenCall, wrenEnsureSlots, wrenGetSlotBool, wrenGetSlotHandle, wrenGetSlotString, wrenGetSlotType, wrenGetVariable, wrenSetSlotBool, wrenSetSlotDouble, wrenSetSlotHandle, wrenSetSlotNull, wrenSetSlotString } from "../vm.js";
+import { wrenAbort, wrenCall, wrenEnsureSlots, wrenGetSlotBool, wrenGetSlotHandle, wrenGetSlotString, wrenGetSlotType, wrenGetVariable, wrenSetSlotBool, wrenSetSlotDouble, wrenSetSlotHandle, wrenSetSlotNull, wrenSetSlotString } from "../vm.js";
 
 let handle_JavaScript = 0;
 
@@ -14,7 +14,7 @@ export function initJavaScriptModule() {
 addClassForeignStaticMethods("sock", "JavaScript", {
 	"eval_(_,_,_,_)"() {
 		if (wrenGetSlotType(1) !== 0 || wrenGetSlotType(4) !== 6) {
-			abortFiber("invalid args");
+			wrenAbort("invalid args");
 			return;
 		}
 
@@ -29,12 +29,12 @@ addClassForeignStaticMethods("sock", "JavaScript", {
 		}
 
 		if (!Array.isArray(argValues) || !isStringArray(argNames)) {
-			abortFiber("arg values and names must be Lists, arg names must be a String[]");
+			wrenAbort("arg values and names must be Lists, arg names must be a String[]");
 			return;
 		}
 
 		if (argValues.length !== argNames.length) {
-			abortFiber("arg values and names must have same length");
+			wrenAbort("arg values and names must have same length");
 			return;
 		}
 
@@ -46,7 +46,7 @@ addClassForeignStaticMethods("sock", "JavaScript", {
 
 			result = fn.apply(null, argValues);
 		} catch (error) {
-			abortFiber("JavaScript error: " + error);
+			wrenAbort("JavaScript error: " + error);
 			return;
 		}
 
@@ -77,7 +77,7 @@ function getJSONFromSlot(slot) {
 	} else if (type === 6) {
 		return wrenJSONToJS(wrenGetSlotString(2));
 	} else {
-		abortFiber("expected string or null for JS args");
+		wrenAbort("expected string or null for JS args");
 		return false;
 	}
 }

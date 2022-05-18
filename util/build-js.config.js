@@ -2,6 +2,11 @@
 //
 // Usage:
 //   rollup -c build-js.config.js
+//   rollup -c build-js.config.js --watch
+
+import { terser } from 'rollup-plugin-terser';
+
+let watch = !!process.env.ROLLUP_WATCH;
 
 export default {
 	input: "src/js/main.js",
@@ -9,5 +14,8 @@ export default {
 		format: "iife",
 		file: "tmp/sock.js",
 		sourcemap: true,
-	}
+	},
+	plugins: [
+		watch ? null : terser(),
+	],
 }

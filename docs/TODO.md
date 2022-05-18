@@ -9,12 +9,7 @@ In order of importance.
   * `Polygon.buid`
 
 * Audio
-	* Designing this API is going to be quite tricky!  
-	  Wait until we can implement in both Web and Desktop in parallel, there are
-	  too many unknowns otherwise.
-	* What formats will be supportted?
-		* Are we in the age that we can safely use `mp3`?
-		* Need to consider lack of `ogg` support on Safari
+	* Bus
 
 * Virtual Keyboard / Simple text input
 	* Necessary for touch devices and consoles.

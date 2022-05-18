@@ -1,12 +1,12 @@
 import { addClassForeignMethods } from "../foreign.js";
 import { httpGET } from "../network/http.js";
-import { abortFiber, HEAP, Module, vm, wrenGetSlotForeign, wrenGetSlotHandle, wrenGetSlotString, wrenGetSlotType, wrenReleaseHandle } from "../vm.js";
+import { wrenAbort, HEAP, Module, vm, wrenGetSlotForeign, wrenGetSlotHandle, wrenGetSlotString, wrenGetSlotType, wrenReleaseHandle } from "../vm.js";
 import { getAsset, initLoadingProgressList } from "./asset.js";
 
 addClassForeignMethods("sock", "Array", {
 	"load_(_)"() {
 		if (wrenGetSlotType(1) !== 6) {
-			abortFiber("path must be a string");
+			wrenAbort("path must be a string");
 			return;
 		}
 

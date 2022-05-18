@@ -4,7 +4,7 @@ import { gl } from "../gl/gl.js";
 import { SpriteBatcher } from "../gl/sprite-batcher.js";
 import { Texture } from "../gl/texture.js";
 import { httpGETImage } from "../network/http.js";
-import { abortFiber, vm, wrenEnsureSlots, wrenGetSlotDouble, wrenGetSlotForeign, wrenGetSlotHandle, wrenGetSlotString, wrenGetSlotType, wrenInsertInList, wrenReleaseHandle, wrenSetListElement, wrenSetSlotDouble, wrenSetSlotHandle, wrenSetSlotNewForeign, wrenSetSlotNewList, wrenSetSlotNull, wrenSetSlotString } from "../vm.js";
+import { wrenAbort, vm, wrenEnsureSlots, wrenGetSlotDouble, wrenGetSlotForeign, wrenGetSlotHandle, wrenGetSlotString, wrenGetSlotType, wrenInsertInList, wrenReleaseHandle, wrenSetListElement, wrenSetSlotDouble, wrenSetSlotHandle, wrenSetSlotNewForeign, wrenSetSlotNewList, wrenSetSlotNull, wrenSetSlotString } from "../vm.js";
 import { initLoadingProgressList } from "./asset.js";
 
 let defaultFilter = gl.NEAREST;
@@ -151,7 +151,7 @@ addForeignClass("sock", "Sprite", [
 	},
 	"load_(_)"() {
 		if (wrenGetSlotType(1) !== 6) {
-			abortFiber("path must be a string");
+			wrenAbort("path must be a string");
 			return;
 		}
 
@@ -168,7 +168,7 @@ addForeignClass("sock", "Sprite", [
 	},
 	"scaleFilter=(_)"() {
 		if (wrenGetSlotType(1) !== 6) {
-			abortFiber("scaleFilter must be a string");
+			wrenAbort("scaleFilter must be a string");
 			return;
 		}
 
@@ -179,7 +179,7 @@ addForeignClass("sock", "Sprite", [
 	},
 	"wrapMode=(_)"() {
 		if (wrenGetSlotType(1) !== 6) {
-			abortFiber("wrapMode must be a string");
+			wrenAbort("wrapMode must be a string");
 			return;
 		}
 
@@ -188,7 +188,7 @@ addForeignClass("sock", "Sprite", [
 	"beginBatch()"() {
 		let spr = getSprite();
 		if (spr.batcher) {
-			abortFiber("batch already started");
+			wrenAbort("batch already started");
 		} else {
 			spr.beginBatch();
 		}
@@ -198,7 +198,7 @@ addForeignClass("sock", "Sprite", [
 		if (spr.batcher) {
 			spr.endBatch();
 		} else {
-			abortFiber("batch no yet started");
+			wrenAbort("batch no yet started");
 		}
 	},
 	"transform_"() {
@@ -219,7 +219,7 @@ addForeignClass("sock", "Sprite", [
 	"setTransform_(_,_,_,_,_,_)"() {
 		for (let i = 1; i <= 6; i++) {
 			if (wrenGetSlotType(i) !== 1) {
-				abortFiber("args must be Nums");
+				wrenAbort("args must be Nums");
 				return;
 			}
 		}
@@ -258,7 +258,7 @@ addForeignClass("sock", "Sprite", [
 	"setTransformOrigin(_,_)"() {
 		for (let i = 1; i <= 2; i++) {
 			if (wrenGetSlotType(i) !== 1) {
-				abortFiber("args must be Nums");
+				wrenAbort("args must be Nums");
 				return;
 			}
 		}

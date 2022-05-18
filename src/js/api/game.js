@@ -8,7 +8,7 @@ import { createElement } from "../html.js";
 import { computedLayout, layoutOptions, queueLayout } from "../layout.js";
 import { systemFontDraw, SYSTEM_FONT } from "../system-font.js";
 import { callHandle_init_2, callHandle_update_0, callHandle_update_2 } from "../vm-call-handles.js";
-import { abortFiber, getSlotBytes, wrenCall, wrenEnsureSlots, wrenGetSlotBool, wrenGetSlotDouble, wrenGetSlotHandle, wrenGetSlotString, wrenGetSlotType, wrenGetVariable, wrenSetSlotBool, wrenSetSlotDouble, wrenSetSlotHandle, wrenSetSlotNull, wrenSetSlotString } from "../vm.js";
+import { wrenAbort, getSlotBytes, wrenCall, wrenEnsureSlots, wrenGetSlotBool, wrenGetSlotDouble, wrenGetSlotHandle, wrenGetSlotString, wrenGetSlotType, wrenGetVariable, wrenSetSlotBool, wrenSetSlotDouble, wrenSetSlotHandle, wrenSetSlotNull, wrenSetSlotString } from "../vm.js";
 
 // Wren -> JS
 
@@ -45,7 +45,7 @@ addClassForeignStaticMethods("sock", "Game", {
 			||
 			wrenGetSlotType(5) !== 1
 		) {
-			abortFiber("invalid args");
+			wrenAbort("invalid args");
 			return;
 		}
 
@@ -56,7 +56,7 @@ addClassForeignStaticMethods("sock", "Game", {
 		let maxScale = wrenGetSlotDouble(5);
 
 		if (width < 1 || height < 1 || maxScale < 1) {
-			abortFiber("resolution/scale must be positive");
+			wrenAbort("resolution/scale must be positive");
 			return;
 		}
 
@@ -84,7 +84,7 @@ addClassForeignStaticMethods("sock", "Game", {
 	},
 	"setFullscreen_(_)"() {
 		if (wrenGetSlotType(1) !== 0) {
-			abortFiber("fullscreen must be a Bool");
+			wrenAbort("fullscreen must be a Bool");
 			return;
 		}
 
@@ -159,12 +159,12 @@ addClassForeignStaticMethods("sock", "Game", {
 		} else if (type === 1) {
 			let value = wrenGetSlotDouble(1);
 			if (fps <= 0) {
-				abortFiber("fps must be positive");
+				wrenAbort("fps must be positive");
 			} else {
 				fps = value;
 			}
 		} else {
-			abortFiber("fps must be Num or null");
+			wrenAbort("fps must be Num or null");
 		}
 	},
 	"cursor"() {
@@ -178,13 +178,13 @@ addClassForeignStaticMethods("sock", "Game", {
 			let name = wrenGetSlotString(1);
 			
 			if (!cursorSockToCSS.hasOwnProperty(name)) {
-				abortFiber(`invalid cursor type "${name}"`);
+				wrenAbort(`invalid cursor type "${name}"`);
 				return;
 			}
 
 			cursor = name;
 		} else {
-			abortFiber("cursor must be null or a string");
+			wrenAbort("cursor must be null or a string");
 			return;
 		}
 
@@ -198,7 +198,7 @@ addClassForeignStaticMethods("sock", "Game", {
 	},
 	"print_(_,_,_)"() {
 		if (wrenGetSlotType(1) !== 6 || wrenGetSlotType(2) !== 1 || wrenGetSlotType(3) !== 1) {
-			abortFiber("invalid args");
+			wrenAbort("invalid args");
 			return;
 		}
 
@@ -212,7 +212,7 @@ addClassForeignStaticMethods("sock", "Game", {
 	},
 	"setPrintColor_(_)"() {
 		if (wrenGetSlotType(1) !== 1) {
-			abortFiber("color must be a Num");
+			wrenAbort("color must be a Num");
 			return;
 		}
 
@@ -226,7 +226,7 @@ addClassForeignStaticMethods("sock", "Game", {
 	},
 	"openURL(_)"() {
 		if (wrenGetSlotType(1) !== 6) {
-			abortFiber("url must be a string");
+			wrenAbort("url must be a string");
 			return;
 		}
 

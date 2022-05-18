@@ -3,7 +3,7 @@ import { addClassForeignStaticMethods } from "../foreign.js";
 import { keyboardLayout } from "../keyboard-layout.js";
 import { computedLayout } from "../layout.js";
 import { callHandle_updateMouse_3, callHandle_update_2 } from "../vm-call-handles.js";
-import { abortFiber, wrenCall, wrenEnsureSlots, wrenGetSlotBool, wrenGetSlotDouble, wrenGetSlotHandle, wrenGetSlotString, wrenGetSlotType, wrenGetVariable, wrenSetSlotDouble, wrenSetSlotHandle, wrenSetSlotNull, wrenSetSlotString } from "../vm.js";
+import { wrenAbort, wrenCall, wrenEnsureSlots, wrenGetSlotBool, wrenGetSlotDouble, wrenGetSlotHandle, wrenGetSlotString, wrenGetSlotType, wrenGetVariable, wrenSetSlotDouble, wrenSetSlotHandle, wrenSetSlotNull, wrenSetSlotString } from "../vm.js";
 
 addClassForeignStaticMethods("sock", "Input", {
 	"localize(_)"() {
@@ -14,7 +14,7 @@ addClassForeignStaticMethods("sock", "Input", {
 		}
 
 		if (idType !== 6) {
-			abortFiber("input ID must be a String");
+			wrenAbort("input ID must be a String");
 			return;
 		}
 

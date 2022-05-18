@@ -522,7 +522,7 @@ export function wrenAbortFiber(slot) {
 /**
  * @param {string} message
  */
-export function abortFiber(message) {
+export function wrenAbort(message) {
 	wrenEnsureSlots(1);
 	wrenSetSlotString(0, message);
 	wrenAbortFiber(0);

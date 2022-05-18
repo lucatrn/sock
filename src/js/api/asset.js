@@ -1,6 +1,6 @@
 import { addClassForeignStaticMethods } from "../foreign.js";
 import { httpGET } from "../network/http.js";
-import { abortFiber, wrenEnsureSlots, wrenGetListCount, wrenGetSlotHandle, wrenGetSlotString, wrenGetSlotType, wrenGetVariable, wrenInsertInList, wrenReleaseHandle, wrenSetListElement, wrenSetSlotDouble, wrenSetSlotHandle, wrenSetSlotNewList, wrenSetSlotNull, wrenSetSlotString } from "../vm.js";
+import { wrenAbort, wrenEnsureSlots, wrenGetListCount, wrenGetSlotHandle, wrenGetSlotString, wrenGetSlotType, wrenGetVariable, wrenInsertInList, wrenReleaseHandle, wrenSetListElement, wrenSetSlotDouble, wrenSetSlotHandle, wrenSetSlotNewList, wrenSetSlotNull, wrenSetSlotString } from "../vm.js";
 
 let handle_Asset = 0;
 
@@ -97,12 +97,12 @@ export async function getAsset(listHandle, getter, resultHandler) {
  */
 export function getAssetWithPath(getter) {
 	if (wrenGetSlotType(1) !== 3 || wrenGetSlotType(2) !== 6) {
-		abortFiber("args must be (list, string)");
+		wrenAbort("args must be (list, string)");
 		return;
 	}
 	
 	if (wrenGetListCount(1) < 2) {
-		abortFiber("list length must be 2 or more");
+		wrenAbort("list length must be 2 or more");
 		return;
 	}
 

@@ -2,7 +2,7 @@ import { addForeignClass } from "../foreign.js";
 import { sockJsGlobal } from "../globals.js";
 import { httpGET } from "../network/http.js";
 import * as Path from "../path.js";
-import { abortFiber, wrenEnsureSlots, wrenGetSlotBool, wrenGetSlotDouble, wrenGetSlotForeign, wrenGetSlotHandle, wrenGetSlotString, wrenGetSlotType, wrenGetVariable, wrenReleaseHandle, wrenSetSlotBool, wrenSetSlotDouble, wrenSetSlotHandle, wrenSetSlotNewForeign } from "../vm.js";
+import { wrenAbort, wrenEnsureSlots, wrenGetSlotBool, wrenGetSlotDouble, wrenGetSlotForeign, wrenGetSlotHandle, wrenGetSlotString, wrenGetSlotType, wrenGetVariable, wrenReleaseHandle, wrenSetSlotBool, wrenSetSlotDouble, wrenSetSlotHandle, wrenSetSlotNewForeign } from "../vm.js";
 import { getAsset, initLoadingProgressList } from "./asset.js";
 
 const MAX_EFFECT_PER_AUDIO = 4;
@@ -520,7 +520,7 @@ addForeignClass("sock", "Audio", [
 ], {
 	"load_(_)"() {
 		if (wrenGetSlotType(1) !== 6) {
-			abortFiber("path must be a string");
+			wrenAbort("path must be a string");
 			return;
 		}
 
@@ -541,7 +541,7 @@ addForeignClass("sock", "Audio", [
 
 		let audio = getAudio();
 		if (!audio.buffer) {
-			abortFiber("audio not loaded");
+			wrenAbort("audio not loaded");
 			return;
 		}
 
@@ -555,7 +555,7 @@ addForeignClass("sock", "Audio", [
 	"setEffect_(_,_,_,_,_,_)"() {
 		for (let i = 1; i <= 6; i++) {
 			if (wrenGetSlotType(i) !== 1) {
-				abortFiber("args must be Nums");
+				wrenAbort("args must be Nums");
 				return;
 			}
 		}
@@ -572,12 +572,12 @@ addForeignClass("sock", "Audio", [
 
 		// Validate type/index indices.
 		if (index < 0 || index >= MAX_EFFECT_PER_AUDIO) {
-			abortFiber("invalid effect index");
+			wrenAbort("invalid effect index");
 			return;
 		}
 		
 		if (type < EFFECT_TYPE_MIN || type > EFFECT_TYPE_MAX) {
-			abortFiber("invalid effect type");
+			wrenAbort("invalid effect type");
 			return;
 		}
 
@@ -601,7 +601,7 @@ addForeignClass("sock", "Audio", [
 						if (effect.free) {
 							effect.free();
 						}
-						abortFiber(error);
+						wrenAbort(error);
 						return;
 					}
 				}
@@ -628,13 +628,13 @@ addForeignClass("sock", "Audio", [
 	},
 	"getEffect_(_)"() {
 		if (wrenGetSlotType(1) !== 1) {
-			abortFiber("index must be a Num");
+			wrenAbort("index must be a Num");
 			return;
 		}
 		
 		let index = Math.trunc(wrenGetSlotDouble(1));
 		if (index < 0 || index >= MAX_EFFECT_PER_AUDIO) {
-			abortFiber("invalid effect index");
+			wrenAbort("invalid effect index");
 			return;
 		}
 
@@ -646,7 +646,7 @@ addForeignClass("sock", "Audio", [
 	"getParam_(_,_,_)"() {
 		for (let i = 1; i <= 3; i++) {
 			if (wrenGetSlotType(i) !== 1) {
-				abortFiber("args must be Nums");
+				wrenAbort("args must be Nums");
 				return;
 			}
 		}
@@ -656,24 +656,24 @@ addForeignClass("sock", "Audio", [
 		let paramIndex = Math.trunc(wrenGetSlotDouble(3));
 
 		if (index < 0 || index >= MAX_EFFECT_PER_AUDIO) {
-			abortFiber("invalid effect index");
+			wrenAbort("invalid effect index");
 			return;
 		}
 
 		let audio = getAudio();
 
 		if (type < EFFECT_TYPE_MIN || type > EFFECT_TYPE_MAX) {
-			abortFiber("invalid effect type");
+			wrenAbort("invalid effect type");
 			return;
 		}
 
 		if (audio.getEffectType(index) != type) {
-			abortFiber(`effect at ${index} is not a ${EFFECT_TYPE_NAMES[type]}`);
+			wrenAbort(`effect at ${index} is not a ${EFFECT_TYPE_NAMES[type]}`);
 			return;
 		}
 
 		if (paramIndex < 0 || paramIndex >= 4) {
-			abortFiber("invalid param index");
+			wrenAbort("invalid param index");
 			return;
 		}
 
@@ -682,7 +682,7 @@ addForeignClass("sock", "Audio", [
 	"setParam_(_,_,_,_,_)"() {
 		for (let i = 1; i <= 5; i++) {
 			if (wrenGetSlotType(i) !== 1) {
-				abortFiber("args must be Nums");
+				wrenAbort("args must be Nums");
 				return;
 			}
 		}
@@ -695,29 +695,29 @@ addForeignClass("sock", "Audio", [
 
 		// Validate type/index indices.
 		if (index < 0 || index >= MAX_EFFECT_PER_AUDIO) {
-			abortFiber("invalid effect index");
+			wrenAbort("invalid effect index");
 			return;
 		}
 
 		let audio = getAudio();
 
 		if (type < EFFECT_TYPE_MIN || type > EFFECT_TYPE_MAX) {
-			abortFiber("invalid effect type");
+			wrenAbort("invalid effect type");
 			return;
 		}
 
 		if (audio.getEffectType(index) != type) {
-			abortFiber(`effect at ${index} is not a ${EFFECT_TYPE_NAMES[type]}`);
+			wrenAbort(`effect at ${index} is not a ${EFFECT_TYPE_NAMES[type]}`);
 			return;
 		}
 
 		if (paramIndex < 0 || paramIndex >= 4) {
-			abortFiber("invalid param index");
+			wrenAbort("invalid param index");
 			return;
 		}
 		
 		if (fadeTime < 0) {
-			abortFiber("fade time must be positive");
+			wrenAbort("fade time must be positive");
 			return;
 		}
 
@@ -726,7 +726,7 @@ addForeignClass("sock", "Audio", [
 		if (effect.checkParam) {
 			let error = effect.checkParam(paramIndex, paramValue);
 			if (error) {
-				abortFiber(error);
+				wrenAbort(error);
 				return;
 			}
 		}
@@ -740,7 +740,7 @@ addForeignClass("sock", "Audio", [
 	"fadeVolume(_,_)"() {
 		for (let i = 1; i <= 2; i++) {
 			if (wrenGetSlotType(i) !== 1) {
-				abortFiber("args must be Nums");
+				wrenAbort("args must be Nums");
 				return;
 			}
 		}
@@ -796,7 +796,7 @@ addForeignClass("sock", "Voice", [
 	"fadeVolume(_,_)"() {
 		for (let i = 1; i <= 2; i++) {
 			if (wrenGetSlotType(i) !== 1) {
-				abortFiber("args must be Nums");
+				wrenAbort("args must be Nums");
 				return;
 			}
 		}
@@ -815,7 +815,7 @@ addForeignClass("sock", "Voice", [
 	"fadeRate(_,_)"() {
 		for (let i = 1; i <= 2; i++) {
 			if (wrenGetSlotType(i) !== 1) {
-				abortFiber("args must be Nums");
+				wrenAbort("args must be Nums");
 				return;
 			}
 		}
@@ -833,7 +833,7 @@ addForeignClass("sock", "Voice", [
 	},
 	"loop=(_)"() {
 		if (wrenGetSlotType(1) !== 0) {
-			abortFiber("loop must be a Bool");
+			wrenAbort("loop must be a Bool");
 			return;
 		}
 
@@ -853,7 +853,7 @@ addForeignClass("sock", "Voice", [
 	},
 	"loopStart=(_)"() {
 		if (wrenGetSlotType(1) !== 1) {
-			abortFiber("loopStart must be a Num");
+			wrenAbort("loopStart must be a Num");
 			return;
 		}
 

@@ -1,12 +1,12 @@
 import { addClassForeignStaticMethods } from "../foreign.js";
-import { abortFiber, wrenEnsureSlots, wrenGetSlotString, wrenGetSlotType, wrenInsertInList, wrenSetSlotBool, wrenSetSlotNewList, wrenSetSlotNull, wrenSetSlotString } from "../vm.js";
+import { wrenAbort, wrenEnsureSlots, wrenGetSlotString, wrenGetSlotType, wrenInsertInList, wrenSetSlotBool, wrenSetSlotNewList, wrenSetSlotNull, wrenSetSlotString } from "../vm.js";
 
 /**
  * @param {number} slot
  */
 function validateKey(slot) {
 	if (wrenGetSlotType(slot) !== 6) {
-		abortFiber("key must be a string");
+		wrenAbort("key must be a string");
 		return null;
 	}
 	return wrenGetSlotString(slot);
@@ -37,7 +37,7 @@ addClassForeignStaticMethods("sock", "Storage", {
 		let key = validateKey(1);
 		if (key != null) {
 			if (wrenGetSlotType(2) !== 6) {
-				abortFiber("value must be a string");
+				wrenAbort("value must be a string");
 				return;
 			}
 
