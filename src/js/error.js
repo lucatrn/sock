@@ -137,7 +137,7 @@ export function showWrenError() {
  */
 function getModulePath(name) {
 	if (name === "sock") {
-		name = "sock-web";
+		name = "sock_web";
 	}
 
 	if (name[0] === "/") {

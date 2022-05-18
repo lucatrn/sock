@@ -1,5 +1,6 @@
 import "./time.js";
 import "./graphics.js";
+import "./audio.js";
 import "./asset.js";
 import "./array.js";
 import "./loading.js";

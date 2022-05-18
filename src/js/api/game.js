@@ -114,7 +114,7 @@ addClassForeignStaticMethods("sock", "Game", {
 					let message = `Please ${input} to enter fullscreen.`;
 
 					let dialog = createElement("div", { class: "overlay" }, [
-						createElement("img", { style: "width: 185px; margin-bottom: 14px;", class: "pixel", alt: "icons of a mouse, keyboard, and fullscreen warning", src: "data:image/png;base64,R0lGODdhJQAJAJAAAAAAAP///yH5BAkKAAAALAAAAAAlAAkAAAIzjB+ge2zrEFIJVHgxpJvW311Z6H2g1Wkph5rSuMFqY43ySrZenKOsGrP1gJGXMfQoIY0FADs=" }),
+						createElement("img", { style: "width: 185px; margin-bottom: 14px;", class: "pixel", alt: "icons of a mouse, keyboard, and fullscreen warning", src: "data:image/gif;base64,R0lGODdhJQAJAJAAAAAAAP///yH5BAkKAAAALAAAAAAlAAkAAAIzjB+ge2zrEFIJVHgxpJvW311Z6H2g1Wkph5rSuMFqY43ySrZenKOsGrP1gJGXMfQoIY0FADs=" }),
 						message,
 					]);
 

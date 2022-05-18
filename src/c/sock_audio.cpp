@@ -25,12 +25,19 @@ extern "C" {
 #define PARAM_FILTER_FREQUENCY 1
 #define PARAM_FILTER_RESONANCE 2
 
+#define PARAM_ECHO_DELAY 0
+#define PARAM_ECHO_DECAY 1
+#define PARAM_ECHO_VOLUME 2
+
 #define FILTER_TYPE_LOWPASS 0
 #define FILTER_TYPE_HIGHPASS 1
+#define FILTER_TYPE_BANDPASS 2
 #define FILTER_TYPE_MIN 0
-#define FILTER_TYPE_MAX 1
+#define FILTER_TYPE_MAX 2
 
 static SoLoud::Soloud soloud;
+
+static WrenHandle* handle_Voice = NULL;
 
 typedef struct {
 	SoLoud::Wav wav;
@@ -38,6 +45,8 @@ typedef struct {
 } Audio;
 
 typedef struct {
+	// Used to prevent parent Audio object from being GCed.
+	WrenHandle* audioHandle;
 	SoLoud::handle handle;
 } Voice;
 
@@ -79,10 +88,12 @@ float wrenAudioValidateEffectParam(WrenVM* vm, int type, int paramIndex, float p
 
 				// Frequency should not be less than 10.
 				// Frequency should not be more than nyquist frequency.
+				// Frequency seams to break above 22000 so we'll clamp there too.
 				float nyquist = floorf(soloud.mSamplerate * 0.5f);
 
 				paramValue = max(paramValue, 10.0f);
 				paramValue = min(paramValue, nyquist);
+				paramValue = min(paramValue, 22000.0f);
 			} break;
 			// Resonance
 			case PARAM_FILTER_RESONANCE: {
@@ -98,17 +109,61 @@ float wrenAudioValidateEffectParam(WrenVM* vm, int type, int paramIndex, float p
 		}
 	}
 
+	// Filter
+	else if (type == EFFECT_TYPE_ECHO) {
+		switch (paramIndex) {
+			// Delay
+			case PARAM_ECHO_DELAY: {
+				if (paramValue <= 0.0f) {
+					wrenAbort(vm, "decay not be less than 1ms");
+					return NAN;
+				}
+				if (paramValue > 1.0f) {
+					wrenAbort(vm, "decay not be more than 1s");
+					return NAN;
+				}
+			} break;
+			// Decay
+			case PARAM_ECHO_DECAY: {
+				if (paramValue < 0.0f) {
+					wrenAbort(vm, "decay must not be negative");
+					return NAN;
+				}
+				if (paramValue >= 1.0f) {
+					wrenAbort(vm, "decay must less than 1");
+					return NAN;
+				}
+			} break;
+			// Mix
+			case PARAM_ECHO_VOLUME: {
+				if (paramValue < 0.0f || paramValue > 1.0f) {
+					wrenAbort(vm, "mix must be 0 to 1");
+					return NAN;
+				}
+			} break;
+		}
+	}
+
 	return paramValue;
 }
 
 float wrenAudioGetParam(SoLoud::Filter* filter, int type, int paramIndex) {
 	if (type == EFFECT_TYPE_FILTER) {
 		SoLoud::BiquadResonantFilter* bq = (SoLoud::BiquadResonantFilter*)filter;
+		// soloud.setFilterParameter(0, 0, SoLoud::BiquadResonantFilter::RESONANCE)
 
 		switch (paramIndex) {
 			case PARAM_FILTER_TYPE: return (float)bq->mFilterType;
 			case PARAM_FILTER_FREQUENCY: return bq->mFrequency;
 			case PARAM_FILTER_RESONANCE: return bq->mResonance;
+		}
+	} else if (type == EFFECT_TYPE_ECHO) {
+		SoLoud::EchoFilter* echo = (SoLoud::EchoFilter*)filter;
+
+		switch (paramIndex) {
+			case PARAM_ECHO_DELAY: return echo->mDelay;
+			case PARAM_ECHO_DECAY: return echo->mDecay;
+			case PARAM_ECHO_VOLUME: return 1.0f;// echo->mFilter;
 		}
 	}
 
@@ -149,6 +204,27 @@ extern "C" {
 		soloud.deinit();
 	}
 
+	void wren_Audio_volume(WrenVM* vm) {
+		wrenSetSlotDouble(vm, 0, soloud.mGlobalVolume);
+	}
+	
+	void wren_Audio_fadeVolume(WrenVM* vm) {
+		for (int i = 1; i <= 2; i++) {
+			if (wrenGetSlotType(vm, i) != WREN_TYPE_NUM) {
+				wrenAbort(vm, "args must be Nums");
+				return;
+			}
+		}
+
+		float volume = (float)wrenGetSlotDouble(vm, 1);
+		float fade = (float)wrenGetSlotDouble(vm, 2);
+
+		volume = max(0.0f, volume);
+		fade = max(0.002f, fade);
+
+		soloud.fadeGlobalVolume(volume, fade);
+	}
+
 	void wren_audioAllocate(WrenVM* vm) {
 		Audio* audio = (Audio*)wrenSetSlotNewForeign(vm, 0, 0, sizeof(Audio));
 		SoLoud::Wav* ptr = &audio->wav;
@@ -169,7 +245,7 @@ extern "C" {
 	bool wren_audio_loadHandler(WrenVM* vm, const char* data, unsigned int len) {
 		Audio* audio = (Audio*)wrenGetSlotForeign(vm, 0);
 
-		if (audio->wav.mData != NULL) {
+		if (audio->wav.mData) {
 			wrenAbort(vm, "Audio already loaded");
 			return false;
 		}
@@ -184,6 +260,11 @@ extern "C" {
 		return true;
 	}
 
+	void wren_audio_duration(WrenVM* vm) {
+		Audio* audio = (Audio*)wrenGetSlotForeign(vm, 0);
+		wrenSetSlotDouble(vm, 0, audio->wav.getLength());
+	}
+
 	void wren_audio_voice(WrenVM* vm) {
 		Audio* audio = (Audio*)wrenGetSlotForeign(vm, 0);
 		if (audio->wav.mData == NULL) {
@@ -191,11 +272,19 @@ extern "C" {
 			return;
 		}
 
+		WrenHandle* audioHandle = wrenGetSlotHandle(vm, 0);
+
 		wrenEnsureSlots(vm, 2);
-		wrenGetVariable(vm, "sock", "Voice", 1);
+		if (handle_Voice) {
+			wrenSetSlotHandle(vm, 1, handle_Voice);
+		} else {
+			wrenGetVariable(vm, "sock", "Voice", 1);
+			handle_Voice = wrenGetSlotHandle(vm, 1);
+		}
 
 		Voice* voice = (Voice*)wrenSetSlotNewForeign(vm, 0, 1, sizeof(Voice));
 
+		voice->audioHandle = audioHandle;
 		voice->handle = soloud.play(audio->wav, -1.0f, 0.0f, true);
 	}
 
@@ -254,6 +343,8 @@ extern "C" {
 				filter = NULL;
 			} else if (type == EFFECT_TYPE_FILTER) {
 				filter = new SoLoud::BiquadResonantFilter();
+			} else if (type == EFFECT_TYPE_ECHO) {
+				filter = new SoLoud::EchoFilter();
 			}
 		}
 
@@ -263,6 +354,11 @@ extern "C" {
 			bq->mFilterType = (int)params[PARAM_FILTER_TYPE];
 			bq->mFrequency = min(params[PARAM_FILTER_FREQUENCY], 22000.0f);
 			bq->mResonance = params[PARAM_FILTER_RESONANCE];
+		} else if (type == EFFECT_TYPE_ECHO) {
+			SoLoud::EchoFilter* echo = (SoLoud::EchoFilter*)filter;
+			echo->mDelay = params[PARAM_ECHO_DELAY];
+			echo->mDecay = params[PARAM_ECHO_DECAY];
+			// echo->mFilter = params[PARAM_ECHO_VOLUME];
 		}
 
 		// Save state changes.
@@ -389,7 +485,6 @@ extern "C" {
 					bq->mFilterType = (int)paramValue;
 				} break;
 				case PARAM_FILTER_FREQUENCY: {
-					paramValue = min(paramValue, 22000.0f);
 					bq->mFrequency = paramValue;
 					soloudSetParamAll(audio->wav, index, SoLoud::BiquadResonantFilter::FREQUENCY, paramValue);
 					// TODO handle fade
@@ -398,6 +493,20 @@ extern "C" {
 					bq->mResonance = paramValue;
 					soloudSetParamAll(audio->wav, index, SoLoud::BiquadResonantFilter::RESONANCE, paramValue);
 					// TODO handle fade
+				} break;
+			}
+		} else if (type == EFFECT_TYPE_ECHO) {
+			SoLoud::EchoFilter* echo = (SoLoud::EchoFilter*)filter;
+
+			switch (paramIndex) {
+				case PARAM_ECHO_DELAY: {
+					echo->mDelay= paramValue;
+				} break;
+				case PARAM_ECHO_DECAY: {
+					echo->mDecay = paramValue;
+				} break;
+				case PARAM_ECHO_VOLUME: {
+					// TODO
 				} break;
 			}
 		}
@@ -413,8 +522,10 @@ extern "C" {
 	void wren_voiceFinalize(WrenVM* vm) {
 		Voice* voice = (Voice*)wrenGetSlotForeign(vm, 0);
 
+		wrenReleaseHandle(vm, voice->audioHandle);
+
 		// Paused voices should be released.
-		if (soloud.getPause(voice->handle)) {
+		if (soloud.getPause(voice->handle) || soloud.getSoftPause(voice->handle)) {
 			soloud.stop(voice->handle);
 		}
 	}
@@ -423,11 +534,114 @@ extern "C" {
 		Voice* voice = (Voice*)wrenGetSlotForeign(vm, 0);
 
 		soloud.setPause(voice->handle, false);
+		soloud.setSoftPause(voice->handle, false);
+	}
+	
+	void wren_voice_pause(WrenVM* vm) {
+		Voice* voice = (Voice*)wrenGetSlotForeign(vm, 0);
+		
+		soloud.setSoftPause(voice->handle, true);
 	}
 
-	void wren_voice_filter(WrenVM* vm) {
-		SoLoud::EchoFilter filter;
+	void wren_voice_isPaused(WrenVM* vm) {
+		Voice* voice = (Voice*)wrenGetSlotForeign(vm, 0);
 
-		SoLoud::Wav wav;
+		wrenSetSlotBool(vm, 0, soloud.getPause(voice->handle) || soloud.getSoftPause(voice->handle));
+	}
+
+	void wren_voice_stop(WrenVM* vm) {
+		Voice* voice = (Voice*)wrenGetSlotForeign(vm, 0);
+
+		soloud.stop(voice->handle);
+	}
+
+	void wren_voice_volume(WrenVM* vm) {
+		Voice* voice = (Voice*)wrenGetSlotForeign(vm, 0);
+
+		wrenSetSlotDouble(vm, 0, soloud.getVolume(voice->handle));
+	}
+
+	void wren_voice_fadeVolume(WrenVM* vm) {
+		for (int i = 1; i <= 2; i++) {
+			if (wrenGetSlotType(vm, i) != WREN_TYPE_NUM) {
+				wrenAbort(vm, "args must be Nums");
+				return;
+			}
+		}
+
+		Voice* voice = (Voice*)wrenGetSlotForeign(vm, 0);
+
+		float volume = (float)wrenGetSlotDouble(vm, 1);
+		float fade = (float)wrenGetSlotDouble(vm, 2);
+
+		volume = max(0.0f, volume);
+		fade = max(0.002f, fade);
+
+		soloud.fadeVolume(voice->handle, volume, fade);
+	}
+
+	void wren_voice_rate(WrenVM* vm) {
+		Voice* voice = (Voice*)wrenGetSlotForeign(vm, 0);
+
+		wrenSetSlotDouble(vm, 0, soloud.getRelativePlaySpeed(voice->handle));
+	}
+	
+	void wren_voice_fadeRate(WrenVM* vm) {
+		for (int i = 1; i <= 2; i++) {
+			if (wrenGetSlotType(vm, i) != WREN_TYPE_NUM) {
+				wrenAbort(vm, "args must be Nums");
+				return;
+			}
+		}
+
+		float rate = (float)wrenGetSlotDouble(vm, 1);
+		float fade = (float)wrenGetSlotDouble(vm, 2);
+
+		if (rate <= 0.0f) {
+			wrenAbort(vm, "rate must be positive");
+			return;
+		}
+
+		Voice* voice = (Voice*)wrenGetSlotForeign(vm, 0);
+
+		soloud.fadeRelativePlaySpeed(voice->handle, rate, fade);
+	}
+
+	void wren_voice_loop(WrenVM* vm) {
+		Voice* voice = (Voice*)wrenGetSlotForeign(vm, 0);
+
+		wrenSetSlotBool(vm, 0, soloud.getLooping(voice->handle));
+	}
+
+	void wren_voice_loopSet(WrenVM* vm) {
+		if (wrenGetSlotType(vm, 1) != WREN_TYPE_BOOL) {
+			wrenAbort(vm, "loop must be a Bool");
+			return;
+		}
+
+		Voice* voice = (Voice*)wrenGetSlotForeign(vm, 0);
+
+		bool loop = wrenGetSlotBool(vm, 1);
+
+		soloud.setLooping(voice->handle, loop);
+	}
+	
+	void wren_voice_loopStart(WrenVM* vm) {
+		Voice* voice = (Voice*)wrenGetSlotForeign(vm, 0);
+
+		wrenSetSlotDouble(vm, 0, soloud.getLoopPoint(voice->handle));
+	}
+
+	void wren_voice_loopStartSet(WrenVM* vm) {
+		if (wrenGetSlotType(vm, 1) != WREN_TYPE_NUM) {
+			wrenAbort(vm, "loopStart must be a Num");
+			return;
+		}
+
+		Voice* voice = (Voice*)wrenGetSlotForeign(vm, 0);
+
+		double loopPoint = wrenGetSlotBool(vm, 1);
+
+		soloud.setLoopPoint(voice->handle, loopPoint);
 	}
 }

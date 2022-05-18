@@ -3,9 +3,9 @@ import "./api/add-all-api.js";
 import { initTimeModule, updateTimeModule } from "./api/time.js";
 import { fps, gameBusyWithDOMFallback, gameIsReady, gameUpdate, initGameModule, quitFromAPI } from "./api/game.js";
 import { initAssetModule } from "./api/asset.js";
-import { initInputModule, updateInputModule } from "./api/input.js";
+import { initInputModule, recalculateAndUpdateMousePosition, updateInputModule } from "./api/input.js";
 import { httpGET } from "./network/http.js";
-import { finalizeLayout } from "./layout.js";
+import { finalizeLayout, redoLayout } from "./layout.js";
 import { Shader } from "./gl/shader.js";
 import { mainFramebuffer } from "./gl/framebuffer.js";
 import { canvas } from "./canvas.js";
@@ -16,6 +16,7 @@ import { loadEmscripten, wrenAddImplicitImportModule, wrenCall, wrenErrorString,
 import { makeCallHandles } from "./vm-call-handles.js";
 import { initSystemFont } from "./system-font.js";
 import { initJavaScriptModule } from "./api/javascript.js";
+import { createAudioContext, initAudioModule, stopAllAudio } from "./api/audio.js";
 
 /** @type {number} */
 let prevTime = null;
@@ -25,9 +26,12 @@ let tick = 0;
 let remainingTime = 0;
 let quit = false;
 
+let playButton = document.getElementById("play-button");
+playButton.tabIndex = 0;
+
 async function init() {
 	// Get scripts in parallel.
-	let promSockScript = httpGET("sock-web.wren", "arraybuffer");
+	let promSockScript = httpGET("sock_web.wren", "arraybuffer");
 	let promGameMainScript = httpGET("assets/main.wren", "arraybuffer");
 
 	// Load Wren VM.
@@ -36,7 +40,10 @@ async function init() {
 	let promSystemFont = initSystemFont();
 	makeCallHandles();
 
-	// wrenCall(0);
+	// Wait for user click.
+	await playClicked();
+
+	playButton.remove();
 
 	// Load in the "sock" script.
 	await promSystemFont;
@@ -53,10 +60,12 @@ async function init() {
 	wrenAddImplicitImportModule("sock");
 
 	// Init sock modules.
+	redoLayout();
 	initTimeModule();
 	initAssetModule();
 	initGameModule();
 	initInputModule();
+	initAudioModule();
 	initJavaScriptModule();
 
 	// Init WebGL.
@@ -88,6 +97,19 @@ async function init() {
 	requestAnimationFrame(update);
 }
 
+/**
+ * @returns {Promise<void>}
+ */
+async function playClicked() {
+	return new Promise((resolve) => {
+		function oninput() {
+			createAudioContext();
+			resolve();
+		}
+
+		playButton.onclick = oninput;
+	});
+}
 
 function update() {
 	let now = performance.now() / 1000;
@@ -113,6 +135,7 @@ function update() {
 			let layoutChanged = finalizeLayout();
 			
 			if (layoutChanged) {
+				recalculateAndUpdateMousePosition();
 				mainFramebuffer.updateResolution();
 			}
 	
@@ -145,6 +168,8 @@ function update() {
  * @param {string|null} [error]
  */
 function finalize(error) {
+	stopAllAudio();
+	
 	if (error) {
 		showError(error);
 	} else if (wrenHasError) {

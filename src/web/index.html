@@ -27,6 +27,24 @@ a {
 	image-rendering: pixelated;
     image-rendering: crisp-edges;
 }
+#play-button {
+	position: fixed;
+	top: 0;
+	left: 0;
+	width: 100%;
+	height: 100%;
+	cursor: pointer;
+	display: flex;
+    align-items: center;
+    justify-content: center;
+}
+#play-button img {
+	opacity: 0.75;
+	width: 124px;
+}
+#play-button:hover img {
+	opacity: 1;
+}
 .quit {
 	cursor: not-allowed !important;
 	opacity: 0.4;
@@ -93,5 +111,6 @@ a {
 </head>
 <body>
 	<canvas></canvas>
+	<div id="play-button"><img class="pixel" src="data:image/gif;base64,R0lGODdhPgA8AHcAACH5BAkKAAAALAAAAAA+ADwAgAAAAP///wLTjI+gy+0P40P0yIszqzzoDy5dF5bXOJpqg6Lr2rZvGcfzV9c3lud71Ov9HMHgUJQCFClHF3Jp+Dk30Ohsyqp6YEmIdkvrArVhUuYLwvLIZ7EGfXLj2F55mp41v+BU/RWv9lelEHjzVbhzyHFEpGjB2KgIGXk4+eRo6cjEqFnRxIZYBtW3KDiaV6rCh+ppskrZejcY57c2a5tKe/pmx1okGjuBJ5tLurQn9+oqpqya1MzV+fgpndlpSYiJnQ0N2T15u+1rI17nUz5Gjp7eu2686X5RAAA7"></div>
 </body>
 </html>

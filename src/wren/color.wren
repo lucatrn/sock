@@ -54,7 +54,7 @@ foreign class Color {
 	static hsl_(p, q, t) {
 		t = t < 0 ? t + 1 : (t > 1 ? t - 1 : t)
 		if (t < 0.1667) return p + (q - p) * 6 * t
-		if (t < 0.5) return q
+		if (t <= 0.5) return q
 		if (t < 0.6667) return p + (q - p) * (0.6667 - t) * 6
 		return p
 	}

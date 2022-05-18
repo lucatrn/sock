@@ -119,7 +119,9 @@ namespace SoLoud
 			// If inaudible, should be killed (default = don't kill kill)
 			INAUDIBLE_KILL = 64,
 			// If inaudible, should still be ticked (default = pause)
-			INAUDIBLE_TICK = 128
+			INAUDIBLE_TICK = 128,
+			// This audio instance is soft paused
+			SOFT_PAUSED = 256
 		};
 		// Ctor
 		AudioSourceInstance();

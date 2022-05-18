@@ -266,6 +266,8 @@ namespace SoLoud
 		time getStreamPosition(handle aVoiceHandle);
 		// Get current pause state.
 		bool getPause(handle aVoiceHandle);
+		// Get the soft pause state (soft pauses audioSource playback, but keeps effects running)
+		bool getSoftPause(handle aVoiceHandle);
 		// Get current volume.
 		float getVolume(handle aVoiceHandle);
 		// Get current overall volume (set volume * 3d volume)
@@ -309,6 +311,8 @@ namespace SoLoud
 		void setPostClipScaler(float aScaler);
 		// Set the pause state
 		void setPause(handle aVoiceHandle, bool aPause);
+		// Set the soft pause state (soft pauses audioSource playback, but keeps effects running)
+		void setSoftPause(handle aVoiceHandle, bool aPause);
 		// Pause all voices
 		void setPauseAll(bool aPause);
 		// Set the relative play speed
@@ -446,6 +450,8 @@ namespace SoLoud
 		void setVoiceVolume_internal(unsigned int aVoice, float aVolume);
 		// Set voice (not handle) pause state.
 		void setVoicePause_internal(unsigned int aVoice, int aPause);
+		// Set voice (not handle) soft pause state.
+		void setVoiceSoftPause_internal(unsigned int aVoice, int aPause);
 		// Update overall volume from set and 3d volumes
 		void updateVoiceVolume_internal(unsigned int aVoice);
 		// Update overall relative play speed from set and 3d speeds

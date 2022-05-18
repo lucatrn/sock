@@ -2788,8 +2788,12 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 					if (strcmp(signature, "clear(_,_,_)") == 0) return wren_Graphics_clear3;
 				}
 			} else if (strcmp(className, "Audio") == 0) {
-				if (!isStatic) {
+				if (isStatic) {
+					if (strcmp(signature, "volume") == 0) return wren_Audio_volume;
+					if (strcmp(signature, "fadeVolume(_,_)") == 0) return wren_Audio_fadeVolume;
+				} else {
 					if (strcmp(signature, "load_(_)") == 0) return wren_audio_load_;
+					if (strcmp(signature, "duration") == 0) return wren_audio_duration;
 					if (strcmp(signature, "voice()") == 0) return wren_audio_voice;
 					if (strcmp(signature, "setEffect_(_,_,_,_,_,_)") == 0) return wren_audio_setEffect_;
 					if (strcmp(signature, "getEffect_(_)") == 0) return wren_audio_getEffect_;
@@ -2799,6 +2803,17 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 			} else if (strcmp(className, "Voice") == 0) {
 				if (!isStatic) {
 					if (strcmp(signature, "play()") == 0) return wren_voice_play;
+					if (strcmp(signature, "pause()") == 0) return wren_voice_pause;
+					if (strcmp(signature, "isPaused") == 0) return wren_voice_isPaused;
+					if (strcmp(signature, "stop()") == 0) return wren_voice_stop;
+					if (strcmp(signature, "volume") == 0) return wren_voice_volume;
+					if (strcmp(signature, "fadeVolume(_,_)") == 0) return wren_voice_fadeVolume;
+					if (strcmp(signature, "rate") == 0) return wren_voice_rate;
+					if (strcmp(signature, "fadeRate(_,_)") == 0) return wren_voice_fadeRate;
+					if (strcmp(signature, "loop") == 0) return wren_voice_loop;
+					if (strcmp(signature, "loop=(_)") == 0) return wren_voice_loopSet;
+					if (strcmp(signature, "loopStart") == 0) return wren_voice_loopStart;
+					if (strcmp(signature, "loopStart=(_)") == 0) return wren_voice_loopStartSet;
 				}
 			} else if (strcmp(className, "Camera") == 0) {
 				if (isStatic) {

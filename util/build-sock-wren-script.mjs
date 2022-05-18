@@ -155,7 +155,7 @@ if (argv.includes("--debug") || argv.includes("-d")) {
 } else {
 	let outName = "tmp/sock";
 	for (let target of targets) {
-		outName += "-" + target;
+		outName += "_" + target;
 	}
 	outName += ".wren";
 

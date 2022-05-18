@@ -18,7 +18,7 @@ class Game {
 
 	static center { __SIZE / 2 }
 
-	fixedSize { __SIZE_IS_FIXED ? __SIZE : null }
+	static fixedSize { __SIZE_IS_FIXED ? __SIZE : null }
 
 	static fixedSize=(v) {
 		if (v == null) {
@@ -28,15 +28,9 @@ class Game {
 				__SIZE_IS_FIXED = false
 				layoutChanged_()
 			}
-		} else {
-			setFixedSize(v.x, v.y)
-		}
-	}
-
-	static setFixedSize(x, y) {
-		if (!__SIZE_IS_FIXED || __SIZE.x != x || __SIZE.y != y) {
-			__SIZE.x = x.floor.clamp(1, 2048)
-			__SIZE.y = y.floor.clamp(1, 2048)
+		} else if (!__SIZE_IS_FIXED || __SIZE.x != v.x || __SIZE.y != v.y) {
+			__SIZE.x = v.x.floor.clamp(1, 2048)
+			__SIZE.y = v.y.floor.clamp(1, 2048)
 			__SIZE_IS_FIXED = true
 			layoutChanged_()
 		}

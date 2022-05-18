@@ -61,55 +61,69 @@ let queuedInputs = new Set();
  */
 let inputTable = Object.create(null);
 
-let mouseData = { x: 0, y: 0, exactX: 0, exactY: 0, wheel: 0 };
+let mouseX = 0, mouseY = 0, mouseExactX = 0, mouseExactY = 0, mouseRawX = 0, mouseRawY = 0, mouseWheel = 0;
 
 export function initInputModule() {
 	wrenEnsureSlots(1);
 	wrenGetVariable("sock", "Input", 0);
 	handle_Input = wrenGetSlotHandle(0);
-;
+
+	// Pass in initial mouse state.
+	recalculateAndUpdateMousePosition();
+}
+
+export function recalculateAndUpdateMousePosition() {
+	recalculateMousePosition();
+	transferCurrentMousePosition();
+}
+
+function transferCurrentMousePosition() {
+	wrenEnsureSlots(4);
+	wrenSetSlotHandle(0, handle_Input);
+	wrenSetSlotDouble(1, mouseX);
+	wrenSetSlotDouble(2, mouseY);
+	wrenSetSlotDouble(3, mouseWheel);
+	wrenCall(callHandle_updateMouse_3);
 }
 
 export function updateInputModule() {
 	// Read gamepads.
-	for (let gp of navigator.getGamepads()) {
-		if (gp != null) {
-			let buttons = gp.buttons;
-			let axes = gp.axes;
-
-			updateInputValue("GamepadFaceDown", buttons[0].value);
-			updateInputValue("GamepadFaceRight", buttons[1].value);
-			updateInputValue("GamepadFaceLeft", buttons[2].value);
-			updateInputValue("GamepadFaceUp", buttons[3].value);
-			updateInputValue("GamepadLeftBumper", buttons[4].value);
-			updateInputValue("GamepadRightBumper", buttons[5].value);
-			updateInputValue("GamepadLeftTrigger", buttons[6].value);
-			updateInputValue("GamepadRightTrigger", buttons[7].value);
-			updateInputValue("GamepadSelect", buttons[8].value);
-			updateInputValue("GamepadStart", buttons[9].value);
-			updateInputValue("GamepadLeftStick", buttons[10].value);
-			updateInputValue("GamepadRightStick", buttons[11].value);
-			updateInputValue("GamepadDPadUp", buttons[12].value);
-			updateInputValue("GamepadDPadDown", buttons[13].value);
-			updateInputValue("GamepadDPadLeft", buttons[14].value);
-			updateInputValue("GamepadDPadRight", buttons[15].value);
-			updateInputValue("GamepadHome", buttons[16].value);
-
-			updateInputValue1D("GamepadLeftStickLeft", "GamepadLeftStickRight", axes[0]);
-			updateInputValue1D("GamepadLeftStickUp", "GamepadLeftStickDown", axes[1]);
-			updateInputValue1D("GamepadRightStickLeft", "GamepadRightStickRight", axes[2]);
-			updateInputValue1D("GamepadRightStickUp", "GamepadRightStickDown", axes[3]);
+	// May not be available, requires HTTPS.
+	if (navigator.getGamepads) {
+		for (let gp of navigator.getGamepads()) {
+			if (gp != null) {
+				let buttons = gp.buttons;
+				let axes = gp.axes;
+	
+				updateInputValue("GamepadFaceDown", buttons[0].value);
+				updateInputValue("GamepadFaceRight", buttons[1].value);
+				updateInputValue("GamepadFaceLeft", buttons[2].value);
+				updateInputValue("GamepadFaceUp", buttons[3].value);
+				updateInputValue("GamepadLeftBumper", buttons[4].value);
+				updateInputValue("GamepadRightBumper", buttons[5].value);
+				updateInputValue("GamepadLeftTrigger", buttons[6].value);
+				updateInputValue("GamepadRightTrigger", buttons[7].value);
+				updateInputValue("GamepadSelect", buttons[8].value);
+				updateInputValue("GamepadStart", buttons[9].value);
+				updateInputValue("GamepadLeftStick", buttons[10].value);
+				updateInputValue("GamepadRightStick", buttons[11].value);
+				updateInputValue("GamepadDPadUp", buttons[12].value);
+				updateInputValue("GamepadDPadDown", buttons[13].value);
+				updateInputValue("GamepadDPadLeft", buttons[14].value);
+				updateInputValue("GamepadDPadRight", buttons[15].value);
+				updateInputValue("GamepadHome", buttons[16].value);
+	
+				updateInputValue1D("GamepadLeftStickLeft", "GamepadLeftStickRight", axes[0]);
+				updateInputValue1D("GamepadLeftStickUp", "GamepadLeftStickDown", axes[1]);
+				updateInputValue1D("GamepadRightStickLeft", "GamepadRightStickRight", axes[2]);
+				updateInputValue1D("GamepadRightStickUp", "GamepadRightStickDown", axes[3]);
+			}
 		}
 	}
 
 	// Pass state changes to Wren.
 	// Mouse
-	wrenEnsureSlots(4);
-	wrenSetSlotHandle(0, handle_Input);
-	wrenSetSlotDouble(1, mouseData.x);
-	wrenSetSlotDouble(2, mouseData.y);
-	wrenSetSlotDouble(3, mouseData.wheel);
-	wrenCall(callHandle_updateMouse_3);
+	transferCurrentMousePosition();
 
 	// Inputs
 	for (let inputID of queuedInputs) {
@@ -121,7 +135,7 @@ export function updateInputModule() {
 	}
 
 	queuedInputs.clear();
-	mouseData.wheel = 0;
+	mouseWheel = 0;
 }
 
 /**
@@ -186,7 +200,7 @@ addEventListener("mousemove", (event) => {
 });
 
 addEventListener("wheel", (event) => {
-	mouseData.wheel += event.deltaY;
+	mouseWheel += event.deltaY;
 }, { passive: true });
 
 addEventListener("mousedown", (event) => {
@@ -230,10 +244,16 @@ canvas.addEventListener("touchend", (event) => {
  * @param {number} y
  */
 function updateMousePosition(x, y) {
-	mouseData.exactX = x = (x - computedLayout.x) / computedLayout.s
-	mouseData.exactY = y = (y - computedLayout.y) / computedLayout.s
-	mouseData.x = Math.floor(x);
-	mouseData.y = Math.floor(y);
+	mouseRawX = x;
+	mouseRawY = y;
+	recalculateMousePosition();
+}
+
+function recalculateMousePosition() {
+	mouseExactX = (mouseRawX - computedLayout.x) / computedLayout.s;
+	mouseExactY = (mouseRawY - computedLayout.y) / computedLayout.s;
+	mouseX = Math.floor(mouseExactX);
+	mouseY = Math.floor(mouseExactY);
 }
 
 /**

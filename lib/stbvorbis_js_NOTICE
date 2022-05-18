@@ -1,0 +1,3 @@
+The following changes have been made to stbvorbis.js:
+* Removed ASM fallback loader.
+* Added dispatchEvent() call on library load.
