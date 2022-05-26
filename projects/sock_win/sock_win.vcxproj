@@ -26,6 +26,13 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\src\c\sock_audio.h" />
+    <ClInclude Include="resource.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="sock_win.rc" />
+  </ItemGroup>
+  <ItemGroup>
+    <Image Include="..\..\resources\icon.ico" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>16.0</VCProjectVersion>
@@ -90,6 +97,7 @@
     <IncludePath>$(ProjectDir)..\..\includes;$(ProjectDir)..\..\wren\src\include;$(ProjectDir)..\..\soloud\include;$(IncludePath)</IncludePath>
     <LibraryPath>$(ProjectDir)..\..\lib;$(LibraryPath)</LibraryPath>
     <OutDir>$(SolutionDir)..\..\tmp</OutDir>
+    <TargetName>sock</TargetName>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <LinkIncremental>false</LinkIncremental>

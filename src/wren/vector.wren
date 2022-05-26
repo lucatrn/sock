@@ -44,20 +44,20 @@ class Vec {
 
 	normalize {
 		var n = length
-		return n > 0 ? new(_x / n, _y / n) : new()
+		return n > 0 ? Vec.new(_x / n, _y / n) : Vec.new()
 	}
 
 	normalize(min, max) {
 		var len = length
-		if (len <= min) return new()
+		if (len <= min) return Vec.new()
 		len = ((len - min) / (max - min)).min(1) / len
-		return new(_x * len, _y * len)
+		return Vec.new(_x * len, _y * len)
 	}
 
-	- { new(-_x, -_y) }
-	+ (v) { new(_x + v.x, _y + v.y ) }
-	- (v) { new(_x - v.x, _y - v.y ) }
-	* (a) { a is Num ? new(_x * a, _y * a) : dot(a) }
+	- { Vec.new(-_x, -_y) }
+	+ (v) { Vec.new(_x + v.x, _y + v.y ) }
+	- (v) { Vec.new(_x - v.x, _y - v.y ) }
+	* (a) { a is Num ? Vec.new(_x * a, _y * a) : dot(a) }
 	/ (k) { Vec.new(_x / k, _y / k ) }
 	== (v) { v is Vec && _x == v.x && _y == v.y }
 

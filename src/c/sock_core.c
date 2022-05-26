@@ -9,7 +9,7 @@
 
 	#define SOCK_DESKTOP
 	#define SOCK_WIN
-	#define SOCK_PLATFORM "Desktop"
+	#define SOCK_PLATFORM "desktop"
 	#define SOCK_OS "Windows"
 
 	#include "SDL2/SDL.h"
@@ -29,7 +29,7 @@
 #elif defined __EMSCRIPTEN__
 
 	#define SOCK_WEB
-	#define SOCK_PLATFORM "Web"
+	#define SOCK_PLATFORM "web"
 
 	#include "emscripten.h"
 
@@ -2704,12 +2704,7 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 			// Do re-layout.
 			SDL_GetWindowSize(window, &game_windowWidth, &game_windowHeight);
 
-			wrenEnsureSlots(vm, 2);
-			wrenSetSlotNewList(vm, 0);
-			wrenSetSlotDouble(vm, 1, (double)game_windowWidth);
-			wrenInsertInList(vm, 0, -1, 1);
-			wrenSetSlotDouble(vm, 1, (double)game_windowHeight);
-			wrenInsertInList(vm, 0, -1, 1);
+			wrenReturnNumList2(vm, (double)game_windowWidth, (double)game_windowHeight);
 
 			handleWindowResize();
 		}
@@ -2819,6 +2814,84 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 
 	void wren_Game_quit_(WrenVM* vm) {
 		game_quit = true;
+	}
+
+	// WINDOW
+	
+	void wren_Window_left(WrenVM* vm) {
+		int x;
+		SDL_GetWindowPosition(window, &x, NULL);
+		wrenSetSlotDouble(vm, 0, x);
+	}
+	
+	void wren_Window_top(WrenVM* vm) {
+		int y;
+		SDL_GetWindowPosition(window, NULL, &y);
+		wrenSetSlotDouble(vm, 0, y);
+	}
+
+	void wren_Window_setPos_(WrenVM* vm) {
+		for (int i = 1; i <= 2; i++) {
+			if (wrenGetSlotType(vm, i) != WREN_TYPE_NUM) {
+				wrenAbort(vm, "args must be Nums");
+				return;
+			}
+		}
+
+		int x = (int)wrenGetSlotDouble(vm, 1);
+		int y = (int)wrenGetSlotDouble(vm, 1);
+
+		SDL_SetWindowPosition(window, x, y);
+	}
+	
+	void wren_Window_center(WrenVM* vm) {
+		SDL_SetWindowPosition(window, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED);
+	}
+
+	void wren_Window_width(WrenVM* vm) {
+		wrenSetSlotDouble(vm, 0, game_windowWidth);
+	}
+
+	void wren_Window_height(WrenVM* vm) {
+		wrenSetSlotDouble(vm, 0, game_windowHeight);
+	}
+	
+	void wren_Window_setSize_(WrenVM* vm) {
+		for (int i = 1; i <= 2; i++) {
+			if (wrenGetSlotType(vm, i) != WREN_TYPE_NUM) {
+				wrenAbort(vm, "args must be Nums");
+				return;
+			}
+		}
+
+		int width = (int)wrenGetSlotDouble(vm, 1);
+		int height = (int)wrenGetSlotDouble(vm, 2);
+
+		if (width <= 0 || height <= 0) {
+			wrenAbort(vm, "size must be positive");
+			return;
+		}
+
+		SDL_SetWindowSize(window, width, height);
+		game_windowWidth = width;
+		game_windowHeight = height;
+
+		doScreenLayout();
+	}
+
+	void wren_Window_resizable(WrenVM* vm) {
+		wrenSetSlotBool(vm, 0, (SDL_GetWindowFlags(window) & SDL_WINDOW_RESIZABLE) != 0);
+	}
+	
+	void wren_Window_resizableSet(WrenVM* vm) {
+		if (wrenGetSlotType(vm, 1) != WREN_TYPE_BOOL) {
+			wrenAbort(vm, "resizeable must be a Bool");
+			return;
+		}
+
+		bool resizeable = wrenGetSlotBool(vm, 1);
+
+		SDL_SetWindowResizable(window, resizeable);
 	}
 
 	// API Binding
@@ -2938,6 +3011,18 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 					if (strcmp(signature, "openURL(_)") == 0) return wren_Game_openURL;
 					if (strcmp(signature, "ready_()") == 0) return wren_Game_ready_;
 					if (strcmp(signature, "quit_()") == 0) return wren_Game_quit_;
+				}
+			} else if (strcmp(className, "Window") == 0) {
+				if (isStatic) {
+					if (strcmp(signature, "left") == 0) return wren_Window_left;
+					if (strcmp(signature, "top") == 0) return wren_Window_top;
+					if (strcmp(signature, "setPos_(_,_)") == 0) return wren_Window_setPos_;
+					if (strcmp(signature, "center()") == 0) return wren_Window_center;
+					if (strcmp(signature, "width") == 0) return wren_Window_width;
+					if (strcmp(signature, "height") == 0) return wren_Window_height;
+					if (strcmp(signature, "setSize_(_,_)") == 0) return wren_Window_setSize_;
+					if (strcmp(signature, "resizable") == 0) return wren_Window_resizable;
+					if (strcmp(signature, "resizable=(_)") == 0) return wren_Window_resizableSet;
 				}
 			}
 		}
@@ -3156,7 +3241,7 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 		callHandle_updateMouse_3 = wrenMakeCallHandle(vm, "updateMouse_(_,_,_)");
 		
 		// Load sock Wren code.
-		char* sockSource = fileReadRelative("sock.wren");
+		char* sockSource = fileReadRelative("sock_desktop.wren");
 		if (sockSource == NULL) return -1;
 
 		WrenInterpretResult sockResult = wrenInterpret(vm, "sock", sockSource);

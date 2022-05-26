@@ -1,24 +1,23 @@
 
 class Window {
-	static topLeft { Vec.of(topLeft_) }
+	foreign static left
+	foreign static top
+	static left=(x) { setPos_(x, top) }
+	static top=(y) { setPos_(left, y) }
+	static topLeft { Vec.new(left, top) }
+	static topleft=(a) { setPos_(a.x, a.y) }
+	foreign static setPos_(x, y)
+	
+	foreign static center()
 
-	static topleft=(a) {
-		setTopLeft(a.x, a.y)
-	}
+	foreign static width
+	foreign static height
+	static width=(w) { setSize_(w, height) }
+	static height=(h) { setSize_(width, h) }
+	static size { Vec.new(width, height) }
+	static size=(a) { setSize_(a.x, a.y) }
+	foreign static setSize_(w, h)
 
-	static size { Vec.of(size_) }
-
-	static size=(a) {
-		setSize(a.x, a.y)
-	}
-
-	static width { size_[0] }
-	static height { size_[1] }
-
-	foreign static size_
-	foreign static setSize(w, h)
-	foreign static topLeft_
-	foreign static setTopLeft(x, y)
 	foreign static resizable
 	foreign static resizable=(b)
 }
