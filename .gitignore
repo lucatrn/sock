@@ -4,3 +4,6 @@
 /ignore
 /node_modules
 /src/js-generated/*.js
+/soloud/build/include
+/soloud/build/vs2019
+/soloud/build/genie.exe

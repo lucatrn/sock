@@ -8,9 +8,6 @@ In order of importance.
 * Primitive drawing - `Draw` class? `Graphics.drawXYZ()`?
   * `Polygon.buid`
 
-* Audio
-	* Bus
-
 * Virtual Keyboard / Simple text input
 	* Necessary for touch devices and consoles.
 	* Improves text input accessbility on desktop (IMEs, automatically uses common shortcuts)

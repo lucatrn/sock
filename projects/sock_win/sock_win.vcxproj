@@ -87,7 +87,7 @@
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <LinkIncremental>true</LinkIncremental>
-    <IncludePath>$(ProjectDir)..\..\includes;$(ProjectDir)..\..\wren\src\include;$(IncludePath)</IncludePath>
+    <IncludePath>$(ProjectDir)..\..\includes;$(ProjectDir)..\..\wren\src\include;$(ProjectDir)..\..\soloud\include;$(IncludePath)</IncludePath>
     <LibraryPath>$(ProjectDir)..\..\lib;$(LibraryPath)</LibraryPath>
     <OutDir>$(SolutionDir)..\..\tmp</OutDir>
   </PropertyGroup>

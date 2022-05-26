@@ -2,10 +2,10 @@ import { addForeignClass } from "../foreign.js";
 import { sockJsGlobal } from "../globals.js";
 import { httpGET } from "../network/http.js";
 import * as Path from "../path.js";
-import { wrenAbort, wrenEnsureSlots, wrenGetSlotBool, wrenGetSlotDouble, wrenGetSlotForeign, wrenGetSlotHandle, wrenGetSlotString, wrenGetSlotType, wrenGetVariable, wrenReleaseHandle, wrenSetSlotBool, wrenSetSlotDouble, wrenSetSlotHandle, wrenSetSlotNewForeign } from "../vm.js";
+import { wrenAbort, wrenEnsureSlots, wrenGetSlotBool, wrenGetSlotDouble, wrenGetSlotForeign, wrenGetSlotHandle, wrenGetSlotIsInstanceOf, wrenGetSlotString, wrenGetSlotType, wrenGetVariable, wrenReleaseHandle, wrenSetSlotBool, wrenSetSlotDouble, wrenSetSlotHandle, wrenSetSlotNewForeign } from "../vm.js";
 import { getAsset, initLoadingProgressList } from "./asset.js";
 
-const MAX_EFFECT_PER_AUDIO = 4;
+const MAX_EFFECT_PER_AUDIO = 8;
 
 const EFFECT_TYPE_NONE = 0;
 const EFFECT_TYPE_FILTER = 1;
@@ -31,11 +31,15 @@ const PARAM_ECHO_DELAY = 0;
 const PARAM_ECHO_DECAY = 1;
 const PARAM_ECHO_VOLUME = 2;
 
+const PARAM_REVERB_VOLUME = 0;
+
 const FILTER_TYPE_LOWPASS = 0;
 const FILTER_TYPE_HIGHPASS = 1;
 const FILTER_TYPE_BANDPASS = 2;
 const FILTER_TYPE_MIN = 0;
 const FILTER_TYPE_MAX = 2;
+
+const BASE_MASTER_GAIN = 0.5;
 
 /**
  * Used to decode audio if `audioctx` is not created yet.
@@ -56,12 +60,51 @@ let masterGain;
 /**
  * @type {number}
  */
+let handle_AudioBus = null;
+
+/**
+ * @type {number}
+ */
 let handle_Voice = null;
+
+/**
+ * @param {number} duration
+ * @returns {AudioBuffer}
+ */
+function generateImpulse(duration) {
+	let frameCount = Math.floor(duration * audioctx.sampleRate);
+	let buffer = new AudioBuffer({
+		length: frameCount,
+		sampleRate: audioctx.sampleRate,
+		numberOfChannels: 2,
+	});
+
+	let ch1 = buffer.getChannelData(0);
+	let ch2 = buffer.getChannelData(1);
+	let baseVolume = 0.022;
+
+	for (let i = 0; i < frameCount; i++) {
+		let volume = baseVolume * Math.exp(-5 * (i / frameCount));
+		ch1[i] = (Math.random() * 2 - 1) * volume;
+		ch2[i] = (Math.random() * 2 - 1) * volume;
+	}
+
+	return buffer;
+}
+
+/**
+ * @type {AudioBuffer}
+ */
+let implulseChurch;
 
 export function initAudioModule() {
 	wrenEnsureSlots(1);
+
 	wrenGetVariable("sock", "Voice", 0);
 	handle_Voice = wrenGetSlotHandle(0);
+	
+	wrenGetVariable("sock", "AudioBus", 0);
+	handle_AudioBus = wrenGetSlotHandle(0);
 }
 
 export function createAudioContext() {
@@ -69,8 +112,14 @@ export function createAudioContext() {
 	sockJsGlobal.audio = audioctx;
 	
 	// Create main audio graph.
-	masterGain = audioctx.createGain();
+	masterGain = new GainNode(audioctx, {
+		gain: BASE_MASTER_GAIN,
+	});
 	masterGain.connect(audioctx.destination);
+}
+
+export function loadAudioModule() {
+	implulseChurch = generateImpulse(3);
 }
 
 export function stopAllAudio() {
@@ -96,19 +145,40 @@ function fadeVolume(gainNode, volume, fade) {
 	gain.linearRampToValueAtTime(volume, audioctx.currentTime + fade);
 }
 
-class Audio {
+class AudioControls {
 	/**
-	 * @param {number} ptr
+	 * @param {AudioControls|null} [destination] 
 	 */
-	constructor(ptr) {
-		this.ptr = ptr;
-
-		/** @type {Effect[]} */
+	constructor(destination) {
+		/**
+		 * @type {Effect[]}
+		 */
 		this.effects = Array(MAX_EFFECT_PER_AUDIO).fill(null);
 
 		this.gain = audioctx.createGain();
 
+		/**
+		 * Used to pipe this graph into another graph.
+		 * @type {AudioControls|null|undefined}
+		 */
+		this.destination = destination;
+
 		this.updateGraph();
+	}
+
+	/**
+	 * @returns {AudioNode}
+	 */
+	getInput() {
+		for (let i = 0; i < MAX_EFFECT_PER_AUDIO; i++) {
+			let effect = this.effects[i];
+
+			if (effect) {
+				return effect.input;
+			}
+		}
+
+		return this.gain;
 	}
 
 	/**
@@ -121,10 +191,8 @@ class Audio {
 	}
 
 	updateGraph() {
-		this.gain.disconnect();
-
 		/** @type {AudioNode[]} */
-		let nodes = [ this.gain ];
+		let nodes = [];
 
 		for (let i = 0; i < MAX_EFFECT_PER_AUDIO; i++) {
 			let effect = this.effects[i];
@@ -151,10 +219,32 @@ class Audio {
 		}
 
 		for (let node of nodes) {
-			node.connect(masterGain);
+			node.connect(this.gain);
 		}
 
-		this.outputs = nodes;
+		this.gain.disconnect();
+
+		this.gain.connect(this.destination ? this.destination.getInput() : masterGain);
+	}
+}
+
+class AudioBus extends AudioControls {
+	/**
+	 * @param {number} ptr
+	 */
+	constructor(ptr) {
+		super();
+
+		this.ptr = ptr;
+	}
+}
+
+class Audio {
+	/**
+	 * @param {number} ptr
+	 */
+	constructor(ptr) {
+		this.ptr = ptr;
 	}
 
 	/**
@@ -252,12 +342,17 @@ class FilterEffect {
 
 class EchoEffect {
 	constructor() {
-		this.node = audioctx.createGain();
-		this.delay = audioctx.createDelay(1);
-		this.delay.delayTime.value = 0.5;
-		this.decay = audioctx.createGain();
-		this.mix = audioctx.createGain();
-		
+		this.maxDelay = -1;
+		this.node = new GainNode(audioctx);
+		this.decay = new GainNode(audioctx);
+		this.mix = new GainNode(audioctx);
+	}
+
+	create() {
+		this.delay = new DelayNode(audioctx, {
+			delayTime: this.maxDelay,
+			maxDelayTime: this.maxDelay,
+		});
 		this.delay.connect(this.mix);
 		this.delay.connect(this.decay);
 		this.decay.connect(this.delay);
@@ -273,7 +368,7 @@ class EchoEffect {
 	 */
 	getParam(index) {
 		if (index === PARAM_ECHO_DELAY) {
-			return this.delay.delayTime.value;
+			return this.delay ? this.delay.delayTime.value : this.maxDelay;
 		} else if (index === PARAM_ECHO_DECAY) {
 			return this.decay.gain.value;
 		} else if (index === PARAM_ECHO_VOLUME) {
@@ -309,7 +404,12 @@ class EchoEffect {
 		if (index === PARAM_ECHO_VOLUME) {
 			effectSetAudioParam(this.mix.gain, value, fade);
 		} else if (index === PARAM_ECHO_DELAY) {
-			effectSetAudioParam(this.delay.delayTime, value, fade);
+			if (this.maxDelay < 0) {
+				this.maxDelay = value;
+			}
+			if (this.delay) {
+				effectSetAudioParam(this.delay.delayTime, value, fade);
+			}
 		} else if (index === PARAM_ECHO_DECAY) {
 			effectSetAudioParam(this.decay.gain, value, fade);
 		}
@@ -327,36 +427,127 @@ class EchoEffect {
 	get outputs() { return [ this.node, this.mix ] }
 }
 
+class ReverbEffect {
+	constructor() {
+		this.gain = new GainNode(audioctx);
+		this.wetGain = new GainNode(audioctx, { gain: 1 });
+	}
+
+	create() {
+		this.convolver = new ConvolverNode(audioctx, {
+			buffer: implulseChurch,
+			disableNormalization: true,
+		});
+
+		this.convolver.connect(this.wetGain);
+	}
+
+	setupGraph() {
+		this.gain.connect(this.convolver);
+	}
+
+	/**
+	 * @param {number} index
+	 * @returns {number}
+	 */
+	getParam(index) {
+		if (index == PARAM_REVERB_VOLUME) {
+			return this.wetGain.gain.value;
+		}
+	}
+
+	/**
+	 * @param {number} index
+	 * @param {number} value
+	 */
+	checkParam(index, value) {
+	}
+	
+	/**
+	 * @param {number} index
+	 * @param {number} value
+	 * @param {number} [fade]
+	 */
+	setParam(index, value, fade) {
+		if (index === PARAM_REVERB_VOLUME) {
+			effectSetAudioParam(this.wetGain.gain, value, fade);
+		}
+	}
+
+	get type() { return EFFECT_TYPE_REVERB }
+	get input() { return this.gain }
+	get outputs() { return [ this.gain, this.wetGain ] }
+}
 
 // === VOICE ===
 
-class Voice {
+class Voice extends AudioControls {
 	/**
 	 * @param {number} ptr
 	 * @param {Audio} audio
 	 * @param {number} audioHandle
+	 * @param {AudioControls} [destination]
 	 */
-	constructor(ptr, audio, audioHandle) {
+	constructor(ptr, audio, audioHandle, destination) {
+		super(destination);
+
 		this.ptr = ptr;
 		this.audio = audio;
 		this.audioHandle = audioHandle;
 
-		this.source = audioctx.createBufferSource();
-		this.source.buffer = audio.buffer;
-
-		this.gainNode = audioctx.createGain();
-		this.gainNode.connect(this.audio.gain);
+		this._initSource();
 
 		this.state = 0;
+		this.time = 0;
+	}
+
+	/**
+	 * @private
+	 */
+	_initSource() {
+		this.source = audioctx.createBufferSource();
+		this.source.buffer = this.audio.buffer;
 	}
 	
 	play() {
-		this.source.connect(this.gainNode);
-		this.source.start();
+		if (this.state === 0 || this.state === 2) {
+			if (this.state === 2) {
+				let old = this.source;
+
+				this._initSource();
+
+				this.source.loop = old.loop;
+				this.source.loopStart = old.loopStart;
+				this.source.playbackRate.value = old.playbackRate.value;
+			}
+
+			this.source.connect(this.getInput());
+			this.source.start(0, this.time);
+			this.startTime = audioctx.currentTime;
+			this.state = 1;
+		}
+	}
+
+	saveTime() {
+		this.time += (audioctx.currentTime - this.startTime) * this.source.playbackRate.value;
 		this.startTime = audioctx.currentTime;
-		this.state = 1;
+	}
+
+	pause() {
+		if (this.state === 1) {
+			console.log(this.source.playbackRate.value);
+			this.time += (audioctx.currentTime - this.startTime) * this.source.playbackRate.value;
+			this.source.stop();
+			this.source.disconnect();
+			this.state = 2;
+		}
 	}
 }
+
+/**
+ * @type {Map<number, AudioBus>}
+ */
+let buses = new Map();
 
 /**
  * @type {Map<number, Audio>}
@@ -367,6 +558,14 @@ let audios = new Map();
  * @type {Map<number, Voice>}
  */
 let voices = new Map();
+
+/**
+ * Gets the current Audio in slot 0.
+ * @returns {AudioBus}
+ */
+function getAudioBus() {
+	return buses.get(wrenGetSlotForeign(0));
+}
 
 /**
  * Gets the current Audio in slot 0.
@@ -505,6 +704,250 @@ async function loadAudio(audioHandle, path, progressListHandle) {
 	}
 }
 
+/**
+ * @param {AudioControls} audio
+ */
+function wrenAudioSetEffect(audio) {
+	for (let i = 1; i <= 6; i++) {
+		if (wrenGetSlotType(i) !== 1) {
+			wrenAbort("args must be Nums");
+			return;
+		}
+	}
+
+	let index = wrenGetSlotDouble(1);
+	let type = wrenGetSlotDouble(2);
+
+	/** @type {number[]} */
+	let params = Array(4);
+	params[0] = wrenGetSlotDouble(3);
+	params[1] = wrenGetSlotDouble(4);
+	params[2] = wrenGetSlotDouble(5);
+	params[3] = wrenGetSlotDouble(6);
+
+	// Validate type/index indices.
+	if (index < 0 || index >= MAX_EFFECT_PER_AUDIO) {
+		wrenAbort("invalid effect index");
+		return;
+	}
+	
+	if (type < EFFECT_TYPE_MIN || type > EFFECT_TYPE_MAX) {
+		wrenAbort("invalid effect type");
+		return;
+	}
+
+	/** @type {Effect} */
+	let effect;
+	if (type === EFFECT_TYPE_FILTER) {
+		effect = new FilterEffect();
+	} else if (type === EFFECT_TYPE_ECHO) {
+		effect = new EchoEffect();
+	} else if (type === EFFECT_TYPE_REVERB) {
+		effect = new ReverbEffect();
+	} else {
+		effect = null;
+	}
+
+	if (effect) {
+		if (effect.checkParam) {
+			for (let i = 0; i < 4; i++) {
+				let error = effect.checkParam(i, params[i]);
+				if (error) {
+					if (effect.free) {
+						effect.free();
+					}
+					wrenAbort(error);
+					return;
+				}
+			}
+		}
+
+		for (let i = 0; i < 4; i++) {
+			effect.setParam(i, params[i]);
+		}
+	}
+
+	if (effect.create) {
+		effect.create();
+	}
+
+	let oldEffect = audio.effects[index];
+	if (oldEffect) {
+		for (let output of oldEffect.outputs) {
+			output.disconnect();
+		}
+		if (oldEffect.free) {
+			oldEffect.free();
+		}
+	}
+
+	audio.effects[index] = effect;
+
+	audio.updateGraph();
+}
+
+/**
+ * @param {AudioControls} audio
+ */
+function wrenAudioGetEffect(audio) {
+	if (wrenGetSlotType(1) !== 1) {
+		wrenAbort("index must be a Num");
+		return;
+	}
+	
+	let index = Math.trunc(wrenGetSlotDouble(1));
+	if (index < 0 || index >= MAX_EFFECT_PER_AUDIO) {
+		wrenAbort("invalid effect index");
+		return;
+	}
+
+	wrenSetSlotDouble(0, audio.getEffectType(index));
+}
+
+/**
+ * @param {AudioControls} audio
+ */
+function wrenAudioGetParam(audio) {
+	for (let i = 1; i <= 3; i++) {
+		if (wrenGetSlotType(i) !== 1) {
+			wrenAbort("args must be Nums");
+			return;
+		}
+	}
+
+	let index = Math.trunc(wrenGetSlotDouble(1));
+	let type = Math.trunc(wrenGetSlotDouble(2));
+	let paramIndex = Math.trunc(wrenGetSlotDouble(3));
+
+	if (index < 0 || index >= MAX_EFFECT_PER_AUDIO) {
+		wrenAbort("invalid effect index");
+		return;
+	}
+
+	if (type < EFFECT_TYPE_MIN || type > EFFECT_TYPE_MAX) {
+		wrenAbort("invalid effect type");
+		return;
+	}
+
+	if (audio.getEffectType(index) != type) {
+		wrenAbort(`effect at ${index} is not a ${EFFECT_TYPE_NAMES[type]}`);
+		return;
+	}
+
+	if (paramIndex < 0 || paramIndex >= 4) {
+		wrenAbort("invalid param index");
+		return;
+	}
+
+	wrenSetSlotDouble(0, audio.effects[index].getParam(paramIndex) ?? 0);
+}
+
+/**
+ * @param {AudioControls} audio
+ */
+function wrenAudioSetParam(audio) {
+	for (let i = 1; i <= 5; i++) {
+		if (wrenGetSlotType(i) !== 1) {
+			wrenAbort("args must be Nums");
+			return;
+		}
+	}
+
+	let index = Math.trunc(wrenGetSlotDouble(1));
+	let type = Math.trunc(wrenGetSlotDouble(2));
+	let paramIndex = Math.trunc(wrenGetSlotDouble(3));
+	let paramValue = wrenGetSlotDouble(4);
+	let fadeTime = wrenGetSlotDouble(5);
+
+	// Validate type/index indices.
+	if (index < 0 || index >= MAX_EFFECT_PER_AUDIO) {
+		wrenAbort("invalid effect index");
+		return;
+	}
+
+	if (type < EFFECT_TYPE_MIN || type > EFFECT_TYPE_MAX) {
+		wrenAbort("invalid effect type");
+		return;
+	}
+
+	if (audio.getEffectType(index) != type) {
+		wrenAbort(`effect at ${index} is not a ${EFFECT_TYPE_NAMES[type]}`);
+		return;
+	}
+
+	if (paramIndex < 0 || paramIndex >= 4) {
+		wrenAbort("invalid param index");
+		return;
+	}
+	
+	if (fadeTime < 0) {
+		wrenAbort("fade time must be positive");
+		return;
+	}
+
+	let effect = audio.effects[index];
+
+	if (effect.checkParam) {
+		let error = effect.checkParam(paramIndex, paramValue);
+		if (error) {
+			wrenAbort(error);
+			return;
+		}
+	}
+
+	effect.setParam(paramIndex, paramValue, fadeTime);
+}
+
+/**
+ * @param {GainNode} gainNode
+ */
+function wrenFadeVolume(gainNode) {
+	for (let i = 1; i <= 2; i++) {
+		if (wrenGetSlotType(i) !== 1) {
+			wrenAbort("volume and fade must be Nums");
+			return;
+		}
+	}
+
+	let volume = wrenGetSlotDouble(1);
+	let fade = wrenGetSlotDouble(2);
+
+	fadeVolume(gainNode, volume, fade);
+}
+
+
+addForeignClass("sock", "AudioBus", [
+	() => {
+		let ptr = wrenSetSlotNewForeign(0, 0, 0);
+
+		let bus = new AudioBus(ptr);
+
+		buses.set(ptr, bus);
+	},
+	(ptr) => {
+		buses.delete(ptr);
+	},
+], {
+	"volume"() {
+		let bus = getAudioBus();
+		wrenSetSlotDouble(0, bus.gain.gain.value);
+	},
+	"fadeVolume(_,_)"() {
+		wrenFadeVolume(getAudioBus().gain);
+	},
+	"setEffect_(_,_,_,_,_,_)"() {
+		wrenAudioSetEffect(getAudioBus());
+	},
+	"getEffect_(_)"() {
+		wrenAudioGetEffect(getAudioBus());
+	},
+	"getParam_(_,_,_)"() {
+		wrenAudioGetParam(getAudioBus());
+	},
+	"setParam_(_,_,_,_,_)"() {
+		wrenAudioSetParam(getAudioBus());
+	},
+});
 
 addForeignClass("sock", "Audio", [
 	() => {
@@ -552,190 +995,33 @@ addForeignClass("sock", "Audio", [
 		let voice = new Voice(ptr, audio, audioHandle);
 		voices.set(ptr, voice);
 	},
-	"setEffect_(_,_,_,_,_,_)"() {
-		for (let i = 1; i <= 6; i++) {
-			if (wrenGetSlotType(i) !== 1) {
-				wrenAbort("args must be Nums");
-				return;
-			}
-		}
-
-		let index = wrenGetSlotDouble(1);
-		let type = wrenGetSlotDouble(2);
-
-		/** @type {number[]} */
-		let params = Array(4);
-		params[0] = wrenGetSlotDouble(3);
-		params[1] = wrenGetSlotDouble(4);
-		params[2] = wrenGetSlotDouble(5);
-		params[3] = wrenGetSlotDouble(6);
-
-		// Validate type/index indices.
-		if (index < 0 || index >= MAX_EFFECT_PER_AUDIO) {
-			wrenAbort("invalid effect index");
-			return;
-		}
-		
-		if (type < EFFECT_TYPE_MIN || type > EFFECT_TYPE_MAX) {
-			wrenAbort("invalid effect type");
-			return;
-		}
+	"voice(_)"() {
+		let audioHandle = wrenGetSlotHandle(0);
 
 		let audio = getAudio();
-
-		/** @type {Effect} */
-		let effect;
-		if (type === EFFECT_TYPE_FILTER) {
-			effect = new FilterEffect();
-		} else if (type === EFFECT_TYPE_ECHO) {
-			effect = new EchoEffect();
-		} else {
-			effect = null;
-		}
-
-		if (effect) {
-			if (effect.checkParam) {
-				for (let i = 0; i < 4; i++) {
-					let error = effect.checkParam(i, params[i]);
-					if (error) {
-						if (effect.free) {
-							effect.free();
-						}
-						wrenAbort(error);
-						return;
-					}
-				}
-			}
-
-			for (let i = 0; i < 4; i++) {
-				effect.setParam(i, params[i]);
-			}
-		}
-
-		let oldEffect = audio.effects[index];
-		if (oldEffect) {
-			for (let output of oldEffect.outputs) {
-				output.disconnect();
-			}
-			if (oldEffect.free) {
-				oldEffect.free();
-			}
-		}
-
-		audio.effects[index] = effect;
-
-		audio.updateGraph();
-	},
-	"getEffect_(_)"() {
-		if (wrenGetSlotType(1) !== 1) {
-			wrenAbort("index must be a Num");
-			return;
-		}
-		
-		let index = Math.trunc(wrenGetSlotDouble(1));
-		if (index < 0 || index >= MAX_EFFECT_PER_AUDIO) {
-			wrenAbort("invalid effect index");
+		if (!audio.buffer) {
+			wrenAbort("audio not loaded");
 			return;
 		}
 
-		
-		let audio = getAudio();
-
-		wrenSetSlotDouble(0, audio.getEffectType(index));
-	},
-	"getParam_(_,_,_)"() {
-		for (let i = 1; i <= 3; i++) {
-			if (wrenGetSlotType(i) !== 1) {
-				wrenAbort("args must be Nums");
-				return;
-			}
-		}
-
-		let index = Math.trunc(wrenGetSlotDouble(1));
-		let type = Math.trunc(wrenGetSlotDouble(2));
-		let paramIndex = Math.trunc(wrenGetSlotDouble(3));
-
-		if (index < 0 || index >= MAX_EFFECT_PER_AUDIO) {
-			wrenAbort("invalid effect index");
+		// Check slot 1 is an AudioBus.
+		wrenSetSlotHandle(0, handle_AudioBus);
+		if (!wrenGetSlotIsInstanceOf(1, 0)) {
+			wrenAbort("bus must be an AudioBus");
 			return;
 		}
 
-		let audio = getAudio();
+		let bus = buses.get(wrenGetSlotForeign(1));
 
-		if (type < EFFECT_TYPE_MIN || type > EFFECT_TYPE_MAX) {
-			wrenAbort("invalid effect type");
-			return;
-		}
+		wrenSetSlotHandle(1, handle_Voice);
+		let ptr = wrenSetSlotNewForeign(0, 1, 0);
 
-		if (audio.getEffectType(index) != type) {
-			wrenAbort(`effect at ${index} is not a ${EFFECT_TYPE_NAMES[type]}`);
-			return;
-		}
-
-		if (paramIndex < 0 || paramIndex >= 4) {
-			wrenAbort("invalid param index");
-			return;
-		}
-
-		wrenSetSlotDouble(0, audio.effects[index].getParam(paramIndex) ?? 0);
-	},
-	"setParam_(_,_,_,_,_)"() {
-		for (let i = 1; i <= 5; i++) {
-			if (wrenGetSlotType(i) !== 1) {
-				wrenAbort("args must be Nums");
-				return;
-			}
-		}
-
-		let index = Math.trunc(wrenGetSlotDouble(1));
-		let type = Math.trunc(wrenGetSlotDouble(2));
-		let paramIndex = Math.trunc(wrenGetSlotDouble(3));
-		let paramValue = wrenGetSlotDouble(4);
-		let fadeTime = wrenGetSlotDouble(5);
-
-		// Validate type/index indices.
-		if (index < 0 || index >= MAX_EFFECT_PER_AUDIO) {
-			wrenAbort("invalid effect index");
-			return;
-		}
-
-		let audio = getAudio();
-
-		if (type < EFFECT_TYPE_MIN || type > EFFECT_TYPE_MAX) {
-			wrenAbort("invalid effect type");
-			return;
-		}
-
-		if (audio.getEffectType(index) != type) {
-			wrenAbort(`effect at ${index} is not a ${EFFECT_TYPE_NAMES[type]}`);
-			return;
-		}
-
-		if (paramIndex < 0 || paramIndex >= 4) {
-			wrenAbort("invalid param index");
-			return;
-		}
-		
-		if (fadeTime < 0) {
-			wrenAbort("fade time must be positive");
-			return;
-		}
-
-		let effect = audio.effects[index];
-
-		if (effect.checkParam) {
-			let error = effect.checkParam(paramIndex, paramValue);
-			if (error) {
-				wrenAbort(error);
-				return;
-			}
-		}
-
-		effect.setParam(paramIndex, paramValue, fadeTime);
+		let voice = new Voice(ptr, audio, audioHandle, bus);
+		voices.set(ptr, voice);
 	},
 }, {
 	"volume"() {
-		wrenSetSlotDouble(0, masterGain.gain.value);
+		wrenSetSlotDouble(0, masterGain.gain.value / BASE_MASTER_GAIN);
 	},
 	"fadeVolume(_,_)"() {
 		for (let i = 1; i <= 2; i++) {
@@ -745,7 +1031,7 @@ addForeignClass("sock", "Audio", [
 			}
 		}
 
-		let volume = wrenGetSlotDouble(1);
+		let volume = wrenGetSlotDouble(1) * BASE_MASTER_GAIN;
 		let fade = wrenGetSlotDouble(2);
 
 		fadeVolume(masterGain, volume, fade);
@@ -765,20 +1051,12 @@ addForeignClass("sock", "Voice", [
 	"play()"() {
 		let voice = getVoice();
 		
-		if (voice.state === 0) {
-			voice.play();
-		} else if (voice.state == 2) {
-			voice.source.connect(voice.gainNode);
-			voice.state = 1;
-		}
+		voice.play();
 	},
 	"pause()"() {
 		let voice = getVoice();
 
-		if (voice.state === 1) {
-			voice.source.disconnect();
-			voice.state = 2;
-		}
+		voice.pause();
 	},
 	"isPaused"() {
 		let voice = getVoice();
@@ -791,22 +1069,10 @@ addForeignClass("sock", "Voice", [
 	},
 	"volume"() {
 		let voice = getVoice();
-		wrenSetSlotDouble(0, voice.gainNode.gain.value);
+		wrenSetSlotDouble(0, voice.gain.gain.value);
 	},
 	"fadeVolume(_,_)"() {
-		for (let i = 1; i <= 2; i++) {
-			if (wrenGetSlotType(i) !== 1) {
-				wrenAbort("args must be Nums");
-				return;
-			}
-		}
-
-		let volume = wrenGetSlotDouble(1);
-		let fade = wrenGetSlotDouble(2);
-
-		let voice = getVoice();
-
-		fadeVolume(voice.gainNode, volume, fade);
+		wrenFadeVolume(getVoice().gain);
 	},
 	"rate"() {
 		let voice = getVoice();
@@ -862,6 +1128,18 @@ addForeignClass("sock", "Voice", [
 
 		voice.source.loopStart = loopStart;
 	},
+	"setEffect_(_,_,_,_,_,_)"() {
+		wrenAudioSetEffect(getVoice());
+	},
+	"getEffect_(_)"() {
+		wrenAudioGetEffect(getVoice());
+	},
+	"getParam_(_,_,_)"() {
+		wrenAudioGetParam(getVoice());
+	},
+	"setParam_(_,_,_,_,_)"() {
+		wrenAudioSetParam(getVoice());
+	},
 });
 
 /**
@@ -869,6 +1147,7 @@ addForeignClass("sock", "Voice", [
  * @property {number} type
  * @property {AudioNode} input
  * @property {AudioNode[]} outputs if null, then 
+ * @property {() => void} [create]
  * @property {() => void} [setupGraph]
  * @property {(index: number) => number} getParam
  * @property {(index: number, value: number, fade?: number) => void} setParam

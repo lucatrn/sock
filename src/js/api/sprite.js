@@ -1,5 +1,5 @@
 import { addForeignClass } from "../foreign.js";
-import { glFilterNumberToString, glFilterStringToNumber, glWrapModeNumberToString, glWrapModeStringToNumber, GL_FILTER_MAP, GL_WRAP_MAP } from "../gl/api.js";
+import { glFilterNumberToString, glFilterStringToNumber, glWrapModeNumberToString, glWrapModeStringToNumber, GL_FILTER_MAP, GL_WRAP_MAP, wrenGlFilterStringToNumber, wrenGlWrapModeStringToNumber } from "../gl/api.js";
 import { gl } from "../gl/gl.js";
 import { SpriteBatcher } from "../gl/sprite-batcher.js";
 import { Texture } from "../gl/texture.js";
@@ -167,23 +167,21 @@ addForeignClass("sock", "Sprite", [
 		wrenSetSlotString(0, glFilterNumberToString(getSprite().filter));
 	},
 	"scaleFilter=(_)"() {
-		if (wrenGetSlotType(1) !== 6) {
-			wrenAbort("scaleFilter must be a string");
-			return;
-		}
+		let filter = wrenGlFilterStringToNumber(1);
 
-		getSprite().setFilter(glFilterStringToNumber(wrenGetSlotString(1)));
+		if (filter != null) {
+			getSprite().setFilter(filter);
+		}
 	},
 	"wrapMode"() {
 		wrenSetSlotString(0, glWrapModeNumberToString(getSprite().wrap));
 	},
 	"wrapMode=(_)"() {
-		if (wrenGetSlotType(1) !== 6) {
-			wrenAbort("wrapMode must be a string");
-			return;
-		}
+		let wrapMode = wrenGlWrapModeStringToNumber(1);
 
-		getSprite().setWrap(glWrapModeStringToNumber(wrenGetSlotString(1)));
+		if (wrapMode != null) {
+			getSprite().setWrap(wrapMode);
+		}
 	},
 	"beginBatch()"() {
 		let spr = getSprite();
@@ -315,16 +313,20 @@ addForeignClass("sock", "Sprite", [
 		wrenSetSlotString(0, glFilterNumberToString(defaultFilter));
 	},
 	"defaultScaleFilter=(_)"() {
-		let name = wrenGetSlotString(1);
-		
-		defaultFilter = glFilterStringToNumber(name);
+		let filter = wrenGlFilterStringToNumber(1);
+
+		if (filter != null) {
+			defaultFilter = filter;
+		}
 	},
 	"defaultWrapMode"() {
 		wrenSetSlotString(0, glWrapModeNumberToString(defaultWrap));
 	},
 	"defaultWrapMode=(_)"() {
-		let name = wrenGetSlotString(1);
+		let wrapMode = wrenGlWrapModeStringToNumber(1);
 
-		defaultWrap = glWrapModeStringToNumber(name);
+		if (wrapMode != null) {
+			defaultWrap = wrapMode;
+		}
 	},
 });

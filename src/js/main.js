@@ -16,7 +16,7 @@ import { loadEmscripten, wrenAddImplicitImportModule, wrenCall, wrenErrorString,
 import { makeCallHandles } from "./vm-call-handles.js";
 import { initSystemFont } from "./system-font.js";
 import { initJavaScriptModule } from "./api/javascript.js";
-import { createAudioContext, initAudioModule, stopAllAudio } from "./api/audio.js";
+import { createAudioContext, initAudioModule, loadAudioModule, stopAllAudio } from "./api/audio.js";
 
 /** @type {number} */
 let prevTime = null;
@@ -72,6 +72,9 @@ async function init() {
 	mainFramebuffer.updateResolution();
 
 	Shader.compileAll();
+
+	// Load modules.
+	loadAudioModule();
 
 	// Load main game module
 	let gameMainScript = await promGameMainScript;

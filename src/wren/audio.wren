@@ -15,13 +15,15 @@
 //#define PARAM_ECHO_DECAY 1
 //#define PARAM_ECHO_VOLUME 2
 
+//#define PARAM_REVERB_VOLUME 0
+
 //#define FILTER_TYPE_LOWPASS 0
 //#define FILTER_TYPE_HIGHPASS 1
 //#define FILTER_TYPE_BANDPASS 2
 
 //#define FILTER_DEFAULT_RESONANCE 1
 
-class AudioEffects {
+class AudioControls {
 	// Returns the type of the effect at the given index.
 	// getEffect_(index)
 
@@ -75,6 +77,11 @@ class AudioEffects {
 		setEffect_(i, TYPE_ECHO, d, k, m, 0)
 		return EchoEffect.new(this, i)
 	}
+
+	addReverb(i) {
+		setEffect_(i, TYPE_REVERB, 1, 0, 0, 0)
+		return ReverbEffect.new(this, i)
+	}
 }
 
 class FilterEffect {
@@ -113,20 +120,45 @@ class EchoEffect {
 	index { _i }
 	remove() { _o.removeEffect(_i) }
 
-	volume { _o.getParam_(_i, TYPE_FILTER, PARAM_ECHO_VOLUME) }
-	delay { _o.getParam_(_i, TYPE_FILTER, PARAM_ECHO_DELAY) }
-	decay { _o.getParam_(_i, TYPE_FILTER, PARAM_ECHO_DECAY) }
+	volume { _o.getParam_(_i, TYPE_ECHO, PARAM_ECHO_VOLUME) }
+	volume=(v) { fadeVolume(v, 0) }
+	fadeVolume(v, t) { _o.setParam_(_i, TYPE_ECHO, PARAM_ECHO_VOLUME, v, t) }
+
+	delay { _o.getParam_(_i, TYPE_ECHO, PARAM_ECHO_DELAY) }
+	delay=(v) { _o.setParam_(_i, TYPE_ECHO, PARAM_ECHO_DELAY, v, 0) }
+	
+	decay { _o.getParam_(_i, TYPE_ECHO, PARAM_ECHO_DECAY) }
+	decay=(v) { _o.setParam_(_i, TYPE_ECHO, PARAM_ECHO_DECAY, v, 0) }
 }
 
-// foreign class Bus is AudioEffects {
-// 	construct new(id) {}
-// 
-// 	foreign volume
-// 	volume=(v) { fadeVolume(v, 0) }
-// 	foreign fadeVolume(v, t)
-// }
+class ReverbEffect {
+	construct new(o, i) {
+		_o = o
+		_i = i
+	}
 
-foreign class Audio is AudioEffects {
+	index { _i }
+	remove() { _o.removeEffect(_i) }
+
+	volume { _o.getParam_(_i, TYPE_REVERB, PARAM_REVERB_VOLUME) }
+	volume=(v) { fadeVolume(v, 0) }
+	fadeVolume(v, t) { _o.setParam_(_i, TYPE_REVERB, PARAM_REVERB_VOLUME, v, t) }
+}
+
+foreign class AudioBus is AudioControls {
+	construct new() {}
+
+	foreign volume
+	volume=(v) { fadeVolume(v, 0) }
+	foreign fadeVolume(v, t)
+
+	foreign getEffect_(index)
+	foreign setEffect_(index, type, param0, param1, param2, param3)
+	foreign getParam_(index, type, param)
+	foreign setParam_(index, type, param, value, time)
+}
+
+foreign class Audio {
 	construct new() {}
 
 	static load(p) {
@@ -141,37 +173,33 @@ foreign class Audio is AudioEffects {
 	foreign duration
 
 	foreign voice()
+	foreign voice(bus)
 
 	play() { voice().play() }
-	play(vol) {
+	play(bus) { voice(bus).play() }
+	playAtVolume(a) {
 		var v = voice()
-		v.volume = vol
+		v.volume = a
+		return v.play()
+	}
+	playAtVolume(b, a) {
+		var v = voice(b)
+		v.volume = a
 		return v.play()
 	}
 
-	foreign getEffect_(index)
-	foreign setEffect_(index, type, param0, param1, param2, param3)
-	foreign getParam_(index, type, param)
-	foreign setParam_(index, type, param, value, time)
-
 	foreign static volume
 	static volume=(v) { fadeVolume(v, 0) }
-	foreign static fadeVolume(v, t) 
-
-	// static master { __m }
-
-	static init_() {
-		// __m = Bus.new(0)
-	}
+	foreign static fadeVolume(v, t)
 }
 
-foreign class Voice {
+foreign class Voice is AudioControls {
 	foreign play()
 	foreign pause()
 	foreign stop()
 	foreign isPaused
-
-	togglePaused() { isPaused ? play() : pause() }
+	isPaused=(p) { p ? pause() : play() }
+	togglePaused() { isPaused = !isPaused }
 
 	foreign volume
 	volume=(v) { fadeVolume(v, 0) }
@@ -193,18 +221,26 @@ foreign class Voice {
 	foreign loop=(v)
 	foreign loopStart
 	foreign loopStart=(v)
-}
 
-Audio.init_()
+	foreign getEffect_(index)
+	foreign setEffect_(index, type, param0, param1, param2, param3)
+	foreign getParam_(index, type, param)
+	foreign setParam_(index, type, param, value, time)
+}
 
 
 //#if NEVER
-	Audio.volume = 0.1
 
-	Voice.stopAll()
 
 	var clip = Audio.load("chiptune.wav")
 
-	clip.remove
+	var busMusic = Bus.new("music")
+
+	clip.play()
+	clip.playAtVolume(0.2)
+
+	var voice = clip.voice()
+	var lp = voice.addLowpass(0, 1024)
+	var
 	
 //#endif

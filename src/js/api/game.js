@@ -1,12 +1,11 @@
 import { canvas } from "../canvas.js";
-import { Color } from "../color.js";
 import { device } from "../device.js";
 import { addClassForeignStaticMethods } from "../foreign.js";
-import { glFilterStringToNumber } from "../gl/api.js";
+import { wrenGlFilterStringToNumber } from "../gl/api.js";
 import { mainFramebuffer } from "../gl/framebuffer.js";
 import { createElement } from "../html.js";
 import { computedLayout, layoutOptions, queueLayout } from "../layout.js";
-import { systemFontDraw, SYSTEM_FONT } from "../system-font.js";
+import { systemFontDraw } from "../system-font.js";
 import { callHandle_init_2, callHandle_update_0, callHandle_update_2 } from "../vm-call-handles.js";
 import { wrenAbort, getSlotBytes, wrenCall, wrenEnsureSlots, wrenGetSlotBool, wrenGetSlotDouble, wrenGetSlotHandle, wrenGetSlotString, wrenGetSlotType, wrenGetVariable, wrenSetSlotBool, wrenSetSlotDouble, wrenSetSlotHandle, wrenSetSlotNull, wrenSetSlotString } from "../vm.js";
 
@@ -31,6 +30,11 @@ addClassForeignStaticMethods("sock", "Game", {
 		wrenSetSlotString(0, title);
 	},
 	"title=(_)"() {
+		if (wrenGetSlotType(1) !== 6) {
+			wrenAbort("title must be a String");
+			return;
+		}
+
 		document.title = title = wrenGetSlotString(1);
 	},
 	"layoutChanged_(_,_,_,_,_)"() {
@@ -70,11 +74,11 @@ addClassForeignStaticMethods("sock", "Game", {
 		return mainFramebuffer.filter ? "nearest" : "linear";
 	},
 	"scaleFilter=(_)"() {
-		let name = wrenGetSlotString(1);
+		let filter = wrenGlFilterStringToNumber(1);
 
-		let filter = glFilterStringToNumber(name);
-
-		mainFramebuffer.setFilter(filter);
+		if (filter != null) {
+			mainFramebuffer.setFilter(filter);
+		}
 	},
 	"fullscreenAllowed"() {
 		wrenSetSlotBool(0, document.fullscreenEnabled);

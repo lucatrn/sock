@@ -233,7 +233,7 @@ export function wrenGetSlotType(slot) {
  */
 export function wrenGetSlotBool(slot) {
 	return Module.ccall("wrenGetSlotBool",
-		"booleam",
+		"boolean",
 		["number", "number"],
 		[vm, slot]
 	);
@@ -347,6 +347,19 @@ export function wrenGetSlotForeign(slot) {
 		"number",
 		["number", "number"],
 		[vm, slot]
+	);
+}
+
+/**
+ * @param {number} slot
+ * @param {number} classSlot
+ * @returns {boolean}
+ */
+export function wrenGetSlotIsInstanceOf(slot, classSlot) {
+	return Module.ccall("wrenGetSlotIsInstanceOf",
+		"boolean",
+		["number", "number", "number"],
+		[vm, slot, classSlot]
 	);
 }
 

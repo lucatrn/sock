@@ -2024,7 +2024,7 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 		const char* path = wrenGetSlotString(vm, 1);
 
 		int64_t len;
-		const char* data = readAsset(path, &len);
+		char* data = readAsset(path, &len);
 		if (!data) {
 			wrenAbort(vm, quitError);
 			quitError = NULL;
@@ -2787,6 +2787,15 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 				if (isStatic) {
 					if (strcmp(signature, "clear(_,_,_)") == 0) return wren_Graphics_clear3;
 				}
+			} else if (strcmp(className, "AudioBus") == 0) {
+				if (!isStatic) {
+					if (strcmp(signature, "volume") == 0) return wren_audioBus_volume;
+					if (strcmp(signature, "fadeVolume(_,_)") == 0) return wren_audioBus_fadeVolume;
+					if (strcmp(signature, "setEffect_(_,_,_,_,_,_)") == 0) return wren_audioBus_setEffect_;
+					if (strcmp(signature, "getEffect_(_)") == 0) return wren_audioBus_getEffect_;
+					if (strcmp(signature, "getParam_(_,_,_)") == 0) return wren_audioBus_getParam_;
+					if (strcmp(signature, "setParam_(_,_,_,_,_)") == 0) return wren_audioBus_setParam_;
+				}
 			} else if (strcmp(className, "Audio") == 0) {
 				if (isStatic) {
 					if (strcmp(signature, "volume") == 0) return wren_Audio_volume;
@@ -2795,10 +2804,7 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 					if (strcmp(signature, "load_(_)") == 0) return wren_audio_load_;
 					if (strcmp(signature, "duration") == 0) return wren_audio_duration;
 					if (strcmp(signature, "voice()") == 0) return wren_audio_voice;
-					if (strcmp(signature, "setEffect_(_,_,_,_,_,_)") == 0) return wren_audio_setEffect_;
-					if (strcmp(signature, "getEffect_(_)") == 0) return wren_audio_getEffect_;
-					if (strcmp(signature, "getParam_(_,_,_)") == 0) return wren_audio_getParam_;
-					if (strcmp(signature, "setParam_(_,_,_,_,_)") == 0) return wren_audio_setParam_;
+					if (strcmp(signature, "voice(_)") == 0) return wren_audio_voiceBus;
 				}
 			} else if (strcmp(className, "Voice") == 0) {
 				if (!isStatic) {
@@ -2814,6 +2820,10 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 					if (strcmp(signature, "loop=(_)") == 0) return wren_voice_loopSet;
 					if (strcmp(signature, "loopStart") == 0) return wren_voice_loopStart;
 					if (strcmp(signature, "loopStart=(_)") == 0) return wren_voice_loopStartSet;
+					if (strcmp(signature, "setEffect_(_,_,_,_,_,_)") == 0) return wren_voice_setEffect_;
+					if (strcmp(signature, "getEffect_(_)") == 0) return wren_voice_getEffect_;
+					if (strcmp(signature, "getParam_(_,_,_)") == 0) return wren_voice_getParam_;
+					if (strcmp(signature, "setParam_(_,_,_,_,_)") == 0) return wren_voice_setParam_;
 				}
 			} else if (strcmp(className, "Camera") == 0) {
 				if (isStatic) {
@@ -2894,12 +2904,15 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 				if (strcmp(className, "Sprite") == 0) {
 					methods.allocate = wren_spriteAllocate;
 					methods.finalize = wren_spriteFinalize;
+				} else if (strcmp(className, "AudioBus") == 0) {
+					methods.allocate = wren_audioBusAllocate;
+					methods.finalize = wren_audioBusFinalize;
 				} else if (strcmp(className, "Audio") == 0) {
 					methods.allocate = wren_audioAllocate;
 					methods.finalize = wren_audioFinalize;
 				} else if (strcmp(className, "Voice") == 0) {
 					methods.allocate = wren_voiceAllocate;
-					methods.allocate = wren_voiceFinalize;
+					methods.finalize = wren_voiceFinalize;
 				}
 			}
 		}
