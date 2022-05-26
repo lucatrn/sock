@@ -33,31 +33,7 @@ foreign class Color {
 
 	static hsl(h, s, l) { hsl(h, s, l, 1) }
 
-	static hsl(h, s, l, a) {
-		s = s.clamp(0, 1)
-		l = l.clamp(0, 1)
-
-		if (s == 0) return new(l, l, l, a)
-
-		h = h - h.floor
-		var q = l < 0.5 ? l * (1 + s) : l + s - l * s
-		var p = 2 * l - q
-		
-		return new(
-			hsl_(p, q, h + 0.3333),
-			hsl_(p, q, h),
-			hsl_(p, q, h - 0.3333),
-			a
-		)
-	}
-
-	static hsl_(p, q, t) {
-		t = t < 0 ? t + 1 : (t > 1 ? t - 1 : t)
-		if (t < 0.1667) return p + (q - p) * 6 * t
-		if (t <= 0.5) return q
-		if (t < 0.6667) return p + (q - p) * (0.6667 - t) * 6
-		return p
-	}
+	foreign static hsl(h, s, l, a)
 
 	static hex(n) {
 		var c = new()

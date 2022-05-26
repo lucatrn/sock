@@ -22,6 +22,7 @@ In order of importance.
 ### Win32
 
 * Rest of keyboard input
+* `Input.localize()`
 * Gamepad Input
 * Storage API
 

@@ -634,6 +634,58 @@ void wren_colorAllocate(WrenVM* vm) {
 	color->packed = 0xff000000U;
 }
 
+float wren_color_hsl_helper(float p, float q, float t) {
+	t = t < 0.0f ? t + 1.0f : (t > 1.0f ? t - 1.0f : t);
+	if (t <= 0.166667f) return p + (q - p) * 6.0f * t;
+	if (t <= 0.5f) return q;
+	if (t < 0.666667f) return p + (q - p) * (0.666666f - t) * 6.0f;
+	return p;
+}
+
+void wren_color_hsl(WrenVM* vm) {
+	for (int i = 1; i <= 4; i++) {
+		if (wrenGetSlotType(vm, i) != WREN_TYPE_NUM) {
+			wrenAbort(vm, "args must be Nums");
+			return;
+		}
+	}
+
+	Color* color = (Color*)wrenSetSlotNewForeign(vm, 0, 0, sizeof(Color));
+
+	float h = (float)wrenGetSlotDouble(vm, 1);
+	float s = (float)wrenGetSlotDouble(vm, 2);
+	float l = (float)wrenGetSlotDouble(vm, 3);
+	float a = (float)wrenGetSlotDouble(vm, 4);
+
+	float r, g, b;
+
+	s = s < 0.0f ? 0.0f : (s > 1.0f ? 1.0f : s);
+	l = l < 0.0f ? 0.0f : (l > 1.0f ? 1.0f : l);
+
+	if (s == 0)
+	{
+		r = l;
+		g = l;
+		b = l;
+	}
+	else
+	{
+		h = h - floorf(h);
+
+		float q = l < 0.5f ? l * (1.0f + s) : l + s - l * s;
+		float p = 2.0f * l - q;
+
+		r = wren_color_hsl_helper(p, q, h + 0.333333f);
+		g = wren_color_hsl_helper(p, q, h);
+		b = wren_color_hsl_helper(p, q, h - 0.333333f);
+	}
+
+	color->parts.r = (uint8_t)(r * 255.999f);
+	color->parts.g = (uint8_t)(g * 255.999f);
+	color->parts.b = (uint8_t)(b * 255.999f);
+	color->parts.a = (uint8_t)(a * 255.999f);
+}
+
 void wren_color_getR(WrenVM* vm) { wrenSetSlotDouble(vm, 0, ((Color*)wrenGetSlotForeign(vm, 0))->parts.r / 255.0); }
 void wren_color_getG(WrenVM* vm) { wrenSetSlotDouble(vm, 0, ((Color*)wrenGetSlotForeign(vm, 0))->parts.g / 255.0); }
 void wren_color_getB(WrenVM* vm) { wrenSetSlotDouble(vm, 0, ((Color*)wrenGetSlotForeign(vm, 0))->parts.b / 255.0); }
@@ -735,7 +787,9 @@ WrenForeignMethodFn wren_coreBindForeignMethod(WrenVM* vm, const char* moduleNam
 				if (strcmp(signature, "setFromString(_)") == 0) return wren_array_copyFromString;
 			}
 		} else if (strcmp(className, "Color") == 0) {
-			if (!isStatic) {
+			if (isStatic) {
+				if (strcmp(signature, "hsl(_,_,_,_)") == 0) return wren_color_hsl;
+			}else {
 				if (strcmp(signature, "r") == 0) return wren_color_getR;
 				if (strcmp(signature, "g") == 0) return wren_color_getG;
 				if (strcmp(signature, "b") == 0) return wren_color_getB;
