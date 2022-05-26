@@ -1,6 +1,5 @@
 import { addClassForeignStaticMethods } from "../foreign.js";
 import { PolygonBatcher } from "../gl/polygon-batcher.js";
-import { computedLayout } from "../layout.js";
 
 let b = new PolygonBatcher();
 

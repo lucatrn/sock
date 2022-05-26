@@ -33,12 +33,15 @@ async function init() {
 	// Get scripts in parallel.
 	let promSockScript = httpGET("sock_web.wren", "arraybuffer");
 	let promGameMainScript = httpGET("assets/main.wren", "arraybuffer");
-
+	
 	// Load Wren VM.
 	await loadEmscripten();
-
+	
 	let promSystemFont = initSystemFont();
 	makeCallHandles();
+
+	// Prepare preview / core init.
+	redoLayout();
 
 	// Wait for user click.
 	await playClicked();
@@ -60,7 +63,6 @@ async function init() {
 	wrenAddImplicitImportModule("sock");
 
 	// Init sock modules.
-	redoLayout();
 	initTimeModule();
 	initAssetModule();
 	initGameModule();

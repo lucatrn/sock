@@ -5,7 +5,7 @@ import { SpriteBatcher } from "./gl/sprite-batcher.js";
 import { httpGETImage } from "./network/http.js";
 import { loadCameraMatrix, saveCameraMatrix, setCameraMatrixTopLeft } from "./api/camera.js";
 import { Color } from "./color.js";
-import { computedLayout } from "./layout.js";
+import { internalResolutionWidth } from "./layout.js";
 
 // TODO: most of this file will end up in C eventually.
 
@@ -59,7 +59,7 @@ export function systemFontDraw(s, cornerX, cornerY, color) {
 
 	let dx = cornerX;
 	let dy = cornerY;
-	let screenWidth = computedLayout.rw - 8;
+	let screenWidth = internalResolutionWidth - 8;
 
 	for (let i = 0; i < s.length; i++) {
 		let c = s[i];

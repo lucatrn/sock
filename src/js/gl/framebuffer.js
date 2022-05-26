@@ -1,5 +1,4 @@
-import { canvas } from "../canvas.js";
-import { computedLayout, layoutOptions } from "../layout.js";
+import { internalResolutionHeight, internalResolutionWidth, viewportHeight, viewportOffsetX, viewportOffsetY, viewportWidth } from "../layout.js";
 import { gl } from "./gl.js";
 import { Shader } from "./shader.js";
 
@@ -68,8 +67,8 @@ export class Framebuffer {
 			gl.TEXTURE_2D,
 			0,
 			gl.RGBA,
-			computedLayout.rw,
-			computedLayout.rh,
+			internalResolutionWidth,
+			internalResolutionHeight,
 			0,
 			gl.RGBA,
 			gl.UNSIGNED_BYTE,
@@ -83,7 +82,7 @@ export class Framebuffer {
 		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
 
 		gl.bindRenderbuffer(gl.RENDERBUFFER, this.depthBuffer);
-		gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_COMPONENT16, computedLayout.rw, computedLayout.rh);
+		gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_COMPONENT16, internalResolutionWidth, internalResolutionHeight);
 
 		gl.bindFramebuffer(gl.FRAMEBUFFER, this.framebuffer);
 		gl.framebufferTexture2D(
@@ -115,17 +114,19 @@ export class Framebuffer {
 	bind() {
 		gl.bindFramebuffer(gl.FRAMEBUFFER, this.framebuffer);
 
-		gl.viewport(0, 0, computedLayout.rw, computedLayout.rh);
+		gl.viewport(0, 0, internalResolutionWidth, internalResolutionHeight);
 	}
 
 	unbind() {
 		gl.bindFramebuffer(gl.FRAMEBUFFER, null);
 
+		let scale = devicePixelRatio;
+
 		gl.viewport(
-			computedLayout.x,
-			computedLayout.y,
-			computedLayout.w,
-			computedLayout.h,
+			viewportOffsetX * scale,
+			viewportOffsetY * scale,
+			viewportWidth * scale,
+			viewportHeight * scale,
 		);
 	}
 

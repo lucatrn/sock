@@ -1,7 +1,7 @@
 import { canvas } from "../canvas.js";
 import { addClassForeignStaticMethods } from "../foreign.js";
 import { keyboardLayout } from "../keyboard-layout.js";
-import { computedLayout } from "../layout.js";
+import { viewportOffsetX, viewportOffsetY, viewportScale } from "../layout.js";
 import { callHandle_updateMouse_3, callHandle_update_2 } from "../vm-call-handles.js";
 import { wrenAbort, wrenCall, wrenEnsureSlots, wrenGetSlotBool, wrenGetSlotDouble, wrenGetSlotHandle, wrenGetSlotString, wrenGetSlotType, wrenGetVariable, wrenSetSlotDouble, wrenSetSlotHandle, wrenSetSlotNull, wrenSetSlotString } from "../vm.js";
 
@@ -250,8 +250,8 @@ function updateMousePosition(x, y) {
 }
 
 function recalculateMousePosition() {
-	mouseExactX = (mouseRawX - computedLayout.x) / computedLayout.s;
-	mouseExactY = (mouseRawY - computedLayout.y) / computedLayout.s;
+	mouseExactX = (mouseRawX - viewportOffsetX) / viewportScale;
+	mouseExactY = (mouseRawY - viewportOffsetY) / viewportScale;
 	mouseX = Math.floor(mouseExactX);
 	mouseY = Math.floor(mouseExactY);
 }

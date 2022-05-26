@@ -1,30 +1,64 @@
 import { canvas } from "./canvas.js";
 
 /**
- * The position of the container/canvas. `s` is the scale factor.
- * - `sw` `sh`: screen width/height.
- * - `rw` `rh`: Internal resolution width/height.
- * - `x` `y`: top/left offsets of viewport due to fixed resolution
- * - `w` `h`: width/height of viewport. May be smaller than screen width/height due to fixed resolution.
- * - `s`: Scale factor of viewport (0, Infinite)
+ * Total window/screen width.
  */
-export let computedLayout = {
-	rw: 0,
-	rh: 0,
-	sw: 0,
-	sh: 0,
-	x: 0,
-	y: 0,
-	w: 1,
-	h: 1,
-	s: 1,
-};
+export let screenWidth = 0;
+
+/**
+ * Total window/screen height.
+ */
+export let screenHeight = 0;
+
+/**
+ * The game's internal resolution width, may be smaller than screen width.
+ */
+export let internalResolutionWidth = 0;
+
+/**
+ * The game's internal resolution height, may be smaller than screen height.
+ */
+export let internalResolutionHeight = 0;
+
+/**
+ * Left offset of viewport, in logical pixels.  
+ * May be non-zero due to fixed resolution.
+ */
+export let viewportOffsetX = 0;
+
+/**
+ * Top offset of viewport, in logical pixels.  
+ * May be non-zero due to fixed resolution.
+ */
+export let viewportOffsetY = 0;
+
+/**
+ * Width of viewport in screen pixels, in logical pixels.  
+ * May be smaller than screen size due to fixed resolution.  
+ * May be larger than internal resolution to fixed resolution scaling.
+ */
+export let viewportWidth = 1;
+
+/**
+ * Height of viewport in screen pixels, in logical pixels.  
+ * May be smaller than screen size due to fixed resolution.  
+ * May be larger than internal resolution to fixed resolution scaling.
+ */
+export let viewportHeight = 1;
+
+/**
+ * Scale factor of viewport (0, Infinite), using logical pixels.
+ */
+export let viewportScale = 1;
 
 /**
  * Used by client to configure internal resolution and computed layout.
  */
 export let layoutOptions = {
 	pixelScaling: false,
+	/**
+	 * @type {null|[number, number]}
+	 */
 	resolution: null,
 	maxScale: Infinity,
 };
@@ -45,9 +79,16 @@ export function finalizeLayout() {
 }
 
 export function redoLayout() {
-	let screenWidth = computedLayout.sw = canvas.width = innerWidth;
-	let screenHeight = computedLayout.sh = canvas.height = innerHeight;
+	screenWidth = innerWidth;
+	screenHeight = innerHeight;
 
+	let pixeRatio = devicePixelRatio;
+	canvas.width = screenWidth * pixeRatio;
+	canvas.height = screenHeight * pixeRatio;
+
+	canvas.style.width = screenWidth + "px";
+	canvas.style.height = screenHeight + "px";
+	
 	let resx, resy, scale;
 	let res = layoutOptions.resolution;
 	if (res) {
@@ -69,19 +110,16 @@ export function redoLayout() {
 		scale = 1;
 	}
 
-	computedLayout.rw = resx;
-	computedLayout.rh = resy;
-	computedLayout.s = scale;
+	internalResolutionWidth = resx;
+	internalResolutionHeight = resy;
+	viewportScale = scale;
 	
-	let w = computedLayout.w = Math.floor(scale * resx);
-	let h = computedLayout.h = Math.floor(scale * resy);
-	computedLayout.x = Math.floor((screenWidth - w) / 2);
-	computedLayout.y = Math.floor((screenHeight - h) / 2);
+	viewportWidth = Math.floor(scale * resx);
+	viewportHeight = Math.floor(scale * resy);
+	viewportOffsetX = Math.floor((screenWidth - viewportWidth) / 2);
+	viewportOffsetY = Math.floor((screenHeight - viewportHeight) / 2);
 }
 
 addEventListener("resize", () => {
 	queueLayout();
 });
-
-computedLayout.rw = computedLayout.sw = computedLayout.w = canvas.width = innerWidth;
-computedLayout.rh = computedLayout.sh = computedLayout.h = canvas.height = innerHeight;

@@ -4,7 +4,7 @@ import { addClassForeignStaticMethods } from "../foreign.js";
 import { wrenGlFilterStringToNumber } from "../gl/api.js";
 import { mainFramebuffer } from "../gl/framebuffer.js";
 import { createElement } from "../html.js";
-import { computedLayout, layoutOptions, queueLayout } from "../layout.js";
+import { layoutOptions, queueLayout, screenHeight, screenWidth } from "../layout.js";
 import { systemFontDraw } from "../system-font.js";
 import { callHandle_init_2, callHandle_update_0, callHandle_update_2 } from "../vm-call-handles.js";
 import { wrenAbort, getSlotBytes, wrenCall, wrenEnsureSlots, wrenGetSlotBool, wrenGetSlotDouble, wrenGetSlotHandle, wrenGetSlotString, wrenGetSlotType, wrenGetVariable, wrenSetSlotBool, wrenSetSlotDouble, wrenSetSlotHandle, wrenSetSlotNull, wrenSetSlotString } from "../vm.js";
@@ -271,8 +271,8 @@ export function initGameModule() {
 function updateGameModuleResolution(callHandle) {
 	wrenEnsureSlots(3);
 	wrenSetSlotHandle(0, handle_Game);
-	wrenSetSlotDouble(1, computedLayout.sw);
-	wrenSetSlotDouble(2, computedLayout.sh);
+	wrenSetSlotDouble(1, screenWidth);
+	wrenSetSlotDouble(2, screenHeight);
 	wrenCall(callHandle || callHandle_update_2);
 }
 

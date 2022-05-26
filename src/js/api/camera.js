@@ -1,7 +1,6 @@
 import { addForeignMethod } from "../foreign.js";
-import { computedLayout } from "../layout.js";
-import { wrenCall, wrenEnsureSlots, wrenGetSlotDouble, wrenGetSlotHandle, wrenGetVariable, wrenSetSlotHandle } from "../vm.js";
-import { callHandle_init_0 } from "../vm-call-handles.js";
+import { internalResolutionHeight, internalResolutionWidth } from "../layout.js";
+import { wrenGetSlotDouble } from "../vm.js";
 
 export let cameraCenterX = 0;
 export let cameraCenterY = 0;
@@ -13,8 +12,8 @@ export function getCameraMatrix() {
 	if (cameraMatrixDirty) {
 		cameraMatrixDirty = false;
 
-		let sx =  2 / computedLayout.rw;
-		let sy = -2 / computedLayout.rh;
+		let sx =  2 / internalResolutionWidth;
+		let sy = -2 / internalResolutionHeight;
 
 		cameraMatrix[0] = sx;
 		cameraMatrix[1] = 0;
@@ -49,8 +48,8 @@ export function loadCameraMatrix(saved) {
  * @param {number} y
  */
 export function setCameraMatrixTopLeft(x, y) {
-	cameraCenterX = x + computedLayout.rw/2;
-	cameraCenterY = y + computedLayout.rh/2;
+	cameraCenterX = x + internalResolutionWidth/2;
+	cameraCenterY = y + internalResolutionHeight/2;
 	cameraScale = 1;
 	cameraMatrixDirty = true;
 }
