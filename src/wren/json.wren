@@ -29,7 +29,7 @@ class JSON {
 	}
 
 	construct new_(s) {
-		_w = s
+		_t = s
 		_b = s.bytes
 		_i = 0
 		_n = _b.count
@@ -41,6 +41,9 @@ class JSON {
 	// Abort if have no more bytes to read.
 	CHECK_EOF() {
 		if (_i >= _n) Fiber.abort("unexpected end of JSON")
+	}
+	CHECK_EOF(a) {
+		if (_i + a >= _n) Fiber.abort("unexpected end of JSON")
 	}
 
 	// Skip and abort if have no more bytes to read.
@@ -73,7 +76,7 @@ class JSON {
 
 	// Abort and show file info.
 	ABORT(m) {
-		Fiber.abort("%(m) '%(_w[(_i)..(_i + 9).min(_n)].replace("\n", " "))..'")
+		Fiber.abort("%(m) '%(_t[(_i)...(_i + 9).min(_n)].replace("\n", " "))..'")
 	}
 
 	// Parse out JSON value at current position.
@@ -311,7 +314,7 @@ class JSON {
 			// Closing '"'.
 			if (c == 34) break
 			
-			// Escape with '/'.
+			// Escape with '\'.
 			if (c == 92) {
 				CHECK_EOF()
 				c = _b[_i]
@@ -327,6 +330,15 @@ class JSON {
 					c = 13
 				} else if (c == 116) {
 					c = 9
+				} else if (c == 117) {
+					// \uXXXX
+					CHECK_EOF(4)
+					var r = _t[_i..(_i + 3)]
+					c = Num.fromString("0x" + r)
+					if (!c) ABORT("invalid hex %(r)")
+					s.add(String.fromCodePoint(c))
+					_i = _i + 4
+					continue
 				}
 			}
 
@@ -346,7 +358,15 @@ class JSON {
 	}
 
 	static toString_(sb, x) {
-		if (x is Null || x is Num || x is Bool) {
+		if (x is Num) {
+			if (x.isInfinity) {
+				sb.add("[\"»Num\",\"infinity\"]")
+			} else if (x.isNan) {
+				sb.add("[\"»Num\",\"nan\"]")
+			} else {
+				sb.add(x)
+			}
+		} else if (x is Null || x is Bool) {
 			sb.add(x)
 		} else if (x is String) {
 			addString_(sb, x)
@@ -400,6 +420,15 @@ class JSON {
 				sb.add("\\f")
 			} else if (b == 13) {
 				sb.add("\\r")
+			} else if (b < 32) {
+				sb.add("\\u00")
+				if (b < 16) {
+					sb.addByte(48)
+				} else {
+					sb.addByte(49)
+					b = b & 15
+				}
+				sb.addByte(b <= 9 ? 48+b : 87+b)
 			} else {
 				if (b == 34 || b == 92) {
 					sb.addByte(92)
@@ -444,5 +473,4 @@ JSON.init_()
 
 JSON.register(Array)
 JSON.register(Vec)
-JSON.register(Color)
 JSON.register(Transform)

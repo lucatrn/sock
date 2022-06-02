@@ -81,25 +81,19 @@ foreign class Sprite {
 
 	draw(a) { draw(a.x, a.y) }
 
-	draw(x, y) { draw_(x, y, width, height, 0xffffffff) }
+	draw(x, y) { draw(x, y, width, height, #fff) }
 
-	draw(x, y, c) { draw_(x, y, width, height, c is Num ? c : c.uint32) }
+	draw(x, y, c) { draw(x, y, width, height, c) }
 	
-	draw(x, y, w, h) { draw_(x, y, w, h, 0xffffffff) }
+	draw(x, y, w, h) { draw(x, y, w, h, #fff) }
 
-	draw(x, y, w, h, c) { draw_(x, y, w, h, c is Num ? c : c.uint32) }
+	draw(x, y, u, v, uw, vh) { draw(x, y, width, height, u, v, uw, vh, #fff) }
 
-	draw(x, y, u, v, uw, vh) { draw_(x, y, width, height, u, v, uw, vh, 0xffffffff) }
+	draw(x, y, w, h, u, v, uw, vh) { draw(x, y, w, h, u, v, uw, vh, #fff) }
 
-	draw(x, y, w, h, u, v, uw, vh) { draw_(x, y, w, h, u, v, uw, vh, 0xffffffff) }
+	foreign draw(x, y, w, h, c)
 
-
-	// Low level functions or common use cases.
-	// All paramters are doubles.
-
-	foreign draw_(x, y, w, h, c)
-
-	foreign draw_(x, y, w, h, u, v, uw, vh, c)
+	foreign draw(x, y, w, h, u, v, uw, vh, c)
 
 
 	// // Low level drawing for complex draw.

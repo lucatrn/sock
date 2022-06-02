@@ -8,15 +8,15 @@ import { gl } from "./gl.js";
 export class PrimitiveBatcher {
 	constructor() {
 		/**
+		 * Number of vertices we can fit.
 		 * @protected
 		 */
-		this._capacity = 256;
+		this._capacity = 128;
 		/**
-		 * The vertex data buffer, 16bytes per vertex:
-		 * 
+		 * Vertex data array.
 		 * ```
-		 *  x     y     z     rgba
-		 * [----][----][----][----]
+		 *  x     y     z     rgba  u     v
+		 * [----][----][----][----][----][----]
 		 * ```
 		 * @protected
 		 */
@@ -40,14 +40,17 @@ export class PrimitiveBatcher {
 		/**
 		 * @protected
 		 */
-		this._buffer = gl.createBuffer();
-		gl.bindBuffer(gl.ARRAY_BUFFER, this._buffer);
-		gl.bufferData(gl.ARRAY_BUFFER, this._array.byteLength, gl.DYNAMIC_DRAW);
+		this._vertexBuffer = gl.createBuffer();
+		/**
+		 * The number of vertices we can fit in the vertex buffer.
+		 * @protected
+		 */
+		this._vertexBufferCapacity = 0;
 	}
 
 	free() {
-		gl.deleteBuffer(this._buffer);
-		this._floats = this._bytes = this._array = null;
+		gl.deleteBuffer(this._vertexBuffer);
+		this._array = this._bytes = this._floats = this._ints = null;
 	}
 	
 	/**
@@ -62,6 +65,8 @@ export class PrimitiveBatcher {
 	 */
 	checkResize(vertexCount) {
 		if (this._vertexCount + vertexCount > this._capacity) {
+			console.log("expand vertex buffer");
+
 			// Grow capacity.
 			this._capacity *= 2;
 
@@ -86,7 +91,7 @@ export class PrimitiveBatcher {
 	 * @param {number} x
 	 * @param {number} y
 	 * @param {number} z
-	 * @param {Color|number} color
+	 * @param {number} color
 	 * @protected
 	 */
 	addVertex(x, y, z, color) {
@@ -96,27 +101,22 @@ export class PrimitiveBatcher {
 		this._floats[i4 + 1] = y;
 		this._floats[i4 + 2] = z;
 
-		if (typeof color === "number") {
-			this._ints[i4 + 3] = color;
-		} else {
-			let ib = this._vertexCount * 16 + 12;
-
-			this._bytes[ib    ] = color.r * 255.999;
-			this._bytes[ib + 1] = color.g * 255.999;
-			this._bytes[ib + 2] = color.b * 255.999;
-			this._bytes[ib + 3] = color.a * 255.999;
-		}
+		this._ints[i4 + 3] = color;
 
 		this._vertexCount++;
 	}
 
+	inBatch() {
+		return this._vertexCount >= 0;
+	}
+
 	begin() {
-		if (this._vertexCount >= 0) throw Error("already called begin()");
+		if (this.inBatch()) throw Error("already called begin()");
 		this._vertexCount = 0;
 	}
 
 	end() {
-		if (this._vertexCount < 0) throw Error("not yet called begin()");
+		if (!this.inBatch()) throw Error("not yet called begin()");
 
 		if (this._vertexCount > 0) {
 			this.drawBatch();

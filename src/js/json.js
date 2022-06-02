@@ -9,6 +9,12 @@ export function wrenJSONToJS(s) {
 			let type = value[0].slice(1);
 			value = value[1];
 
+			if (type === "Num") {
+				if (value === "infinity") return Infinity;
+				if (value === "nan") return NaN;
+				return Number(value);
+			}
+
 			if (type === "Vec") {
 				return { x: value[0], y: value[1] };
 			}

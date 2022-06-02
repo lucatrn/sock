@@ -1,10 +1,5 @@
 
 class Vec {
-	construct new() {
-		_x = 0
-		_y = 0
-	}
-	
 	construct new(x, y) {
 		_x = x
 		_y = y
@@ -19,17 +14,35 @@ class Vec {
 		}
 	}
 
+	static zero { new(0, 0) }
+
 	x { _x }
 	y { _y }
 
 	x=(x) { _x = x }
 	y=(y) { _y = y }
 
-	floor { new(_x.floor, _y.floor) }
-	
-	ceil { new(_x.ceil, _y.ceil) }
+	rotation { _y.atan(_x) }
 
-	round { new(_x.round, _y.round) }
+	rotation=(a) {
+		var n = length
+		_x = a.cos * n
+		_y = a.sin * n
+	}
+
+	rotate(a) {
+		var c = a.cos
+		var s = a.sin
+		return Vec.new(_x*c - _y*s, _x*s + _y*c)
+	}
+
+	floor { Vec.new(_x.floor, _y.floor) }
+	
+	ceil { Vec.new(_x.ceil, _y.ceil) }
+
+	round { Vec.new(_x.round, _y.round) }
+
+	isZero { _x == 0 && _y == 0 }
 
 	length { (_x*_x + _y*_y).sqrt }
 
@@ -44,12 +57,12 @@ class Vec {
 
 	normalize {
 		var n = length
-		return n > 0 ? Vec.new(_x / n, _y / n) : Vec.new()
+		return n > 0 ? Vec.new(_x / n, _y / n) : Vec.zero
 	}
 
 	normalize(min, max) {
 		var len = length
-		if (len <= min) return Vec.new()
+		if (len <= min) return Vec.zero
 		len = ((len - min) / (max - min)).min(1) / len
 		return Vec.new(_x * len, _y * len)
 	}
@@ -64,19 +77,34 @@ class Vec {
 	dot(v) { _x*v.x + _y*v.y }
 
 	distance(v) {
-		var dx = _x - v.x
-		var dy = _y - v.y
-		return (dx*dx + dy*dy).sqrt
+		var x = _x - v.x
+		var y = _y - v.y
+		return (x*x + y*y).sqrt
 	}
 
-	lerp(v, t) { 
-		t = t.clamp(0, 1)
-		return new(_x + (v.x - _x) * t, _y + (v.y - _y) * t)
+	lerp(v, t) { Vec.new(_x + (v.x - _x) * t, _y + (v.y - _y) * t) }
+
+	step(v, d) {
+		var x = v.x - _x
+		var y = v.y - _y
+		var n = (x*x + y*y).sqrt
+		if (n <= d || n == 0) return Vec.new(v.x, v.y)
+		d = d / n
+		return Vec.new(x * d, y * d)
 	}
+
+	project(v) { v * (dot(v) / v.dot(v)) }
 
 	toString { "(%(_x), %(_y))" }
 
 	toJSON { [ _x, _y ] }
 
-	static fromJSON(a) { (a is List && a.count >= 2) ? new(a[0], a[1]) : new() }
+	static fromJSON(a) {
+		if (a is List && a.count == 2) {
+			var x = a[0]
+			var y = a[1]
+			if (x is Num && y is Num) return new(x, y)
+		}
+		return zero
+	}
 }

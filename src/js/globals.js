@@ -1,7 +1,8 @@
 import { canvas } from "./canvas.js";
 
 /**
- * A global JavaScript object "sock", provides utils for the JavaScript class.
+ * A global JavaScript object "sock".
+ * Provides utils for globally executing code, e.g. from the Wren `JavaScript` class.
  * @type {any}
  */
 export let sockJsGlobal = self["sock"] = {

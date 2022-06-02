@@ -1,6 +1,6 @@
 import { getCameraMatrix } from "../api/camera.js";
-import { Color } from "../color.js";
 import { gl } from "./gl.js";
+import { bindQuadIndexBuffer } from "./quad-index-buffer.js";
 import { Shader } from "./shader.js";
 import { Texture } from "./texture.js";
 
@@ -32,26 +32,13 @@ let shader = new Shader({
 
 shader.needsCompilation();
 
-/** @type {SpriteBatcher} */
-let shared = null;
 
 /**
  * Helper for drawing sprites (textured quads) in an efficient manner.
  * 
  * Each `SpriteBatcher` contains growing buffers for geometry data, so it's best to re-use instances where possible.
- * See {@link SpriteBatcher.getShared()}.
  * 
  * `SpriteBatcher` should be destroyed explicitly using {@link free()}.
- * @example
- * let batch = SpriteBatcher.getShared();
- * 
- * batch.begin(myTex);
- * 
- * for (let i = 0; i < 99; i++) {
- *   batch.draw(10 + i, 10 + i * 2);
- * }
- * 
- * batch.end();
  */
 export class SpriteBatcher {
 	constructor() {
@@ -94,23 +81,6 @@ export class SpriteBatcher {
 		 * @protected
 		 */
 		this._vertexBufferCapacity = 0;
-		/**
-		 * @type {Uint16Array|null}
-		 * @protected
-		 */
-		this._indices = null;
-		/**
-		 * @protected
-		 */
-		this._indexBuffer = gl.createBuffer();
-	}
-
-	/**
-	 * A shared `SpriteBatcher` to assist in reuse, which improves program memory/speed.
-	 * @returns {SpriteBatcher}
-	 */
-	static getShared() {
-		return shared ?? (shared = new SpriteBatcher());
 	}
 
 	/**
@@ -306,40 +276,9 @@ export class SpriteBatcher {
 			shader.setUniformMatrix3("mat", getCameraMatrix());
 		
 			// Setup index buffer.
-			// Since we're always drawing quads, we only need to populate it whenever it needs resizing.
 			let indexCount = this._vertexCount * 1.5;
 			
-			gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this._indexBuffer);
-			
-			// Grow index array.
-			if (this._indices == null || indexCount > this._indices.length) {
-				// Create new indices array.
-				let newIndices = new Uint16Array(this._capacity * 6);
-				let i = 0;
-				
-				// Copy across old indices.
-				if (this._indices != null) {
-					newIndices.set(this._indices);
-					i = this._indices.length;
-				}
-				
-				// Set new indices.
-				let vi = i / 1.5;
-
-				for ( ; i < newIndices.length; i += 6) {
-					newIndices[i    ] = vi;
-					newIndices[i + 1] = vi + 1;
-					newIndices[i + 2] = vi + 2;
-					newIndices[i + 3] = vi + 1;
-					newIndices[i + 4] = vi + 3;
-					newIndices[i + 5] = vi + 2;
-					vi += 4;
-				}
-
-				gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, newIndices, gl.DYNAMIC_DRAW);
-
-				this._indices = newIndices;
-			}
+			bindQuadIndexBuffer(indexCount);
 
 			// Draw!
 			gl.drawElements(gl.TRIANGLES, indexCount, gl.UNSIGNED_SHORT, 0);
@@ -359,7 +298,6 @@ export class SpriteBatcher {
 	 */
 	free() {
 		gl.deleteBuffer(this._vertexBuffer);
-		gl.deleteBuffer(this._indexBuffer);
 		this._array = this._bytes = this._floats = this._ints = null;
 	}
 }

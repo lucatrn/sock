@@ -273,7 +273,7 @@ addForeignClass("sock", "Sprite", [
 			];
 		}
 	},
-	"draw_(_,_,_,_,_)"() {
+	"draw(_,_,_,_,_)"() {
 		let spr = getSprite();
 		let x1 = wrenGetSlotDouble(1);
 		let y1 = wrenGetSlotDouble(2);
@@ -287,7 +287,7 @@ addForeignClass("sock", "Sprite", [
 
 		if (!spr.batcher) bat.end();
 	},
-	"draw_(_,_,_,_,_,_,_,_,_)"() {
+	"draw(_,_,_,_,_,_,_,_,_)"() {
 		let spr = getSprite();
 		let x1 = wrenGetSlotDouble(1);
 		let y1 = wrenGetSlotDouble(2);

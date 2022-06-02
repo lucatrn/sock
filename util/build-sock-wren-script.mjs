@@ -15,9 +15,9 @@ let names = [];
 
 await getFileList("");
 
-for (let target of targets) {
-	await getFileList(target);
-}
+// for (let target of targets) {
+// 	await getFileList(target);
+// }
 
 async function getFileList(name) {
 	let path = "src/wren/";

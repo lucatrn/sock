@@ -18,7 +18,7 @@ class Input {
 			__ms.y = y
 		} else {
 			__ms = Vec.new(x, y)
-			__msd = Vec.new()
+			__msd = Vec.zero
 		}
 
 		__mw = w

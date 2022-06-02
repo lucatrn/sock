@@ -16,7 +16,8 @@ mergeInto(LibraryManager.library, {
 	js_bindClass: function (vm, module, className, methods) {
 		let fns = Module.sock.bindClass(UTF8ToString(module), UTF8ToString(className));
 		if (fns) {
-			let [allocate, finalize] = fns;
+			let allocate = fns[0];
+			let finalize = fns[1];
 
 			if (allocate) {
 				let u32 = new Uint32Array(Module.HEAP8.buffer, methods);

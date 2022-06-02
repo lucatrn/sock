@@ -92,7 +92,7 @@ class Game {
 
 	static printColor=(c) {
 		__drawC = c
-		setPrintColor_(c.uint32)
+		setPrintColor_(c)
 	}
 
 	foreign static print_(s, x, y)

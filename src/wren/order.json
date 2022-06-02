@@ -11,11 +11,14 @@
 	"screen",
 	"input",
 	"loading",
-	"storage",
 	"camera",
 	"sprite",
+	"quad",
 	"graphics",
 	"audio",
 	"json",
+	"storage",
+	"javascript",
+	"window",
 	""
 ]

@@ -5,9 +5,6 @@ In order of importance.
 
 ## Essentials
 
-* Primitive drawing - `Draw` class? `Graphics.drawXYZ()`?
-  * `Polygon.buid`
-
 * Virtual Keyboard / Simple text input
 	* Necessary for touch devices and consoles.
 	* Improves text input accessbility on desktop (IMEs, automatically uses common shortcuts)
@@ -16,8 +13,6 @@ In order of importance.
 	* e.g. `Input.textIsActive`
 	* e.g. `Input.textString`
 	* e.g. `Input.textSelection` (as range e.g. `0..3`)
-
-* Window module (for desktop)
 
 ### Win32
 

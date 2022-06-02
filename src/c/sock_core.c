@@ -628,17 +628,33 @@ typedef union {
 	ColorParts parts;
 } Color;
 
-void wren_colorAllocate(WrenVM* vm) {
-	Color* color = (Color*)wrenSetSlotNewForeign(vm, 0, 0, sizeof(Color));
+void wren_color_rgb(WrenVM* vm) {
+	for (int i = 1; i <= 4; i++) {
+		if (wrenGetSlotType(vm, i) != WREN_TYPE_NUM) {
+			wrenAbort(vm, "args must be Nums");
+			return;
+		}
+	}
 
-	color->packed = 0xff000000U;
+	uint32_t r = (uint32_t)(wrenGetSlotDouble(vm, 1) * 255.999);
+	uint32_t g = (uint32_t)(wrenGetSlotDouble(vm, 2) * 255.999);
+	uint32_t b = (uint32_t)(wrenGetSlotDouble(vm, 3) * 255.999);
+	uint32_t a = (uint32_t)(wrenGetSlotDouble(vm, 4) * 255.999);
+	
+	Color color;
+	color.parts.r = r > 255 ? 255 : r;
+	color.parts.g = g > 255 ? 255 : g;
+	color.parts.b = b > 255 ? 255 : b;
+	color.parts.a = a > 255 ? 255 : a;
+
+	wrenSetSlotDouble(vm, 0, color.packed);
 }
 
-float wren_color_hsl_helper(float p, float q, float t) {
-	t = t < 0.0f ? t + 1.0f : (t > 1.0f ? t - 1.0f : t);
-	if (t <= 0.166667f) return p + (q - p) * 6.0f * t;
-	if (t <= 0.5f) return q;
-	if (t < 0.666667f) return p + (q - p) * (0.666666f - t) * 6.0f;
+double wren_color_hsl_helper(double p, double q, double t) {
+	t = t < 0.0 ? t + 1.0 : (t > 1.0 ? t - 1.0 : t);
+	if (t <= 0.166667) return p + (q - p) * 6.0 * t;
+	if (t <= 0.5) return q;
+	if (t < 0.666667) return p + (q - p) * (0.666666 - t) * 6.0;
 	return p;
 }
 
@@ -650,69 +666,55 @@ void wren_color_hsl(WrenVM* vm) {
 		}
 	}
 
-	Color* color = (Color*)wrenSetSlotNewForeign(vm, 0, 0, sizeof(Color));
+	double h = (double)wrenGetSlotDouble(vm, 1);
+	double s = (double)wrenGetSlotDouble(vm, 2);
+	double l = (double)wrenGetSlotDouble(vm, 3);
+	uint32_t a = (uint32_t)(wrenGetSlotDouble(vm, 4) * 255.999);
+	if (a > 255) a = 255;
 
-	float h = (float)wrenGetSlotDouble(vm, 1);
-	float s = (float)wrenGetSlotDouble(vm, 2);
-	float l = (float)wrenGetSlotDouble(vm, 3);
-	float a = (float)wrenGetSlotDouble(vm, 4);
+	Color color;
+	color.parts.a = a;
 
-	float r, g, b;
+	s = s < 0.0 ? 0.0 : (s > 1.0 ? 1.0 : s);
+	l = l < 0.0 ? 0.0 : (l > 1.0 ? 1.0 : l);
 
-	s = s < 0.0f ? 0.0f : (s > 1.0f ? 1.0f : s);
-	l = l < 0.0f ? 0.0f : (l > 1.0f ? 1.0f : l);
+	if (s == 0) {
+		color.parts.r = color.parts.g = color.parts.b = (uint32_t)(l * 255.999);
+	} else {
+		h = h - floor(h);
 
-	if (s == 0)
-	{
-		r = l;
-		g = l;
-		b = l;
-	}
-	else
-	{
-		h = h - floorf(h);
+		double q = l < 0.5 ? l * (1.0 + s) : l + s - l * s;
+		double p = 2.0 * l - q;
 
-		float q = l < 0.5f ? l * (1.0f + s) : l + s - l * s;
-		float p = 2.0f * l - q;
-
-		r = wren_color_hsl_helper(p, q, h + 0.333333f);
-		g = wren_color_hsl_helper(p, q, h);
-		b = wren_color_hsl_helper(p, q, h - 0.333333f);
+		color.parts.r = (uint32_t)(wren_color_hsl_helper(p, q, h + 0.333333) * 255.999);
+		color.parts.g = (uint32_t)(wren_color_hsl_helper(p, q, h) * 255.999);
+		color.parts.b = (uint32_t)(wren_color_hsl_helper(p, q, h - 0.333333) * 255.999);
 	}
 
-	color->parts.r = (uint8_t)(r * 255.999f);
-	color->parts.g = (uint8_t)(g * 255.999f);
-	color->parts.b = (uint8_t)(b * 255.999f);
-	color->parts.a = (uint8_t)(a * 255.999f);
+	wrenSetSlotDouble(vm, 0, color.packed);
 }
 
-void wren_color_getR(WrenVM* vm) { wrenSetSlotDouble(vm, 0, ((Color*)wrenGetSlotForeign(vm, 0))->parts.r / 255.0); }
-void wren_color_getG(WrenVM* vm) { wrenSetSlotDouble(vm, 0, ((Color*)wrenGetSlotForeign(vm, 0))->parts.g / 255.0); }
-void wren_color_getB(WrenVM* vm) { wrenSetSlotDouble(vm, 0, ((Color*)wrenGetSlotForeign(vm, 0))->parts.b / 255.0); }
-void wren_color_getA(WrenVM* vm) { wrenSetSlotDouble(vm, 0, ((Color*)wrenGetSlotForeign(vm, 0))->parts.a / 255.0); }
-void wren_color_getPacked(WrenVM* vm) { wrenSetSlotDouble(vm, 0, ((Color*)wrenGetSlotForeign(vm, 0))->packed); }
+void wren_color_toHexString(WrenVM* vm) {
+	if (wrenGetSlotType(vm, 1) != WREN_TYPE_NUM) {
+		wrenAbort(vm, "color must be Num");
+		return;
+	}
 
-void wren_color_setR(WrenVM* vm) { ((Color*)wrenGetSlotForeign(vm, 0))->parts.r = (unsigned char)(wrenGetSlotDouble(vm, 1) * 255.999); }
-void wren_color_setG(WrenVM* vm) { ((Color*)wrenGetSlotForeign(vm, 0))->parts.g = (unsigned char)(wrenGetSlotDouble(vm, 1) * 255.999); }
-void wren_color_setB(WrenVM* vm) { ((Color*)wrenGetSlotForeign(vm, 0))->parts.b = (unsigned char)(wrenGetSlotDouble(vm, 1) * 255.999); }
-void wren_color_setA(WrenVM* vm) { ((Color*)wrenGetSlotForeign(vm, 0))->parts.a = (unsigned char)(wrenGetSlotDouble(vm, 1) * 255.999); }
-void wren_color_setPacked(WrenVM* vm) { ((Color*)wrenGetSlotForeign(vm, 0))->packed = (uint32_t)wrenGetSlotDouble(vm, 1); }
-
-void wren_color_toString(WrenVM* vm) {
-	Color* color = (Color*)wrenGetSlotForeign(vm, 0);
+	Color color;
+	color.packed = (uint32_t)wrenGetSlotDouble(vm, 1);
 
 	char buffer[9];
 
 	buffer[0] = '#';
-	bufferPutHumanHex(buffer + 1, color->parts.r);
-	bufferPutHumanHex(buffer + 3, color->parts.g);
-	bufferPutHumanHex(buffer + 5, color->parts.b);
+	bufferPutHumanHex(buffer + 1, color.parts.r);
+	bufferPutHumanHex(buffer + 3, color.parts.g);
+	bufferPutHumanHex(buffer + 5, color.parts.b);
 	
 	int len;
-	if (color->parts.a == 255) {
+	if (color.parts.a == 255) {
 		len = 7;
 	} else {
-		bufferPutHumanHex(buffer + 7, color->parts.a);
+		bufferPutHumanHex(buffer + 7, color.parts.a);
 		len = 9;
 	}
 
@@ -755,8 +757,6 @@ WrenForeignClassMethods wren_coreBindForeignClass(WrenVM* vm, const char* module
 		} else if (strcmp(className, "Array") == 0) {
 			result.allocate = wren_arrayAllocate;
 			result.finalize = wren_arrayFinalize;
-		} else if (strcmp(className, "Color") == 0) {
-			result.allocate = wren_colorAllocate;
 		}
 	}
 
@@ -788,19 +788,9 @@ WrenForeignMethodFn wren_coreBindForeignMethod(WrenVM* vm, const char* moduleNam
 			}
 		} else if (strcmp(className, "Color") == 0) {
 			if (isStatic) {
+				if (strcmp(signature, "rgb(_,_,_,_)") == 0) return wren_color_rgb;
 				if (strcmp(signature, "hsl(_,_,_,_)") == 0) return wren_color_hsl;
-			}else {
-				if (strcmp(signature, "r") == 0) return wren_color_getR;
-				if (strcmp(signature, "g") == 0) return wren_color_getG;
-				if (strcmp(signature, "b") == 0) return wren_color_getB;
-				if (strcmp(signature, "a") == 0) return wren_color_getA;
-				if (strcmp(signature, "r=(_)") == 0) return wren_color_setR;
-				if (strcmp(signature, "g=(_)") == 0) return wren_color_setG;
-				if (strcmp(signature, "b=(_)") == 0) return wren_color_setB;
-				if (strcmp(signature, "a=(_)") == 0) return wren_color_setA;
-				if (strcmp(signature, "uint32") == 0) return wren_color_getPacked;
-				if (strcmp(signature, "uint32=(_)") == 0) return wren_color_setPacked;
-				if (strcmp(signature, "toString") == 0) return wren_color_toString;
+				if (strcmp(signature, "toHexString(_)") == 0) return wren_color_toHexString;
 			}
 		} else if (strcmp(className, "Asset") == 0) {
 			if (isStatic) {
@@ -1260,7 +1250,7 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 	} Shader;
 
 	static Shader shaderSpriteBatcher;
-	static Shader shaderPolygonBatcher;
+	static Shader shaderPrimitiveBatcher;
 	static Shader shaderFramebuffer;
 
 	typedef struct {
@@ -1277,6 +1267,7 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 		float originX;
 		float originY;
 	} Transform;
+
 	
 	typedef struct {
 		float centerX;
@@ -1287,36 +1278,6 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 	static Camera camera = { 0.0f, 0.0f, 1.0f };
 	static float cameraMatrix[9];
 	static bool cameraMatrixDirty = true;
-
-	#define SPRITE_BUFFER_INITIAL_CAPACITY 128
-	#define SPRITE_BUFFER_CACHE_SIZE 32
-
-	typedef struct {
-		// Number of vertices we can fit.
-		uint32_t capacity;
-		// The number of buffered vertices in [vertexData].
-		uint32_t vertexCount;
-		// The size of the [indexData] array.
-		uint32_t indexCount;
-		// Vertex data array.
-		//  x     y     z     rgba  u     v
-		// [----][----][----][----][----][----]
-		void* vertexData;
-		void* indexData;
-		GLuint vertexBuffer;
-		GLuint indexBuffer;
-		GLuint vertexArray;
-	} SpriteBatcher;
-
-	static SpriteBatcher* spriteBufferCache[SPRITE_BUFFER_CACHE_SIZE];
-	static int spriteBufferCacheCount = 0;
-
-	typedef struct {
-		Texture texture;
-		Transform transform;
-		char* path;
-		SpriteBatcher* batcher;
-	} Sprite;
 
 	float* getCameraMatrix() {
 		if (cameraMatrixDirty) {
@@ -1341,6 +1302,272 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 		return cameraMatrix;
 	}
 
+
+	static GLuint quadIndexBuffer = 0;
+	static uint16_t* quadIndexBufferData = NULL;
+	static uint32_t quadIndexBufferSize = 256;
+	static uint32_t quadIndexBufferPopulated = 0;
+
+	// Binds the quad index buffer, and also ensures it is big for the given number of indices.
+	// 
+	// [indexCount] is the number of indices needed.
+	// Should be a multiple of 6 (each quad used 2 triangles = 6 indices). e.g. [vertexCount * 1.5].
+	void bindQuadIndexBuffer(uint32_t indexCount) {
+		if (quadIndexBufferData == NULL) {
+			glGenBuffers(1, &quadIndexBuffer);
+		}
+
+		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, quadIndexBuffer);
+
+		// Grow index array.
+		if (quadIndexBufferData == NULL || quadIndexBufferSize < indexCount) {
+			while (quadIndexBufferSize < indexCount) {
+				quadIndexBufferSize *= 2;
+			}
+
+			// Create new indices array.
+			uint16_t* newIndices = (uint16_t*)realloc(quadIndexBufferData, quadIndexBufferSize * sizeof(uint16_t));
+			if (!newIndices) {
+				printf("failed to resize index buffer\n");
+				return;
+			}
+			
+			quadIndexBufferData = newIndices;
+
+			// Set new indices.
+			uint16_t vi = (quadIndexBufferPopulated * 2) / 3;
+
+			for ( ; quadIndexBufferPopulated + 5 < quadIndexBufferSize; quadIndexBufferPopulated += 6) {
+				quadIndexBufferData[quadIndexBufferPopulated    ] = vi;
+				quadIndexBufferData[quadIndexBufferPopulated + 1] = vi + 1;
+				quadIndexBufferData[quadIndexBufferPopulated + 2] = vi + 2;
+				quadIndexBufferData[quadIndexBufferPopulated + 3] = vi + 1;
+				quadIndexBufferData[quadIndexBufferPopulated + 4] = vi + 3;
+				quadIndexBufferData[quadIndexBufferPopulated + 5] = vi + 2;
+				vi += 4;
+			}
+
+			glBufferData(GL_ELEMENT_ARRAY_BUFFER, quadIndexBufferSize * sizeof(uint16_t), quadIndexBufferData, GL_DYNAMIC_DRAW);
+		}
+	}
+
+
+	#define PRIMITIVE_BUFFER_INITIAL_CAPACITY 128
+
+	typedef struct {
+		// Number of vertices we can fit.
+		uint32_t capacity;
+		// The number of buffered vertices in [vertexData].
+		uint32_t vertexCount;
+		// Vertex data array.
+		//  x     y     z     rgba
+		// [----][----][----][----]
+		void* vertexData;
+		GLuint vertexBuffer;
+		GLuint vertexArray;
+	} PrimitiveBatcher;
+
+	static PrimitiveBatcher quadBatcher;
+
+	bool primitiveBatcherInit(PrimitiveBatcher* pb) {
+		void* vertexData = malloc(PRIMITIVE_BUFFER_INITIAL_CAPACITY * 16);
+		if (!vertexData) {
+			return false;
+		}
+
+		pb->capacity = PRIMITIVE_BUFFER_INITIAL_CAPACITY;
+		pb->vertexCount = UINT32_MAX;
+		pb->vertexData = vertexData;
+		glGenBuffers(1, &pb->vertexBuffer);
+		glGenVertexArrays(1, &pb->vertexArray);
+
+		return true;
+	}
+
+	bool primitiveBatcherCheckResize(PrimitiveBatcher* pb, uint32_t vertexCount) {
+		if (pb->vertexCount + vertexCount > pb->capacity) {
+			// Grow capacity.
+			if (pb->capacity * 2 >= 0xfffff) {
+				return false;
+			}
+
+			pb->capacity *= 2;
+			
+			// Resize vertex data.
+			void* newVertexData = realloc(pb->vertexData, pb->capacity * 16);
+			if (!newVertexData) {
+				return false;
+			}
+
+			pb->vertexData = newVertexData;
+		}
+
+		return true;
+	}
+
+	void primitiveBatcherAddVertex(PrimitiveBatcher* pb, float x, float y, float z, uint32_t color) {
+		float* floatPtr = ((float*)pb->vertexData) + (pb->vertexCount * 4);
+		uint32_t* int32ptr = (uint32_t*)floatPtr;
+
+		floatPtr[0] = x;
+		floatPtr[1] = y;
+		floatPtr[2] = z;
+		int32ptr[3] = color;
+
+		pb->vertexCount++;
+	}
+
+	void primitiveBatcherDrawQuad(PrimitiveBatcher* pb, float x1, float y1, float x2, float y2, float x3, float y3, float x4, float y4, float z, uint32_t color, Transform* transform) {
+		if (primitiveBatcherCheckResize(pb, 4)) {
+			if (transform) {
+				float* tf = transform->matrix;
+
+				float tx1 = x1 * tf[0] + y1 * tf[2] + tf[4];
+				float ty1 = x1 * tf[1] + y1 * tf[3] + tf[5];
+				float tx2 = x2 * tf[0] + y2 * tf[2] + tf[4];
+				float ty2 = x2 * tf[1] + y2 * tf[3] + tf[5];
+				float tx3 = x3 * tf[0] + y3 * tf[2] + tf[4];
+				float ty3 = x3 * tf[1] + y3 * tf[3] + tf[5];
+				float tx4 = x4 * tf[0] + y4 * tf[2] + tf[4];
+				float ty4 = x4 * tf[1] + y4 * tf[3] + tf[5];
+
+				float tfox = transform->originX;
+				float tfoy = transform->originY;
+				bool haveOrigin = !isnan(tfox);
+
+				tfox = haveOrigin ? (x1 + tfox) : ((x1 + x2) / 2);
+				tfoy = haveOrigin ? (y1 + tfoy) : ((y1 + y2) / 2);
+				float dx = tfox - tf[0] * tfox - tf[2] * tfoy;
+				float dy = tfoy - tf[1] * tfox - tf[3] * tfoy;
+
+				primitiveBatcherAddVertex(pb, tx1 + dx, ty1 + dy, z, color);
+				primitiveBatcherAddVertex(pb, tx2 + dx, ty2 + dy, z, color);
+				primitiveBatcherAddVertex(pb, tx3 + dx, ty3 + dy, z, color);
+				primitiveBatcherAddVertex(pb, tx4 + dx, ty4 + dy, z, color);
+			} else {
+				primitiveBatcherAddVertex(pb, x1, y1, z, color);
+				primitiveBatcherAddVertex(pb, x2, y2, z, color);
+				primitiveBatcherAddVertex(pb, x3, y3, z, color);
+				primitiveBatcherAddVertex(pb, x4, y4, z, color);
+			}
+		}
+	}
+
+	void primitiveBatcherDrawRect(PrimitiveBatcher* pb, float x1, float y1, float x2, float y2, float z, uint32_t color, Transform* transform) {
+		primitiveBatcherDrawQuad(
+			pb,
+			x1, y1,
+			x1, y2,
+			x2, y1,
+			x2, y2,
+			z,
+			color,
+			transform
+		);
+	}
+
+	void primitiveBatcherBegin(PrimitiveBatcher* pb) {
+		pb->vertexCount = 0;
+	}
+
+	// End and draw a primitive batch.
+	// [elementType] should be GL_TRIANGLES
+	void primitiveBatcherEnd(PrimitiveBatcher* pb, int elementType) {
+		if (pb) {
+			if (pb->vertexCount != 0) {
+				glUseProgram(shaderPrimitiveBatcher.program);
+
+				glBindVertexArray(pb->vertexArray);
+
+				// Put vertex data.
+				glBindBuffer(GL_ARRAY_BUFFER, pb->vertexBuffer);
+
+				GLint bufferSize;
+				glGetBufferParameteriv(GL_ARRAY_BUFFER, GL_BUFFER_SIZE, &bufferSize);
+
+				if (pb->vertexCount * 16 > (uint32_t)bufferSize) {
+					// Re-allocate vertex data.
+					glBufferData(GL_ARRAY_BUFFER, pb->vertexCount * 16, pb->vertexData, GL_DYNAMIC_DRAW);
+				} else {
+					// Put in sub-data.
+					glBufferSubData(GL_ARRAY_BUFFER, 0, pb->vertexCount * 16, pb->vertexData);
+				}
+				
+				// Configure/enable attributes.
+				glVertexAttribPointer(
+					0,
+					3,
+					GL_FLOAT,
+					GL_FALSE,
+					16,
+					(void*)0
+				);
+				glEnableVertexAttribArray(0);
+				
+				glVertexAttribPointer(
+					1,
+					4,
+					GL_UNSIGNED_BYTE,
+					GL_TRUE,
+					16,
+					(void*)12
+				);
+				glEnableVertexAttribArray(1);
+
+				// Set shader camera matrix.
+				glUniformMatrix3fv(shaderPrimitiveBatcher.uniforms[0], 1, GL_FALSE, getCameraMatrix());
+			
+				// Setup index buffer.
+				// 6 indices for every 4 vertices. 6:4 -> 3:2
+				uint32_t indexCount = (pb->vertexCount * 3) / 2;
+
+				bindQuadIndexBuffer(indexCount);
+
+				// Draw!
+				glBindVertexArray(pb->vertexArray);
+
+				glDrawElements(elementType, indexCount, GL_UNSIGNED_SHORT, 0);
+
+				// Clean up.
+				glUseProgram(0);
+				glBindVertexArray(0);
+				glDisableVertexAttribArray(0);
+				glDisableVertexAttribArray(1);
+			}
+
+			// Mark as out of batch.
+			pb->vertexCount = UINT32_MAX;
+		}
+	}
+
+
+
+	#define SPRITE_BUFFER_INITIAL_CAPACITY 128
+	#define SPRITE_BUFFER_CACHE_SIZE 32
+
+	typedef struct {
+		// Number of vertices we can fit.
+		uint32_t capacity;
+		// The number of buffered vertices in [vertexData].
+		uint32_t vertexCount;
+		// Vertex data array.
+		//  x     y     z     rgba  u     v
+		// [----][----][----][----][----][----]
+		void* vertexData;
+		GLuint vertexBuffer;
+		GLuint vertexArray;
+	} SpriteBatcher;
+
+	static SpriteBatcher* spriteBufferCache[SPRITE_BUFFER_CACHE_SIZE];
+	static int spriteBufferCacheCount = 0;
+
+	typedef struct {
+		Texture texture;
+		Transform transform;
+		char* path;
+		SpriteBatcher* batcher;
+	} Sprite;
+
 	SpriteBatcher* spriteBatcherNew() {
 		void* vertexData = malloc(SPRITE_BUFFER_INITIAL_CAPACITY * 24);
 		if (!vertexData) {
@@ -1352,11 +1579,8 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 		if (sb) {
 			sb->capacity = SPRITE_BUFFER_INITIAL_CAPACITY;
 			sb->vertexCount = 0;
-			sb->indexCount = 0;
 			sb->vertexData = vertexData;
-			sb->indexData = NULL;
 			glGenBuffers(1, &sb->vertexBuffer);
-			glGenBuffers(1, &sb->indexBuffer);
 			glGenVertexArrays(1, &sb->vertexArray);
 
 			#if DEBUG
@@ -1372,9 +1596,7 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 	void spriteBatcherFree(SpriteBatcher* sb) {
 		if (sb) {
 			if (sb->vertexData) free(sb->vertexData);
-			if (sb->indexData) free(sb->indexData);
 			glDeleteBuffers(1, &sb->vertexBuffer);
-			glDeleteBuffers(1, &sb->indexBuffer);
 			glDeleteVertexArrays(1, &sb->vertexArray);
 			free(sb);
 		}
@@ -1471,11 +1693,6 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 			glEnableVertexAttribArray(2);
 
 			// Set shader camera matrix.
-			// float matrix[9] = {
-			// 	1.0f, 0.0f, 0.0f,
-			// 	0.0f, 1.0f, 0.0f,
-			// 	0.0f, 0.0f, 1.0f,
-			// };
 			glUniformMatrix3fv(shaderSpriteBatcher.uniforms[0], 1, GL_FALSE, getCameraMatrix());
 
 			// Set shader texture.
@@ -1484,39 +1701,10 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 			glUniform1i(shaderSpriteBatcher.uniforms[1], 0);
 		
 			// Setup index buffer.
-			// Since we're always drawing quads, we only need to populate it whenever it needs resizing.
-			glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, sb->indexBuffer);
-			
-			// 6 indices for every 4 vertices.
-			// 6:4 -> 3:2
+			// 6 indices for every 4 vertices. 6:4 -> 3:2
 			uint32_t indexCount = (sb->vertexCount * 3) / 2;
-			
-			// Grow index array.
-			if (indexCount > sb->indexCount) {
-				// Create new indices array.
-				uint32_t newIndexCount = (sb->capacity * 3) / 2;
 
-				uint16_t* newIndices = (uint16_t*)realloc(sb->indexData, newIndexCount * 2);
-				if (!newIndices) return;
-				
-				// Set new indices.
-				uint32_t vi = (sb->indexCount * 2) / 3;
-
-				for (uint32_t i = sb->indexCount; i < newIndexCount; i += 6) {
-					newIndices[i    ] = vi;
-					newIndices[i + 1] = vi + 1;
-					newIndices[i + 2] = vi + 2;
-					newIndices[i + 3] = vi + 1;
-					newIndices[i + 4] = vi + 3;
-					newIndices[i + 5] = vi + 2;
-					vi += 4;
-				}
-
-				glBufferData(GL_ELEMENT_ARRAY_BUFFER, newIndexCount * 2, newIndices, GL_DYNAMIC_DRAW);
-
-				sb->indexCount = newIndexCount;
-				sb->indexData = newIndices;
-			}
+			bindQuadIndexBuffer(indexCount);
 
 			// Draw!
 			glBindVertexArray(sb->vertexArray);
@@ -1567,13 +1755,10 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 		sb->vertexCount++;
 	}
 	
-	void spriteBatcherDrawQuad(SpriteBatcher* sb, float x1, float y1, float x2, float y2, float z, float u1, float v1, float u2, float v2, uint32_t color, Transform* transform) {
+	void spriteBatcherDrawRect(SpriteBatcher* sb, float x1, float y1, float x2, float y2, float z, float u1, float v1, float u2, float v2, uint32_t color, Transform* transform) {
 		if (spriteBatcherCheckResize(sb, 4)) {
 			if (transform) {
 				float* tf = transform->matrix;
-				float tfox = transform->originX;
-				float tfoy = transform->originY;
-				bool haveOrigin = !isnan(tfox);
 
 				float tx1 = x1 * tf[0] + y1 * tf[2] + tf[4];
 				float ty1 = x1 * tf[1] + y1 * tf[3] + tf[5];
@@ -1583,6 +1768,10 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 				float ty3 = x2 * tf[1] + y1 * tf[3] + tf[5];
 				float tx4 = x2 * tf[0] + y2 * tf[2] + tf[4];
 				float ty4 = x2 * tf[1] + y2 * tf[3] + tf[5];
+
+				float tfox = transform->originX;
+				float tfoy = transform->originY;
+				bool haveOrigin = !isnan(tfox);
 
 				tfox = haveOrigin ? (x1 + tfox) : ((x1 + x2) / 2);
 				tfoy = haveOrigin ? (y1 + tfoy) : ((y1 + y2) / 2);
@@ -1787,17 +1976,16 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 		"FragColor = texture(tex, v_uv) * v_color;\n"
 	};
 	
-	static ShaderData shaderDataPolygonBatcher = {
+	static ShaderData shaderDataPrimitiveBatcher = {
 		// Attributes
 		2, {
 			"vec3 vertex",
 			"vec4 color",
 		},
 		// Vertex Uniforms
-		0, { 0 },
-		// 1, {
-		// 	"mat3 mat",
-		// },
+		1, {
+			"mat3 m",
+		},
 		// Fragment Uniforms
 		0, { 0 },
 		// Varyings
@@ -1806,9 +1994,8 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 		},
 		// Vertex Shader
 		"v_color = color;\n"
-		"gl_Position = vec4(vertex, 1.0);\n"
-		// "vec3 a = mat * vec3(vertex.x, vertex.y, 1.0);"
-		// "gl_Position = vec4(a.x, a.y, vertex.z, 1.0);"
+		"vec3 a = m * vec3(vertex.xy, 1.0);\n"
+		"gl_Position = vec4(a.xy, vertex.z, 1.0);\n"
 		,
 		// Fragment Shader
 		"FragColor = v_color;\n"
@@ -1965,7 +2152,7 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 				int spx = (idx % 16) * 6;
 				int spy = (idx / 16) * 12;
 
-				spriteBatcherDrawQuad(sb,
+				spriteBatcherDrawRect(sb,
 					(float)(dx),     (float)(dy),
 					(float)(dx + 6), (float)(dy + 12),
 					0,
@@ -2424,7 +2611,7 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 			spriteBatcherBegin(sb);
 		}
 
-		spriteBatcherDrawQuad(sb, x1, y1, x2, y2, 0, 0, 0, 1, 1, color, isnan(spr->transform.matrix[0]) ? NULL : &spr->transform);
+		spriteBatcherDrawRect(sb, x1, y1, x2, y2, 0, 0, 0, 1, 1, color, isnan(spr->transform.matrix[0]) ? NULL : &spr->transform);
 
 		if (!spr->batcher) spriteBatcherEnd(sb, spr->texture.id);
 	}
@@ -2454,7 +2641,7 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 			spriteBatcherBegin(sb);
 		}
 
-		spriteBatcherDrawQuad(sb, x1, y1, x2, y2, 0, u1, v1, u2, v2, color, isnan(spr->transform.matrix[0]) ? NULL : &spr->transform);
+		spriteBatcherDrawRect(sb, x1, y1, x2, y2, 0, u1, v1, u2, v2, color, isnan(spr->transform.matrix[0]) ? NULL : &spr->transform);
 
 		if (!spr->batcher) spriteBatcherEnd(sb, spr->texture.id);
 	}
@@ -2493,6 +2680,90 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 		if (wrap != 0) {
 			defaultSpriteWrap = wrap;
 		}
+	}
+
+	// QUAD
+
+	void wren_Quad_beginBatch(WrenVM* vm) {
+		if (quadBatcher.vertexCount == UINT32_MAX) {
+			primitiveBatcherBegin(&quadBatcher);
+		} else {
+			wrenAbort(vm, "batch already started");
+		}
+	}
+	
+	void wren_Quad_endBatch(WrenVM* vm) {
+		if (quadBatcher.vertexCount == UINT32_MAX) {
+			wrenAbort(vm, "batch not yet started");
+		} else {
+			primitiveBatcherEnd(&quadBatcher, GL_TRIANGLES);
+		}
+	}
+
+	void wren_Quad_draw5(WrenVM* vm) {
+		for (int i = 1; i <= 5; i++) {
+			if (wrenGetSlotType(vm, i) != WREN_TYPE_NUM) {
+				wrenAbort(vm, "args must be Nums");
+				return;
+			}
+		}
+
+		float x = (float)wrenGetSlotDouble(vm, 1);
+		float y = (float)wrenGetSlotDouble(vm, 2);
+		float w = (float)wrenGetSlotDouble(vm, 3);
+		float h = (float)wrenGetSlotDouble(vm, 4);
+		uint32_t color = (uint32_t)wrenGetSlotDouble(vm, 5);
+
+		bool singleBatch = quadBatcher.vertexCount == UINT32_MAX;
+
+		if (singleBatch) primitiveBatcherBegin(&quadBatcher);
+		
+		primitiveBatcherDrawRect(
+			&quadBatcher,
+			x, y,
+			x + w, y + h,
+			0,
+			color,
+			NULL
+		);
+
+		if (singleBatch) primitiveBatcherEnd(&quadBatcher, GL_TRIANGLES);
+	}
+	
+	void wren_Quad_draw9(WrenVM* vm) {
+		for (int i = 1; i <= 9; i++) {
+			if (wrenGetSlotType(vm, i) != WREN_TYPE_NUM) {
+				wrenAbort(vm, "args must be Nums");
+				return;
+			}
+		}
+
+		float x1 = (float)wrenGetSlotDouble(vm, 1);
+		float y1 = (float)wrenGetSlotDouble(vm, 2);
+		float x2 = (float)wrenGetSlotDouble(vm, 3);
+		float y2 = (float)wrenGetSlotDouble(vm, 4);
+		float x3 = (float)wrenGetSlotDouble(vm, 5);
+		float y3 = (float)wrenGetSlotDouble(vm, 6);
+		float x4 = (float)wrenGetSlotDouble(vm, 7);
+		float y4 = (float)wrenGetSlotDouble(vm, 8);
+		uint32_t color = (uint32_t)wrenGetSlotDouble(vm, 9);
+
+		bool singleBatch = quadBatcher.vertexCount == UINT32_MAX;
+
+		if (singleBatch) primitiveBatcherBegin(&quadBatcher);
+
+		primitiveBatcherDrawQuad(
+			&quadBatcher,
+			x1, y1,
+			x2, y2,
+			x3, y3,
+			x4, y4,
+			0,
+			color,
+			NULL
+		);
+
+		if (singleBatch) primitiveBatcherEnd(&quadBatcher, GL_TRIANGLES);
 	}
 
 	// SCREEN
@@ -2979,13 +3250,20 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 					if (strcmp(signature, "wrapMode=(_)") == 0) return wren_sprite_wrapMode_set;
 					if (strcmp(signature, "beginBatch()") == 0) return wren_sprite_beginBatch;
 					if (strcmp(signature, "endBatch()") == 0) return wren_sprite_endBatch;
-					if (strcmp(signature, "draw_(_,_,_,_,_)") == 0) return wren_sprite_draw_5;
-					if (strcmp(signature, "draw_(_,_,_,_,_,_,_,_,_)") == 0) return wren_sprite_draw_9;
+					if (strcmp(signature, "draw(_,_,_,_,_)") == 0) return wren_sprite_draw_5;
+					if (strcmp(signature, "draw(_,_,_,_,_,_,_,_,_)") == 0) return wren_sprite_draw_9;
 					if (strcmp(signature, "transform_") == 0) return wren_sprite_transform_;
 					if (strcmp(signature, "setTransform_(_,_,_,_,_,_)") == 0) return wren_sprite_setTransform_;
 					if (strcmp(signature, "transformOrigin_") == 0) return wren_sprite_transformOrigin_;
 					if (strcmp(signature, "setTransformOrigin(_,_)") == 0) return wren_sprite_setTransformOrigin_;
 					if (strcmp(signature, "toString") == 0) return wren_sprite_toString;
+				}
+			} else if (strcmp(className, "Quad") == 0) {
+				if (isStatic) {
+					if (strcmp(signature, "beginBatch()") == 0) return wren_Quad_beginBatch;
+					if (strcmp(signature, "endBatch()") == 0) return wren_Quad_endBatch;
+					if (strcmp(signature, "draw(_,_,_,_,_)") == 0) return wren_Quad_draw5;
+					if (strcmp(signature, "draw(_,_,_,_,_,_,_,_,_)") == 0) return wren_Quad_draw9;
 				}
 			} else if (strcmp(className, "Screen") == 0) {
 				if (isStatic) {
@@ -3167,14 +3445,18 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 		glEnable(GL_BLEND);
 		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
+		// The above blendFunc is only valid if result in not transparent.
+		// Use this one if it is:
+		// glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+
 		// Load shaders.
 		shaderSpriteBatcher = compileShader(&shaderDataSpriteBatcher);
 		if (shaderSpriteBatcher.program == 0) {
 			return -1;
 		}
 
-		shaderPolygonBatcher = compileShader(&shaderDataPolygonBatcher);
-		if (shaderPolygonBatcher.program == 0) {
+		shaderPrimitiveBatcher = compileShader(&shaderDataPrimitiveBatcher);
+		if (shaderPrimitiveBatcher.program == 0) {
 			return -1;
 		}
 		
@@ -3215,6 +3497,12 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 
 		if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
 			quitError = "main framebuffer not complete";
+			return -1;
+		}
+
+		// Init custom draw buffers.
+		if (!primitiveBatcherInit(&quadBatcher)) {
+			quitError = "allocate quad batcher";
 			return -1;
 		}
 
@@ -3265,7 +3553,7 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 		char* mainSource = readAsset("/main.wren", NULL);
 		if (mainSource == NULL) return -1;
 
-		WrenInterpretResult mainResult = wrenInterpret(vm, "sock", mainSource);
+		WrenInterpretResult mainResult = wrenInterpret(vm, "/main", mainSource);
 		free(mainSource);
 
 		if (mainResult != WREN_RESULT_SUCCESS) {

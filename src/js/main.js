@@ -43,11 +43,6 @@ async function init() {
 	// Prepare preview / core init.
 	redoLayout();
 
-	// Wait for user click.
-	await playClicked();
-
-	playButton.remove();
-
 	// Load in the "sock" script.
 	await promSystemFont;
 	let sockScript = await promSockScript;
@@ -69,6 +64,11 @@ async function init() {
 	initInputModule();
 	initAudioModule();
 	initJavaScriptModule();
+
+	// Wait for user click.
+	await playClicked();
+
+	playButton.remove();
 
 	// Init WebGL.
 	mainFramebuffer.updateResolution();
