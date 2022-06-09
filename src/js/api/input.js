@@ -1,9 +1,58 @@
 import { canvas } from "../canvas.js";
+import { deviceIsMobile } from "../device.js";
 import { addClassForeignStaticMethods } from "../foreign.js";
+import { createElement } from "../html.js";
 import { keyboardLayout } from "../keyboard-layout.js";
-import { viewportOffsetX, viewportOffsetY, viewportScale } from "../layout.js";
+import { releaseLayoutContainer, useLayoutContainer, viewportOffsetX, viewportOffsetY, viewportScale } from "../layout.js";
 import { callHandle_updateMouse_3, callHandle_update_2 } from "../vm-call-handles.js";
-import { wrenAbort, wrenCall, wrenEnsureSlots, wrenGetSlotBool, wrenGetSlotDouble, wrenGetSlotHandle, wrenGetSlotString, wrenGetSlotType, wrenGetVariable, wrenSetSlotDouble, wrenSetSlotHandle, wrenSetSlotNull, wrenSetSlotString } from "../vm.js";
+import { wrenAbort, wrenCall, wrenEnsureSlots, wrenGetSlotHandle, wrenGetSlotString, wrenGetSlotType, wrenGetVariable, wrenSetSlotBool, wrenSetSlotDouble, wrenSetSlotHandle, wrenSetSlotNull, wrenSetSlotRange, wrenSetSlotString } from "../vm.js";
+
+let textInput = createElement("input");
+let textForm = createElement("form", {}, [
+	textInput,
+	// createElement("button", { type: "button" }, "Submit"),
+]);
+textInput.placeholder = "Text";
+
+function removeTextInput() {
+	if (textForm.parentNode) {
+		textForm.remove();
+		releaseLayoutContainer();
+	}
+}
+
+// Stop text input when user presses "enter".
+// The form submission method is preffered over listening for "enter" key,
+// as IMEs may fire "enter" when composition ends.
+/**
+ * @param {Event} event 
+ */
+textForm.onsubmit = (event) => {
+	event.preventDefault();
+	
+	removeTextInput();
+};
+
+// Stop text input when unfocussed.
+textInput.onblur = () => {
+	// Need to use setTimeout() to prevent weird timing issues
+	// related to removing elements during onblur.
+	setTimeout(() => {
+		if (document.activeElement !== textInput) {
+			removeTextInput();
+		}
+	}, 1);
+};
+
+// Stop text input when user presses escape.
+/**
+ * @param {KeyboardEvent} event 
+ */
+textInput.onkeydown = (event) => {
+	if (event.code === "Escape") {
+		removeTextInput();
+	}
+};
 
 addClassForeignStaticMethods("sock", "Input", {
 	"localize(_)"() {
@@ -45,7 +94,87 @@ addClassForeignStaticMethods("sock", "Input", {
 		}
 
 		wrenSetSlotString(0, id);
-	}
+	},
+	"textBegin(_)"() {
+		let argType = wrenGetSlotType(1);
+		if (argType === 5) {
+			textInput.type = "text";
+		} else if (argType === 6) {
+			let type = wrenGetSlotString(1);
+
+			if (type === "text" || type === "number" || type === "password") {
+				textInput.type = type;
+			} else {
+				wrenAbort(`invalid text type '${type}'`);
+				return;
+			}
+		} else {
+			wrenAbort("type must be a String");
+			return;
+		}
+
+		textForm.className = "text-form invisible";
+
+		textInput.className = "text";
+		textInput.value = "";
+
+		if (!textForm.parentNode) {
+			useLayoutContainer().append(textForm);
+		}
+
+		if (!deviceIsMobile) {
+			textInput.focus();
+
+			if (document.activeElement === textInput) {
+				return;
+			}
+		}
+
+		// Visible text input fallback. Used for:
+		// * Mobile
+		// * if browser blocks .focus() (due to being outside event handler)
+		textForm.className = "text-form";
+		textForm.onclick = (event) => {
+			if (event.target === textForm) {
+				removeTextInput();
+			}
+		};
+
+		textInput.className = "text";
+	},
+	"textDescription"() {
+		wrenSetSlotString(0, textInput.placeholder);
+	},
+	"textDescription=(_)"() {
+		if (wrenGetSlotType(1) !== 6) {
+			wrenAbort("description must be String");
+			return;
+		}
+
+		textInput.placeholder = wrenGetSlotString(1);
+	},
+	"textIsActive"() {
+		wrenSetSlotBool(0, document.activeElement === textInput);
+	},
+	"textSelection"() {
+		if (document.activeElement === textInput) {
+			let start = textInput.selectionStart;
+			let end = textInput.selectionEnd;
+
+			if (textInput.selectionDirection === "backward") {
+				let tmp = start;
+				start = end;
+				end = tmp;
+			}
+
+			wrenSetSlotRange(0, start, end, 1, true);
+		} else {
+			wrenSetSlotRange(0, 0, 0, 1, true);
+		}
+	},
+	"textString"() {
+		wrenSetSlotString(0, textInput.value);
+	},
 })
 
 let handle_Input = 0;

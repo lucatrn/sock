@@ -425,6 +425,21 @@ export function wrenSetSlotDouble(slot, value) {
 
 /**
  * @param {number} slot
+ * @param {number} from
+ * @param {number} to
+ * @param {number} step
+ * @param {boolean} isInclusive
+ */
+export function wrenSetSlotRange(slot, from, to, step, isInclusive) {
+	Module.ccall("wrenSetSlotRange",
+		null,
+		["number", "number", "number", "number", "number", "boolean"],
+		[vm, slot, from, to, step, isInclusive]
+	);
+}
+
+/**
+ * @param {number} slot
  * @param {CStringSource} text
  */
 export function wrenSetSlotString(slot, text) {

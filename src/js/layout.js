@@ -1,4 +1,5 @@
 import { canvas } from "./canvas.js";
+import { createElement } from "./html.js";
 
 /**
  * Total window/screen width.
@@ -63,6 +64,27 @@ export let layoutOptions = {
 	maxScale: Infinity,
 };
 
+let layoutContainer = createElement("div", { style: "position: fixed; pointer-events: none;" });
+let layoutContainerRefCount = 0;
+
+export function useLayoutContainer() {
+	if (layoutContainerRefCount === 0) {
+		document.body.append(layoutContainer);
+	}
+
+	layoutContainerRefCount++
+
+	return layoutContainer;
+}
+
+export function releaseLayoutContainer() {
+	layoutContainerRefCount--;
+
+	if (layoutContainerRefCount === 0) {
+		layoutContainer.remove();
+	}
+}
+
 
 let isLayoutQueued = false;
 
@@ -118,6 +140,12 @@ export function redoLayout() {
 	viewportHeight = Math.floor(scale * resy);
 	viewportOffsetX = Math.floor((screenWidth - viewportWidth) / 2);
 	viewportOffsetY = Math.floor((screenHeight - viewportHeight) / 2);
+
+	let style = layoutContainer.style;
+	style.left = viewportOffsetX + "px"
+	style.top = viewportOffsetY + "px";
+	style.width = viewportWidth + "px";
+	style.height = viewportHeight + "px";
 }
 
 addEventListener("resize", () => {

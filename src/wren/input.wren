@@ -105,6 +105,19 @@ class Input {
 		__f = f
 	}
 
+	static textBegin() { textBegin(null) }
+
+	foreign static textBegin(type)
+
+	foreign static textDescription
+	foreign static textDescription=(s)
+
+	foreign static textString
+
+	foreign static textIsActive
+
+	foreign static textSelection
+
 	// static update_(negID, posID, value) {
 	// 	update_(negID, value < 0 ? -value : 0)
 	// 	update_(posID, value > 0 ?  value : 0)

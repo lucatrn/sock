@@ -10,11 +10,19 @@ let batcher = null;
 addClassForeignStaticMethods("sock", "Quad", {
 	"beginBatch()"() {
 		if (!batcher) batcher = new QuadBatcher();
-		batcher.begin();
+		if (batcher.inBatch()) {
+			wrenAbort("batch already started");
+		} else {
+			batcher.begin();
+		}
 	},
 	"endBatch()"() {
 		if (!batcher) batcher = new QuadBatcher();
-		batcher.end();
+		if (batcher.inBatch()) {
+			batcher.end();
+		} else {
+			wrenAbort("batch not yet started");
+		}
 	},
 	"draw(_,_,_,_,_)"() {
 		for (let i = 1; i <= 5; i++) {

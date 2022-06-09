@@ -10,7 +10,7 @@
 	#define SOCK_DESKTOP
 	#define SOCK_WIN
 	#define SOCK_PLATFORM "desktop"
-	#define SOCK_OS "Windows"
+	#define SOCK_OS "windows"
 
 	#include "SDL2/SDL.h"
 	#include "glad/gl.h"
@@ -2223,7 +2223,7 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 		return wrenCall(vm, callHandle_update_2) == WREN_RESULT_SUCCESS;
 	}
 
-	void wren_input_localize(WrenVM* vm) {
+	void wren_Input_localize(WrenVM* vm) {
 		if (wrenGetSlotType(vm, 1) != WREN_TYPE_STRING) {
 			wrenAbort(vm, "id must be String");
 			return;
@@ -2234,6 +2234,118 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 		// TODO!
 
 		wrenSetSlotString(vm, 0, id);
+	}
+
+	#define TEXT_INPUT_VALUE_SIZE 512
+	static bool textInputActive = false;
+	static char* textInputValue = NULL;
+	static int textInputValueLen = 0;
+	static int textInputSelectionStart = 0;
+	static int textInputSelectionEnd = 0;
+	static char* textInputDescription = NULL;
+
+	void textInputStop() {
+		textInputActive = false;
+		SDL_StopTextInput();
+	}
+
+	void textInputInsert(const char* value) {
+		int len = value == NULL ? 0 : (int)strlen(value);
+		int left = min(textInputSelectionStart, textInputSelectionEnd);
+		int right = max(textInputSelectionStart, textInputSelectionEnd);
+		int width = right - left;
+
+		// Collapse selection.
+		if (width != 0) {
+			for (int i = right; i < textInputValueLen; i++) {
+				textInputValue[i - width] = textInputValue[i];
+			}
+			textInputValueLen -= width;
+		}
+
+		// Insert characters.
+		if (len != 0) {
+			if (textInputValueLen + len >= TEXT_INPUT_VALUE_SIZE) {
+				len = 0;
+			} else {
+				for (int i = textInputValueLen - 1; i >= left; i--) {
+					textInputValue[i + len] = textInputValue[i];
+				}
+
+				for (int i = 0; i < len; i++) {
+					textInputValue[left + i] = value[i];
+				}
+
+				textInputValueLen += len;
+			}
+		}
+
+		textInputSelectionStart = textInputSelectionEnd = left + len;
+	}
+
+	void wren_Input_textBegin(WrenVM* vm) {
+		if (textInputActive) {
+			return;
+		}
+
+		int argType = wrenGetSlotType(vm, 1);
+		if (argType == WREN_TYPE_NULL || argType == WREN_TYPE_STRING) {
+			// Type is unused.
+		} else {
+			wrenAbort(vm, "type must be String");
+			return;
+		}
+
+		// Init value buffer.
+		if (!textInputValue) {
+			textInputValue = malloc(TEXT_INPUT_VALUE_SIZE);
+			if (!textInputValue) {
+				return;
+			}
+		}
+		textInputValueLen = 0;
+		textInputSelectionStart = 0;
+		textInputSelectionEnd = 0;
+
+		// Start capturing text inputs.
+		SDL_StartTextInput();
+
+		SDL_Rect rect;
+		rect.x = game_windowWidth / 2;
+		rect.y = game_windowHeight / 2 - 8;
+		rect.w = game_windowWidth / 2 - 4;
+		rect.h = 16;
+		SDL_SetTextInputRect(&rect);
+
+		textInputActive = true;
+	}
+
+	void wren_Input_textDescription(WrenVM* vm) {
+		wrenSetSlotString(vm, 0, textInputDescription == NULL ? "Text" : textInputDescription);
+	}
+	void wren_Input_textDescriptionSet(WrenVM* vm) {
+		if (wrenGetSlotType(vm, 1) != WREN_TYPE_STRING) {
+			wrenAbort(vm, "description must be String");
+			return;
+		}
+
+		if (textInputDescription) {
+			free(textInputDescription);
+		}
+
+		textInputDescription = _strdup(wrenGetSlotString(vm, 1));
+	}
+
+	void wren_Input_textIsActive(WrenVM* vm) {
+		wrenSetSlotBool(vm, 0, textInputActive);
+	}
+	
+	void wren_Input_textSelection(WrenVM* vm) {
+		wrenSetSlotRange(vm, 0, textInputSelectionStart, textInputSelectionEnd, 1, true);
+	}
+
+	void wren_Input_textString(WrenVM* vm) {
+		wrenSetSlotBytes(vm, 0, textInputValue ? textInputValue : "", textInputValueLen);
 	}
 
 	// GRAPHICS
@@ -3179,7 +3291,13 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 				}
 			} else if (strcmp(className, "Input") == 0) {
 				if (isStatic) {
-					if (strcmp(signature, "localize(_)") == 0) return wren_input_localize;
+					if (strcmp(signature, "localize(_)") == 0) return wren_Input_localize;
+					if (strcmp(signature, "textBegin(_)") == 0) return wren_Input_textBegin;
+					if (strcmp(signature, "textDescription") == 0) return wren_Input_textDescription;
+					if (strcmp(signature, "textDescription=(_)") == 0) return wren_Input_textDescriptionSet;
+					if (strcmp(signature, "textIsActive") == 0) return wren_Input_textIsActive;
+					if (strcmp(signature, "textSelection") == 0) return wren_Input_textSelection;
+					if (strcmp(signature, "textString") == 0) return wren_Input_textString;
 				}
 			} else if (strcmp(className, "Graphics") == 0) {
 				if (isStatic) {
@@ -3378,6 +3496,12 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 	// === MAIN ===
 
 	int mainWithSDL(int argc, char** argv) {
+		// Set SDL hints.
+		SDL_SetHint(SDL_HINT_IME_SHOW_UI, "1");
+
+		// Setup input.
+		SDL_StopTextInput();
+
 		// Get runtime info.
 		basePath = SDL_GetBasePath();
 		if (basePath == NULL) {
@@ -3580,46 +3704,182 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 			bool anyInputs = false;
 			SDL_Event event;
 			while ( SDL_PollEvent(&event) ) {
-				if (event.type == SDL_QUIT) {
-					inLoop = 0;
-				} else if (event.type == SDL_KEYDOWN || event.type == SDL_KEYUP) {
-					if (!event.key.repeat) {
-						const char* id = sdlScancodeToInputID(event.key.keysym.scancode);
+				switch (event.type) {
+					case SDL_QUIT:
+					{
+						inLoop = 0;
+						break;
+					}
+					case SDL_KEYDOWN:
+					case SDL_KEYUP:
+					{
+						// Text editing.
+						if (textInputActive) {
+							if (event.type == SDL_KEYDOWN) {
+								switch (event.key.keysym.scancode) {
+									case SDL_SCANCODE_BACKSPACE:
+									{
+										if (textInputSelectionStart == textInputSelectionEnd) {
+											if (textInputSelectionStart == 0) {
+												break;
+											} else if (event.key.keysym.mod & KMOD_CTRL) {
+												// Delete up to next separator.
+												textInputSelectionEnd--;
+												while (textInputSelectionEnd > 0) {
+													char c = textInputValue[textInputSelectionEnd];
+													if (c == ' ') break;
+													textInputSelectionEnd--;
+												}
+											} else {
+												// Deletet just previous character.
+												textInputSelectionEnd--;
+											}
+										}
+										textInputInsert(NULL);
+										break;
+									}
+									case SDL_SCANCODE_DELETE:
+									{
+										if (textInputSelectionStart == textInputSelectionEnd) {
+											if (textInputSelectionStart == textInputValueLen) {
+												break;
+											} else {
+												textInputSelectionEnd++;
+											}
+										}
+										textInputInsert(NULL);
+										break;
+									}
+									case SDL_SCANCODE_RETURN:
+									case SDL_SCANCODE_RETURN2:
+									case SDL_SCANCODE_ESCAPE:
+									{
+										textInputStop();
+										break;
+									}
+									case SDL_SCANCODE_LEFT:
+									{
+										if (event.key.keysym.mod & KMOD_SHIFT) {
+											textInputSelectionEnd--;
+										} else if (textInputSelectionStart == textInputSelectionEnd) {
+											if (textInputSelectionStart > 0) {
+												textInputSelectionStart--;
+												textInputSelectionEnd--;
+											}
+										} else {
+											textInputSelectionStart = textInputSelectionEnd = min(textInputSelectionStart, textInputSelectionEnd);
+										}
+										break;
+									}
+									case SDL_SCANCODE_RIGHT:
+									{
+										if (event.key.keysym.mod & KMOD_SHIFT) {
+											textInputSelectionEnd++;
+										} else if (textInputSelectionStart == textInputSelectionEnd) {
+											if (textInputSelectionStart < textInputValueLen) {
+												textInputSelectionStart++;
+												textInputSelectionEnd++;
+											}
+										} else {
+											textInputSelectionStart = textInputSelectionEnd = max(textInputSelectionStart, textInputSelectionEnd);
+										}
+										break;
+									}
+									case SDL_SCANCODE_HOME:
+									{
+										textInputSelectionEnd = 0;
+										if (!(event.key.keysym.mod & KMOD_SHIFT)) {
+											textInputSelectionStart = 0;
+										}
+										break;
+									}
+									case SDL_SCANCODE_END:
+									{
+										textInputSelectionEnd = textInputValueLen;
+										if (!(event.key.keysym.mod & KMOD_SHIFT)) {
+											textInputSelectionStart = textInputValueLen;
+										}
+										break;
+									}
+									case SDL_SCANCODE_A:
+									{
+										if (event.key.keysym.mod & KMOD_CTRL) {
+											textInputSelectionStart = 0;
+											textInputSelectionEnd = textInputValueLen;
+										}
+										break;
+									}
+								}
+							}
+						}
+
+						// Game input.
+						if (!event.key.repeat) {
+							const char* id = sdlScancodeToInputID(event.key.keysym.scancode);
+							if (id) {
+								if (!updateInput(id, event.type == SDL_KEYDOWN ? 1.0f : 0.0f)) {
+									inLoop = 0;
+								}
+							}
+						}
+						
+						break;
+					}
+					case SDL_MOUSEBUTTONDOWN:
+					case SDL_MOUSEBUTTONUP:
+					{
+						const char* id = NULL;
+
+						if (event.button.button == SDL_BUTTON_LEFT) {
+							id = INPUT_ID_MOUSE_LEFT;
+						} else if (event.button.button == SDL_BUTTON_MIDDLE) {
+							id = INPUT_ID_MOUSE_MIDDLE;
+						} else if (event.button.button == SDL_BUTTON_RIGHT) {
+							id = INPUT_ID_MOUSE_RIGHT;
+						}
+						
 						if (id) {
-							if (!updateInput(id, event.type == SDL_KEYDOWN ? 1.0f : 0.0f)) {
+							if (!updateInput(id, event.type == SDL_MOUSEBUTTONDOWN ? 1.0f : 0.0f)) {
 								inLoop = 0;
 							}
 						}
-					}
-				} else if (event.type == SDL_MOUSEBUTTONDOWN || event.type == SDL_MOUSEBUTTONUP) {
-					const char* id = NULL;
 
-					if (event.button.button == SDL_BUTTON_LEFT) {
-						id = INPUT_ID_MOUSE_LEFT;
-					} else if (event.button.button == SDL_BUTTON_MIDDLE) {
-						id = INPUT_ID_MOUSE_MIDDLE;
-					} else if (event.button.button == SDL_BUTTON_RIGHT) {
-						id = INPUT_ID_MOUSE_RIGHT;
+						break;
 					}
-					
-					if (id) {
-						if (!updateInput(id, event.type == SDL_MOUSEBUTTONDOWN ? 1.0f : 0.0f)) {
-							inLoop = 0;
+					case SDL_MOUSEWHEEL:
+					{
+						mouseWheel += event.wheel.y;
+						break;
+					}
+					case SDL_MOUSEMOTION:
+					{
+						mouseWindowPosX = event.motion.x;
+						mouseWindowPosY = event.motion.y;
+						break;
+					}
+					case SDL_WINDOWEVENT:
+					{
+						switch (event.window.event) {
+							case SDL_WINDOWEVENT_RESIZED: {
+								windowResized = true;
+								game_windowWidth = event.window.data1;
+								game_windowHeight = event.window.data2;
+							} break;
 						}
+						break;
 					}
-				} else if (event.type == SDL_MOUSEWHEEL) {
-					mouseWheel += event.wheel.y;
-				} else if (event.type == SDL_MOUSEMOTION) {
-					mouseWindowPosX = event.motion.x;
-					mouseWindowPosY = event.motion.y;
-				} else if (event.type == SDL_WINDOWEVENT) {
-					switch (event.window.event) {
-						case SDL_WINDOWEVENT_RESIZED: {
-							windowResized = true;
-							game_windowWidth = event.window.data1;
-							game_windowHeight = event.window.data2;
-						} break;
+					case SDL_TEXTINPUT:
+					{
+						if (textInputActive) {
+							textInputInsert(event.text.text);
+						}
+						break;
 					}
+					// case SDL_TEXTEDITING:
+					// {
+					// 	printf("TEXTEDITI: '%s' start=%d length=%d\n", event.edit.text, event.edit.start, event.edit.length);
+					// 	break;
+					// }
 				}
 			}
 

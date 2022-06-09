@@ -1,42 +1,40 @@
+import { sockJsGlobal } from "./globals.js";
 
-/** @type {"Windows"|"macOS"|"iOS"|"Linux"|"Android"} */
-let os;
+/** @type {"windows"|"mac"|"ios"|"linux"|"android"} */
+export let deviceOS;
 /** @type {null|"Chrome"|"Edge"|"Firefox"|"Safari"} */
-let browser;
-let mobile = false;
+export let deviceBrowser;
+export let deviceIsMobile = false;
 
 let platform = navigator.platform;
-let ua = navigator.userAgent;
+let userAgent = navigator.userAgent;
 
-if (platform === "Win32") {
-	os = "Windows";
+if (platform === "iPhone" || platform === "iPad" || userAgent.includes("iPhone")) {
+	deviceOS = "ios";
+	deviceIsMobile = true;
+} else if (platform === "Win32") {
+	deviceOS = "windows";
 } else if (platform.includes("Mac")) {
-	os = "macOS";
-} else if (platform === "iPhone" || platform === "iPad") {
-	os = "iOS";
-	mobile = true;
-} else if (ua.includes("Android")) {
-	os = "Android";
-	mobile = true;
+	deviceOS = "mac";
+} else if (userAgent.includes("Android")) {
+	deviceOS = "android";
+	deviceIsMobile = true;
 } else {
-	os = "Linux";
+	deviceOS = "linux";
 }
 
-if (ua.includes("Edg/")) {
-	browser = "Edge";
-} else if (ua.includes("Chrome/")) {
-	browser = "Chrome";
-} else if (ua.includes("Safari/")) {
-	browser = "Safari";
-} else if (ua.includes("Firefox/")) {
-	browser = "Firefox";
+if (userAgent.includes("Edg/")) {
+	deviceBrowser = "Edge";
+} else if (userAgent.includes("Chrome/")) {
+	deviceBrowser = "Chrome";
+} else if (userAgent.includes("Safari/")) {
+	deviceBrowser = "Safari";
+} else if (userAgent.includes("Firefox/")) {
+	deviceBrowser = "Firefox";
 }
 
-/**
- * Information about the client device.
- */
-export let device = {
-	os: os,
-	browser: browser,
-	mobile: mobile,
+sockJsGlobal.device = {
+	os: deviceOS,
+	isMobile: deviceIsMobile,
+	browser: deviceBrowser,
 };

@@ -46,6 +46,29 @@ a {
 #play-button:hover img {
 	opacity: 1;
 }
+.text-form {
+	height: 100%;
+	background: rgb(0, 0, 0, 0.75);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	pointer-events: all;
+}
+.text {
+	font: inherit;
+	color: #fff;
+	background: none;
+	border: none;
+	padding: 0.3em 0.6em;
+    border-bottom: 1px solid;
+	border-radius: 0;
+	width: 90%;
+    max-width: 24em;
+}
+.text:focus {
+	background: #ffffff18;
+	outline: none;
+}
 .quit {
 	cursor: not-allowed !important;
 	opacity: 0.4;
@@ -106,6 +129,10 @@ a {
 .code-source {
 	padding-left: 1.3em;
 	tab-size: 4;
+}
+.invisible {
+	opacity: 0;
+	pointer-events: none;
 }
 </style>
 <script src="sock.js" async defer></script>

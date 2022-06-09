@@ -1,5 +1,5 @@
 import { canvas } from "../canvas.js";
-import { device } from "../device.js";
+import { deviceBrowser, deviceIsMobile, deviceOS } from "../device.js";
 import { addClassForeignStaticMethods } from "../foreign.js";
 import { wrenGlFilterStringToNumber } from "../gl/api.js";
 import { mainFramebuffer } from "../gl/framebuffer.js";
@@ -114,7 +114,7 @@ addClassForeignStaticMethods("sock", "Game", {
 					gettingDOMFullscreen = true;
 
 					// TODO this message needs to be localised.
-					let input = device.mobile ? "tap" : "press any mouse or keyboard button";
+					let input = deviceIsMobile ? "tap" : "press any mouse or keyboard button";
 					let message = `Please ${input} to enter fullscreen.`;
 
 					let dialog = createElement("div", { class: "overlay" }, [
@@ -223,10 +223,10 @@ addClassForeignStaticMethods("sock", "Game", {
 		printColor = wrenGetSlotDouble(1);
 	},
 	"os"() {
-		wrenSetSlotString(0, device.os);
+		wrenSetSlotString(0, deviceOS);
 	},
 	"browser"() {
-		wrenSetSlotString(0, device.browser);
+		wrenSetSlotString(0, deviceBrowser);
 	},
 	"openURL(_)"() {
 		if (wrenGetSlotType(1) !== 6) {
