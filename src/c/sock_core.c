@@ -832,6 +832,9 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 	static int basePathLen = 0;
 	static SDL_Window* window = NULL;
 
+	static char* storageID = NULL;
+	static char* storagePath = NULL;
+
 	static GLint defaultSpriteFilter = GL_NEAREST;
 	static GLint defaultSpriteWrap = GL_CLAMP_TO_EDGE;
 	static GLuint mainFramebuffer = 0;
@@ -873,6 +876,20 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 
 	// === IO UTILS ==
 
+	bool fileExists(const char* fileName) {
+		#ifdef SOCK_WIN
+
+			DWORD attr = GetFileAttributesA(fileName);
+
+			return attr != INVALID_FILE_ATTRIBUTES && !(attr & FILE_ATTRIBUTE_DIRECTORY);
+		
+		#else
+
+			return false;
+
+		#endif
+	}
+
 	// Read the entire file into memory as a null terminated string.
 	//
 	// If read successfully, [fileSize] is set to file size.
@@ -884,7 +901,7 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 	// Creative Commons Attribution 4.0 International (CC BY 4.0)
 	char* fileRead(const char* fileName, int64_t* fileSize) {
 		// Open file.
-		SDL_RWops *file = SDL_RWFromFile(fileName, "rb");
+		SDL_RWops* file = SDL_RWFromFile(fileName, "rb");
 		if (file == NULL) {
 			quitError = printBuffer;
 			snprintf(printBuffer, PRINT_BUFFER_SIZE, "open file %s", fileName);
@@ -992,6 +1009,57 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 		}
 	}
 
+	bool fileWrite(const char* fileName, const char* data, size_t length) {
+		SDL_RWops* file = SDL_RWFromFile(fileName, "wb");
+		if (file == NULL) {
+			#if DEBUG
+
+				printf("failed to open '%s' for writing: %s\n", fileName, SDL_GetError());
+
+			#endif
+
+			return false;
+		}
+
+		size_t read = SDL_RWwrite(file, data, 1, length);
+
+		if (SDL_RWclose(file) < 0) {
+			#if DEBUG
+
+				printf("failed to close '%s' for writing: %s\n", fileName, SDL_GetError());
+
+			#endif
+
+			return false;
+		}
+
+		return read == length;
+	}
+
+	// Deletes a file.
+	//
+	// Returns the following status codes:
+	// 0: Success
+	// 1: File does not exist.
+	// 2: Access failure.
+	// 3: Other unknown error.
+	int fileDelete(const char* fileName) {
+		#ifdef SOCK_WIN
+
+			if (DeleteFileA(fileName)) return 0;
+
+			DWORD error = GetLastError();
+			if (error == ERROR_FILE_NOT_FOUND) return 1;
+			if (error == ERROR_ACCESS_DENIED) return 2;
+			return 3;
+		
+		#else
+
+			return 3;
+
+		#endif
+	}
+
 
 	// === WREN UTILS ===
 
@@ -999,6 +1067,173 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 		wrenEnsureSlots(vm, 1);
 		wrenGetVariable(vm, moduleName, varName, 0);
 		return wrenGetSlotHandle(vm, 0);
+	}
+
+
+	// === STORAGE ===
+
+	int isStorageIdentifier(const char* s) {
+		int i = 0;
+		char c;
+
+		while ((c = s[i]) != '\0') {
+			if (!((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'A') || (c >= '0' && c <= '9') || c == '_' || c == '-')) {
+				return 0;
+			}
+
+			i++;
+		}
+
+		if (i > 64) i = 0;
+
+		return i;
+	}
+
+	char* storageKeyToPath(WrenVM* vm, int slot) {
+		if (storageID == NULL || storagePath == NULL) {
+			wrenAbort(vm, "id must be set before using other Storage methods");
+			return NULL;
+		}
+
+		if (wrenGetSlotType(vm, slot) != WREN_TYPE_STRING) {
+			wrenAbort(vm, "key must be a string");
+			return NULL;
+		}
+
+		const char* key = wrenGetSlotString(vm, slot);
+		int keyLen = isStorageIdentifier(key);
+		if (!keyLen) {
+			wrenAbort(vm, "key may only contain letters, numbers, underscores and dashes");
+			return NULL;
+		}
+
+		int storagePathLen = (int)strlen(storagePath);
+		char* path = malloc(storagePathLen + keyLen + 5);
+		if (path == NULL) return NULL;
+
+		memcpy(path, storagePath, storagePathLen);
+		memcpy(path + storagePathLen, key, keyLen);
+		memcpy(path + storagePathLen + keyLen, ".dat", 5);
+
+		return path;
+	}
+
+	void wren_Storage_id(WrenVM* vm) {
+		if (storageID) {
+			wrenSetSlotString(vm, 0, storageID);
+		} else {
+			wrenSetSlotNull(vm, 0);
+		}
+	}
+
+	void wren_Storage_id_set(WrenVM* vm) {
+		if (wrenGetSlotType(vm, 1) != WREN_TYPE_STRING) {
+			wrenAbort(vm, "id must be a String");
+			return;
+		}
+
+		const char* s = wrenGetSlotString(vm, 1);
+
+		if (!isStorageIdentifier(s)) {
+			wrenAbort(vm, "id may only contain letters, numbers, underscores and dashes");
+			return;
+		}
+
+		if (storageID) free(storageID);
+
+		storageID = _strdup(s);
+
+		if (storagePath) free(storagePath);
+
+		storagePath = SDL_GetPrefPath(NULL, storageID);
+		
+		#if DEBUG
+
+			printf("have storage path '%s'\n", storagePath);
+
+		#endif
+	}
+
+	void wren_Storage_contains(WrenVM* vm) {
+		char* path = storageKeyToPath(vm, 1);
+		if (path) {
+			wrenSetSlotBool(vm, 0, fileExists(path));
+
+			free(path);
+		}
+	}
+
+	void wren_Storage_load_(WrenVM* vm) {
+		char* path = storageKeyToPath(vm, 1);
+		if (path) {
+			if (fileExists(path)) {
+				int64_t len;
+				char* data = fileRead(path, &len);
+
+				if (data) {
+					wrenSetSlotBytes(vm, 0, data, len);
+
+					free(data);
+				} else {
+					#if DEBUG
+
+						printf("failed to read storage '%s': %s\n", path, quitError);
+
+					#endif
+
+					wrenSetSlotNull(vm, 0);
+				}
+			} else {
+				#if DEBUG
+
+					printf("file not exists for storage '%s'\n", path);
+
+				#endif
+
+				wrenSetSlotNull(vm, 0);
+			}
+
+			free(path);
+		}
+	}
+	
+	void wren_Storage_save_(WrenVM* vm) {
+		if (wrenGetSlotType(vm, 2) != WREN_TYPE_STRING) {
+			wrenAbort(vm, "value must be a String");
+			return;
+		}
+
+		char* path = storageKeyToPath(vm, 1);
+		if (path) {
+			int len;
+			const char* value = wrenGetSlotBytes(vm, 2, &len);
+
+			fileWrite(path, value, len);
+
+			free(path);
+		}
+	}
+
+	void wren_Storage_delete(WrenVM* vm) {
+		char* path = storageKeyToPath(vm, 1);
+		if (path) {
+			int status = fileDelete(path);
+			
+			#if DEBUG
+
+				if (status != 0) {
+					if (status == 2) printf("failed to delete storage file '%s' due to access permissions\n", path);
+					if (status == 3) printf("failed to delete storage file '%s'\n", path);
+				}
+
+			#else
+
+				(void)status;
+
+			#endif
+
+			free(path);
+		}
 	}
 
 
@@ -1041,6 +1276,7 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 	static const char* INPUT_ID_X = "X";
 	static const char* INPUT_ID_Y = "Y";
 	static const char* INPUT_ID_Z = "Z";
+	static const char* INPUT_ID_BACKQUOTE = "`";
 	static const char* INPUT_ID_1 = "1";
 	static const char* INPUT_ID_2 = "2";
 	static const char* INPUT_ID_3 = "3";
@@ -1051,6 +1287,16 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 	static const char* INPUT_ID_8 = "8";
 	static const char* INPUT_ID_9 = "9";
 	static const char* INPUT_ID_0 = "0";
+	static const char* INPUT_ID_MINUS = "-";
+	static const char* INPUT_ID_EQUALS = "=";
+	static const char* INPUT_ID_COMMA = ",";
+	static const char* INPUT_ID_PERIOD = ".";
+	static const char* INPUT_ID_SLASH = "/";
+	static const char* INPUT_ID_SEMICOLON = ";";
+	static const char* INPUT_ID_QUOTE = "'";
+	static const char* INPUT_ID_BRACKET_LEFT = "[";
+	static const char* INPUT_ID_BRACKET_RIGHT = "]";
+	static const char* INPUT_ID_BACKSLASH = "\\";
 	static const char* INPUT_ID_BACKSPACE = "Backspace";
 	static const char* INPUT_ID_ENTER = "Enter";
 	static const char* INPUT_ID_TAB = "Tab";
@@ -1061,8 +1307,30 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 	static const char* INPUT_ID_CONTROL_RIGHT = "ControlRight";
 	static const char* INPUT_ID_ALT_LEFT  = "AltLeft";
 	static const char* INPUT_ID_ALT_RIGHT = "AltRight";
-	static const char* INPUT_ID_CONTROL_SPACE = "Space";
+	static const char* INPUT_ID_META_LEFT = "MetaLeft";
+	static const char* INPUT_ID_META_RIGHT = "MetaRight";
+	static const char* INPUT_ID_SPACE = "Space";
 	static const char* INPUT_ID_ESCAPE = "Escape";
+	static const char* INPUT_ID_F1 = "F1";
+	static const char* INPUT_ID_F2 = "F2";
+	static const char* INPUT_ID_F3 = "F3";
+	static const char* INPUT_ID_F4 = "F4";
+	static const char* INPUT_ID_F5 = "F5";
+	static const char* INPUT_ID_F6 = "F6";
+	static const char* INPUT_ID_F7 = "F7";
+	static const char* INPUT_ID_F8 = "F8";
+	static const char* INPUT_ID_F9 = "F9";
+	static const char* INPUT_ID_F10 = "F10";
+	static const char* INPUT_ID_F11 = "F11";
+	static const char* INPUT_ID_F12 = "F12";
+	static const char* INPUT_ID_SCROLL_LOCK = "ScrollLock";
+	static const char* INPUT_ID_PAUSE = "Pause";
+	static const char* INPUT_ID_INSERT = "Insert";
+	static const char* INPUT_ID_HOME = "Home";
+	static const char* INPUT_ID_PAGE_UP = "PageUp";
+	static const char* INPUT_ID_PAGE_DOWN = "PageDown";
+	static const char* INPUT_ID_END = "End";
+	static const char* INPUT_ID_DELETE = "Delete";
 	static const char* INPUT_ID_ARROW_LEFT = "ArrowLeft";
 	static const char* INPUT_ID_ARROW_RIGHT = "ArrowRight";
 	static const char* INPUT_ID_ARROW_UP = "ArrowUp";
@@ -1106,6 +1374,7 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 			case SDL_SCANCODE_Y: return INPUT_ID_Y;
 			case SDL_SCANCODE_Z: return INPUT_ID_Z;
 			// Number row.
+			case SDL_SCANCODE_GRAVE: return INPUT_ID_BACKQUOTE;
 			case SDL_SCANCODE_1: return INPUT_ID_1;
 			case SDL_SCANCODE_2: return INPUT_ID_2;
 			case SDL_SCANCODE_3: return INPUT_ID_3;
@@ -1116,7 +1385,18 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 			case SDL_SCANCODE_8: return INPUT_ID_8;
 			case SDL_SCANCODE_9: return INPUT_ID_9;
 			case SDL_SCANCODE_0: return INPUT_ID_0;
+			case SDL_SCANCODE_MINUS: return INPUT_ID_MINUS;
+			case SDL_SCANCODE_EQUALS: return INPUT_ID_EQUALS;
 			// Middle stuff.
+			case SDL_SCANCODE_SPACE: return INPUT_ID_SPACE;
+			case SDL_SCANCODE_LEFTBRACKET: return INPUT_ID_BRACKET_LEFT;
+			case SDL_SCANCODE_RIGHTBRACKET: return INPUT_ID_BRACKET_RIGHT;
+			case SDL_SCANCODE_BACKSLASH: return INPUT_ID_BACKSLASH;
+			case SDL_SCANCODE_SEMICOLON: return INPUT_ID_SEMICOLON;
+			case SDL_SCANCODE_APOSTROPHE: return INPUT_ID_QUOTE;
+			case SDL_SCANCODE_COMMA: return INPUT_ID_COMMA;
+			case SDL_SCANCODE_PERIOD: return INPUT_ID_PERIOD;
+			case SDL_SCANCODE_SLASH: return INPUT_ID_SLASH;
 			case SDL_SCANCODE_BACKSPACE: return INPUT_ID_BACKSPACE;
 			case SDL_SCANCODE_RETURN: return INPUT_ID_ENTER;
 			case SDL_SCANCODE_RETURN2: return INPUT_ID_ENTER;
@@ -1129,8 +1409,29 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 			case SDL_SCANCODE_RCTRL: return INPUT_ID_CONTROL_RIGHT;
 			case SDL_SCANCODE_LALT: return INPUT_ID_ALT_LEFT;
 			case SDL_SCANCODE_RALT: return INPUT_ID_ALT_RIGHT;
+			case SDL_SCANCODE_LGUI: return INPUT_ID_META_LEFT;
+			case SDL_SCANCODE_RGUI: return INPUT_ID_META_RIGHT;
 			// Top row.
 			case SDL_SCANCODE_ESCAPE: return INPUT_ID_ESCAPE;
+			case SDL_SCANCODE_F1: return INPUT_ID_F1;
+			case SDL_SCANCODE_F2: return INPUT_ID_F2;
+			case SDL_SCANCODE_F3: return INPUT_ID_F3;
+			case SDL_SCANCODE_F4: return INPUT_ID_F4;
+			case SDL_SCANCODE_F5: return INPUT_ID_F5;
+			case SDL_SCANCODE_F6: return INPUT_ID_F6;
+			case SDL_SCANCODE_F7: return INPUT_ID_F7;
+			case SDL_SCANCODE_F8: return INPUT_ID_F8;
+			case SDL_SCANCODE_F9: return INPUT_ID_F9;
+			case SDL_SCANCODE_F10: return INPUT_ID_F10;
+			case SDL_SCANCODE_F11: return INPUT_ID_F11;
+			case SDL_SCANCODE_F12: return INPUT_ID_F12;
+			// Home stuff.
+			case SDL_SCANCODE_INSERT: return INPUT_ID_INSERT;
+			case SDL_SCANCODE_DELETE: return INPUT_ID_DELETE;
+			case SDL_SCANCODE_HOME: return INPUT_ID_HOME;
+			case SDL_SCANCODE_END: return INPUT_ID_END;
+			case SDL_SCANCODE_PAGEUP: return INPUT_ID_PAGE_UP;
+			case SDL_SCANCODE_PAGEDOWN: return INPUT_ID_PAGE_DOWN;
 			// Arrows.
 			case SDL_SCANCODE_LEFT: return INPUT_ID_ARROW_LEFT;
 			case SDL_SCANCODE_RIGHT: return INPUT_ID_ARROW_RIGHT;
@@ -1141,19 +1442,94 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 		return NULL;
 	}
 
-// 	// Converts a temp string to a const input ID pointer.
-// 	const char* resolveInputID(const char* id) {
-// 		int len = (int)strlen(id);
-// 
-// 		if (len == 1) {
-// 			char c = id[0];
-// 			if (c >= 'A' && c <= 'Z') return sdlScancodeToInputID(SDL_SCANCODE_A + (c - 'A'));
-// 			if (c == '0') return INPUT_ID_0;
-// 			if (c >= '1' && c <= '9') return sdlScancodeToInputID(SDL_SCANCODE_1 + (c - '1'));
-// 		}
-// 
-// 		return NULL;
-// 	}
+	SDL_Scancode inputIDToSDLScancode(const char* id) {
+		if (id[0] != '\0') {
+			if (id[1] == '\0') {
+				char c = id[0];
+				if (c >= 'A' && c <= 'Z') return SDL_SCANCODE_A + (c - 'A');
+				if (c >= '1' && c <= '9') return SDL_SCANCODE_1 + (c - '1');
+				switch (c) {
+					case '0': return SDL_SCANCODE_0;
+					case ',': return SDL_SCANCODE_COMMA;
+					case '.': return SDL_SCANCODE_PERIOD;
+					case '/': return SDL_SCANCODE_SLASH;
+					case ';': return SDL_SCANCODE_SEMICOLON;
+					case '\'': return SDL_SCANCODE_APOSTROPHE;
+					case '[': return SDL_SCANCODE_LEFTBRACKET;
+					case ']': return SDL_SCANCODE_RIGHTBRACKET;
+					case '\\': return SDL_SCANCODE_BACKSLASH;
+					case '-': return SDL_SCANCODE_MINUS;
+					case '=': return SDL_SCANCODE_EQUALS;
+					case '`': return SDL_SCANCODE_GRAVE;
+				}
+			} else {
+				// Middle stuff.
+				if (strcmp(id, INPUT_ID_SPACE) == 0) return SDL_SCANCODE_SPACE;
+				if (strcmp(id, INPUT_ID_BACKSPACE) == 0) return SDL_SCANCODE_BACKSPACE;
+				if (strcmp(id, INPUT_ID_ENTER) == 0) return SDL_SCANCODE_RETURN;
+				if (strcmp(id, INPUT_ID_ENTER) == 0) return SDL_SCANCODE_RETURN2;
+				if (strcmp(id, INPUT_ID_TAB) == 0) return SDL_SCANCODE_TAB;
+				if (strcmp(id, INPUT_ID_CAPSLOCK) == 0) return SDL_SCANCODE_CAPSLOCK;
+				if (strcmp(id, INPUT_ID_SHIFT_LEFT) == 0) return SDL_SCANCODE_LSHIFT;
+				if (strcmp(id, INPUT_ID_SHIFT_RIGHT) == 0) return SDL_SCANCODE_RSHIFT;
+				// Bottom row.
+				if (strcmp(id, INPUT_ID_CONTROL_LEFT) == 0) return SDL_SCANCODE_LCTRL;
+				if (strcmp(id, INPUT_ID_CONTROL_RIGHT) == 0) return SDL_SCANCODE_RCTRL;
+				if (strcmp(id, INPUT_ID_ALT_LEFT) == 0) return SDL_SCANCODE_LALT;
+				if (strcmp(id, INPUT_ID_ALT_RIGHT) == 0) return SDL_SCANCODE_RALT;
+				if (strcmp(id, INPUT_ID_META_LEFT) == 0) return SDL_SCANCODE_LGUI;
+				if (strcmp(id, INPUT_ID_META_RIGHT) == 0) return SDL_SCANCODE_RGUI;
+				// Top row.
+				if (strcmp(id, INPUT_ID_ESCAPE) == 0) return SDL_SCANCODE_ESCAPE;
+				if (strcmp(id, INPUT_ID_F1) == 0) return SDL_SCANCODE_F1;
+				if (strcmp(id, INPUT_ID_F2) == 0) return SDL_SCANCODE_F2;
+				if (strcmp(id, INPUT_ID_F3) == 0) return SDL_SCANCODE_F3;
+				if (strcmp(id, INPUT_ID_F4) == 0) return SDL_SCANCODE_F4;
+				if (strcmp(id, INPUT_ID_F5) == 0) return SDL_SCANCODE_F5;
+				if (strcmp(id, INPUT_ID_F6) == 0) return SDL_SCANCODE_F6;
+				if (strcmp(id, INPUT_ID_F7) == 0) return SDL_SCANCODE_F7;
+				if (strcmp(id, INPUT_ID_F8) == 0) return SDL_SCANCODE_F8;
+				if (strcmp(id, INPUT_ID_F9) == 0) return SDL_SCANCODE_F9;
+				if (strcmp(id, INPUT_ID_F10) == 0) return SDL_SCANCODE_F10;
+				if (strcmp(id, INPUT_ID_F11) == 0) return SDL_SCANCODE_F11;
+				if (strcmp(id, INPUT_ID_F12) == 0) return SDL_SCANCODE_F12;
+				// Home stuff.
+				if (strcmp(id, INPUT_ID_INSERT) == 0) return SDL_SCANCODE_INSERT;
+				if (strcmp(id, INPUT_ID_DELETE) == 0) return SDL_SCANCODE_DELETE;
+				if (strcmp(id, INPUT_ID_HOME) == 0) return SDL_SCANCODE_HOME;
+				if (strcmp(id, INPUT_ID_END) == 0) return SDL_SCANCODE_END;
+				if (strcmp(id, INPUT_ID_PAGE_UP) == 0) return SDL_SCANCODE_PAGEUP;
+				if (strcmp(id, INPUT_ID_PAGE_DOWN) == 0) return SDL_SCANCODE_PAGEDOWN;
+				// Arrows.
+				if (strcmp(id, INPUT_ID_ARROW_LEFT) == 0) return SDL_SCANCODE_LEFT;
+				if (strcmp(id, INPUT_ID_ARROW_RIGHT) == 0) return SDL_SCANCODE_RIGHT;
+				if (strcmp(id, INPUT_ID_ARROW_UP) == 0) return SDL_SCANCODE_UP;
+				if (strcmp(id, INPUT_ID_ARROW_DOWN) == 0) return SDL_SCANCODE_DOWN;
+			}
+		} 
+
+		return SDL_SCANCODE_UNKNOWN;
+	}
+
+	SDL_Scancode sdlDirectKeyCodeToScancode(SDL_KeyCode keycode) {
+		if (keycode >= SDLK_a && keycode <= SDLK_z) return SDL_SCANCODE_A + (keycode - SDLK_a);
+		if (keycode >= SDLK_1 && keycode <= SDLK_9) return SDL_SCANCODE_1 + (keycode - SDLK_1);
+
+		switch (keycode) {
+			case SDLK_0: return SDL_SCANCODE_0;
+			case SDLK_BACKQUOTE: return SDL_SCANCODE_GRAVE;
+			case SDLK_COMMA: return SDL_SCANCODE_COMMA;
+			case SDLK_PERIOD: return SDL_SCANCODE_PERIOD;
+			case SDLK_SLASH: return SDL_SCANCODE_SLASH;
+			case SDLK_SEMICOLON: return SDL_SCANCODE_SEMICOLON;
+			case SDLK_QUOTE: return SDL_SCANCODE_APOSTROPHE;
+			case SDLK_LEFTBRACKET: return SDL_SCANCODE_LEFTBRACKET;
+			case SDLK_RIGHTBRACKET: return SDL_SCANCODE_RIGHTBRACKET;
+			case SDLK_BACKSLASH: return SDL_SCANCODE_BACKSLASH;
+		}
+
+		return SDL_SCANCODE_UNKNOWN;
+	}
 
 
 	// === OpenGL ===
@@ -2224,14 +2600,34 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 	}
 
 	void wren_Input_localize(WrenVM* vm) {
-		if (wrenGetSlotType(vm, 1) != WREN_TYPE_STRING) {
-			wrenAbort(vm, "id must be String");
+		int idType = wrenGetSlotType(vm, 1);
+		if (idType == WREN_TYPE_NULL) {
+			wrenSetSlotNull(vm, 0);
+			return;
+		}
+		if (idType != WREN_TYPE_STRING) {
+			wrenAbort(vm, "input ID must be a String");
 			return;
 		}
 
 		const char* id = wrenGetSlotString(vm, 1);
 
-		// TODO!
+		// Use SDL_GetKeyFromScancode() to do keyboard layout mapping.
+		//   ID -> Scancode
+		//   Scancode -> KeyCode (via keyboard layout)
+		//   KeyCode -> Scancode (direct mapping)
+		//   Scancode -> ID
+		SDL_Scancode scancode = inputIDToSDLScancode(id);
+		if (scancode != SDL_SCANCODE_UNKNOWN) {
+			SDL_KeyCode localizedKeycode = SDL_GetKeyFromScancode(scancode);
+			SDL_Scancode localizedScancode = sdlDirectKeyCodeToScancode(localizedKeycode);
+			if (localizedScancode != SDL_SCANCODE_UNKNOWN) {
+				const char* localizedID = sdlScancodeToInputID(localizedScancode);
+				if (localizedID) {
+					id = localizedID;
+				}
+			}
+		}
 
 		wrenSetSlotString(vm, 0, id);
 	}
@@ -3347,10 +3743,12 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 				}
 			} else if (strcmp(className, "Storage") == 0) {
 				if (isStatic) {
-					if (strcmp(signature, "load_(_)") == 0) return wren_methodTODO;
-					if (strcmp(signature, "save_(_,_)") == 0) return wren_methodTODO;
-					if (strcmp(signature, "contains(_)") == 0) return wren_methodTODO;
-					if (strcmp(signature, "delete(_)") == 0) return wren_methodTODO;
+					if (strcmp(signature, "id") == 0) return wren_Storage_id;
+					if (strcmp(signature, "id=(_)") == 0) return wren_Storage_id_set;
+					if (strcmp(signature, "load_(_)") == 0) return wren_Storage_load_;
+					if (strcmp(signature, "save_(_,_)") == 0) return wren_Storage_save_;
+					if (strcmp(signature, "contains(_)") == 0) return wren_Storage_contains;
+					if (strcmp(signature, "delete(_)") == 0) return wren_Storage_delete;
 				}
 			} else if (strcmp(className, "Sprite") == 0) {
 				if (isStatic) {

@@ -15,6 +15,14 @@ export function wrenJSONToJS(s) {
 				return Number(value);
 			}
 
+			if (type === "Map") {
+				let map = new Map();
+				for (let i = 1; i < value.length; i += 2) {
+					map.set(value[i - 1], value[i]);
+				}
+				return map;
+			}
+
 			if (type === "Vec") {
 				return { x: value[0], y: value[1] };
 			}

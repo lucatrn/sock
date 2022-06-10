@@ -79,10 +79,10 @@ addClassForeignStaticMethods("sock", "Input", {
 			} else if (id === "W") {
 				id = "Z";
 			} else if (id === "M") {
-				id = "Comma";
-			} else if (id === "Comma") {
-				id = "Semicolon";
-			} else if (id === "Semicolon") {
+				id = ",";
+			} else if (id === ",") {
+				id = ";";
+			} else if (id === ";") {
 				id = "M";
 			}
 		} else if (keyboardLayout === "QWERTZ") {
@@ -301,7 +301,19 @@ function updateInputValueWithNativeName(name, value) {
  * One-to-one mapping from InputID to native input name.
  * @type {Record<string, string>}
  */
-const INPUT_NAME_MAP = Object.create(null);
+const INPUT_NAME_MAP = Object.assign(Object.create(null), {
+	"Backquote": "`",
+	"Minus": "-",
+	"Equal": "=",
+	"Comma": ",",
+	"Period": ".",
+	"Slash": "/",
+	"Semicolon": ";",
+	"Quote": "'",
+	"BracketLeft": "[",
+	"BracketRight": "]",
+	"Backslash": "\\",
+});
 
 for (let i = 0; i <= 25; i++) {
 	let letter = String.fromCharCode(65 + i);

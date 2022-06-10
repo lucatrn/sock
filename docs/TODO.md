@@ -5,20 +5,16 @@ In order of importance.
 
 ## Essentials
 
-### Win32
-
-* Rest of keyboard input
-* `Input.localize()`
-* Gamepad Input
-* Storage API
+* Touch Input (per touch?)
+* Gamepad Input (per controller?)
 
 
 ## Would Be Cool
 
 * Command Line / URL Arguments
 	* To keep things simple, we could only support named arguments.
-		* e.g. `example.exe -frog -cat 42` => `{ "frog": true, "cat": "42" }`
-		* e.g. `https://example.com/?frog&cat=42` => `{ "frog": true, "cat": "42" }`
+		* e.g. `example.exe -frog -cat 42` => `{ "frog": "", "cat": "42" }`
+		* e.g. `https://example.com/?frog&cat=42` => `{ "frog": "", "cat": "42" }`
 	* Store in map e.g. `Game.arguments`
 
 * RGBA based pixel drawing:
@@ -34,7 +30,7 @@ In order of importance.
 
 * `Array.fromHexString(s)` e.g. `Array.fromHexString("8f14a0")`
 
-* HTTP Requests - `HTTP` class?
-
 * Dynamic usage of DLL/.so
 	* e.g. for Steam/Discord APIs
+
+* HTTP Requests - `HTTP` class?

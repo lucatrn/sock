@@ -121,8 +121,23 @@ class JSON {
 				if (l.count == 2) {
 					var k = l[0]
 					if (k is String && k.count > 1 && k[0] == "»") {
-						var f = __m[k[1..-1]]
-						if (f) return f.fromJSON(l[1])
+						k = k[1..-1]
+						var v = l[1]
+
+						if (k == "Num") {
+							if (v is String) return Num.fromString(v)
+						} else if (k == "Map") {
+							if (v is List) {
+								var m = {}
+								for (i in 1...v.count..2) {
+									m[v[i - 1]] = v[i]
+								}
+								return m
+							}
+						} else {
+							var f = __m[k]
+							if (f) return f.fromJSON(l[1])
+						}
 					}
 				}
 			}
@@ -373,24 +388,42 @@ class JSON {
 		} else if (x is List) {
 			addList_(sb, x)
 		} else if (x is Map) {
-			sb.addByte(123)
-
 			var first = true
-			for (e in x) {
-				if (first) {
-					first = false
-				} else {
-					sb.addByte(44)
+			if (x.keys.all{|k| k is String}) {
+				sb.addByte(123)
+
+				for (e in x) {
+					if (first) {
+						first = false
+					} else {
+						sb.addByte(44)
+					}
+
+					addString_(sb, e.key)
+
+					sb.addByte(58)
+
+					toString_(sb, e.value)
 				}
 
-				addString_(sb, e.key)
+				sb.addByte(125)
+			} else {
+				sb.add("[\"»Map\",[")
+				for (e in x) {
+					if (first) {
+						first = false
+					} else {
+						sb.addByte(44)
+					}
+					
+					toString_(sb, e.key)
 
-				sb.addByte(58)
+					sb.addByte(44)
 
-				toString_(sb, e.value)
+					toString_(sb, e.value)
+				}
+				sb.add("]]")
 			}
-
-			sb.addByte(125)
 		} else if (__m.containsKey(x.type)) {
 			sb.add("[\"»")
 			sb.add(x.type)
