@@ -482,6 +482,7 @@ export function wrenSetSlotHandle(slot, handle) {
  * @param {number} slot
  * @param {number} classSlot
  * @param {number} size
+ * @returns {number}
  */
 export function wrenSetSlotNewForeign(slot, classSlot, size) {
 	return Module.ccall("wrenSetSlotNewForeign",

@@ -1,9 +1,7 @@
 import "./time.js";
-import "./graphics.js";
 import "./audio.js";
 import "./asset.js";
-import "./array.js";
-import "./loading.js";
+import "./buffer.js";
 import "./storage.js";
 import "./camera.js";
 import "./sprite.js";
@@ -12,3 +10,4 @@ import "./screen.js";
 import "./quad.js"
 import "./input.js";
 import "./javascript.js";
+import "./platform.js";

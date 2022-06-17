@@ -60,7 +60,15 @@ int strLastIndex(const char* str, char c) {
 	return i;
 }
 
-static const char* ERR_INVALID_ARGS = "invalid args";
+static WrenVM* vm = NULL;
+
+// Get a handle to a Wren variable.
+// As a side effect, the variable will be stored in slot 0.
+WrenHandle* wrenGetVariableHandle(const char* moduleName, const char* varName) {
+	wrenEnsureSlots(vm, 1);
+	wrenGetVariable(vm, moduleName, varName, 0);
+	return wrenGetSlotHandle(vm, 0);
+}
 
 // Aborts the current Wren fiber, using the given string as the error.
 void wrenAbort(WrenVM* vm, const char* msg) {
@@ -245,9 +253,9 @@ char* resolveRelativeFilePath(const char* curr, const char* path) {
 	return result;
 }
 
-void wren_Asset_resolvePath(WrenVM* vm) {
-	if (wrenGetSlotType(vm, 1) != 6 || wrenGetSlotType(vm, 2) != 6) {
-		wrenAbort(vm, ERR_INVALID_ARGS);
+void wren_Path_resolvePath(WrenVM* vm) {
+	if (wrenGetSlotType(vm, 1) != WREN_TYPE_STRING || wrenGetSlotType(vm, 2) != WREN_TYPE_STRING) {
+		wrenAbort(vm, "invalid args");
 		return;
 	}
 
@@ -265,70 +273,82 @@ void wren_Asset_resolvePath(WrenVM* vm) {
 }
 
 
-// Array
+// Buffer
 
+static WrenHandle* handle_Buffer = NULL;
 
 typedef struct
 {
 	uint32_t length;
 	void* data;
-} Array;
+} Buffer;
 
-uint32_t wren_array_validateLength(WrenVM* vm, int slot) {
+uint32_t wren_buffer_validateLength(WrenVM* vm, int slot) {
 	if (wrenGetSlotType(vm, slot) != WREN_TYPE_NUM) {
-		wrenAbort(vm, "Array size must be a number");
+		wrenAbort(vm, "Buffer size must be a number");
 		return UINT32_MAX;
 	}
 
 	double lenf = wrenGetSlotDouble(vm, slot);
 	if (lenf < 0 || lenf != trunc(lenf)) {
-		wrenAbort(vm, "Array size must be a non-negative integer");
+		wrenAbort(vm, "Buffer size must be a non-negative integer");
 		return UINT32_MAX;
 	}
 
 	return (uint32_t)lenf;
 }
 
-void wren_arrayAllocate(WrenVM* vm) {
-	uint32_t len = wren_array_validateLength(vm, 1);
+void wren_bufferAllocate(WrenVM* vm) {
+	uint32_t len = wren_buffer_validateLength(vm, 1);
 	if (len == UINT32_MAX) return;
 
-	Array* array = (Array*)wrenSetSlotNewForeign(vm, 0, 0, sizeof(Array));
-	
-	array->length = len;
+	Buffer* buffer = (Buffer*)wrenSetSlotNewForeign(vm, 0, 0, sizeof(Buffer));
+
+	buffer->length = len;
 	
 	if (len == 0) {
-		array->data = NULL;
+		buffer->data = NULL;
 	} else {
-		array->data = malloc(len);
+		buffer->data = calloc(len, 1);
 	}
 }
 
-void wren_arrayFinalize(void* data) {
-	Array* array = (Array*)data;
-	if (array->data) free(array->data);
+void wren_bufferFinalize(void* data) {
+	Buffer* buffer = (Buffer*)data;
+	if (buffer->data) free(buffer->data);
 }
 
-void wren_array_count(WrenVM* vm) {
-	wrenSetSlotDouble(vm, 0, ((Array*)wrenGetSlotForeign(vm, 0))->length);
+void wren_buffer_count(WrenVM* vm) {
+	wrenSetSlotDouble(vm, 0, ((Buffer*)wrenGetSlotForeign(vm, 0))->length);
 }
 
-void array_resize(Array* array, uint8_t len) {
-	array->data = realloc(array->data, len);
-	array->length = len;
+void buffer_resize(Buffer* buffer, uint32_t len) {
+	if (len != buffer->length) {
+		void* data = realloc(buffer->data, len);
+		if (data) {
+			// Initialize new memory to 0.
+			if (len > buffer->length) {
+				memset((uint8_t*)data + buffer->length, 0, len - buffer->length);
+			}
+
+			// Save new data and length.
+			buffer->data = data;
+			buffer->length = len;
+		}
+	}
 }
 
-void wren_array_resize(WrenVM* vm) {
-	uint32_t len = wren_array_validateLength(vm, 1);
+void wren_buffer_resize(WrenVM* vm) {
+	uint32_t len = wren_buffer_validateLength(vm, 1);
 	if (len == UINT32_MAX) return;
 
-	Array* array = (Array*)wrenGetSlotForeign(vm, 0);
+	Buffer* buffer = (Buffer*)wrenGetSlotForeign(vm, 0);
 
-	array_resize(array, len);
+	buffer_resize(buffer, len);
 }
 
 // Returns true if not a number.
-bool wren_array_validateValue(WrenVM* vm, int slot) {
+bool wren_buffer_validateValue(WrenVM* vm, int slot) {
 	if (wrenGetSlotType(vm, 2) != WREN_TYPE_NUM) {
 		wrenAbort(vm, "value must be a number");
 		return true;
@@ -337,45 +357,45 @@ bool wren_array_validateValue(WrenVM* vm, int slot) {
 	return false;
 }
 
-void wren_array_uint8_get(WrenVM* vm) {
-	Array* array = (Array*)wrenGetSlotForeign(vm, 0);
+void wren_buffer_uint8_get(WrenVM* vm) {
+	Buffer* buffer = (Buffer*)wrenGetSlotForeign(vm, 0);
 
-	uint32_t index = wren_validateIndex(vm, array->length, 1);
+	uint32_t index = wren_validateIndex(vm, buffer->length, 1);
 	if (index == UINT32_MAX) return;
 
-	wrenSetSlotDouble(vm, 0, ((uint8_t*)array->data)[index]);
+	wrenSetSlotDouble(vm, 0, ((uint8_t*)buffer->data)[index]);
 }
 
-void wren_array_uint8_set(WrenVM* vm) {
-	Array* array = (Array*)wrenGetSlotForeign(vm, 0);
+void wren_buffer_uint8_set(WrenVM* vm) {
+	Buffer* buffer = (Buffer*)wrenGetSlotForeign(vm, 0);
 
-	uint32_t index = wren_validateIndex(vm, array->length, 1);
+	uint32_t index = wren_validateIndex(vm, buffer->length, 1);
 	if (index == UINT32_MAX) return;
 
-	if (wren_array_validateValue(vm, 2)) return;
+	if (wren_buffer_validateValue(vm, 2)) return;
 
-	((uint8_t*)array->data)[index] = (uint8_t)wrenGetSlotDouble(vm, 2);
+	((uint8_t*)buffer->data)[index] = (uint8_t)wrenGetSlotDouble(vm, 2);
 }
 
-void wren_array_uint8_fill(WrenVM* vm) {
-	Array* array = (Array*)wrenGetSlotForeign(vm, 0);
+void wren_buffer_uint8_fill(WrenVM* vm) {
+	Buffer* buffer = (Buffer*)wrenGetSlotForeign(vm, 0);
 
-	if (wren_array_validateValue(vm, 1)) return;
+	if (wren_buffer_validateValue(vm, 1)) return;
 
-	memset(array->data, (int)wrenGetSlotDouble(vm, 1), array->length);
+	memset(buffer->data, (int)wrenGetSlotDouble(vm, 1), buffer->length);
 }
 
-void wren_array_toString(WrenVM* vm) {
-	Array* array = (Array*)wrenGetSlotForeign(vm, 0);
+void wren_buffer_toString(WrenVM* vm) {
+	Buffer* buffer = (Buffer*)wrenGetSlotForeign(vm, 0);
 
-	uint32_t len = 2 + array->length * 2;
+	uint32_t len = 2 + buffer->length * 2;
 	char* result = malloc(len);
 	result[0] = '0';
 	result[1] = 'x';
 	uint32_t resultIndex = 2;
 
-	for (uint32_t i = 0; i < array->length; i++) {
-		uint8_t byte = ((uint8_t*)array->data)[i];
+	for (uint32_t i = 0; i < buffer->length; i++) {
+		uint8_t byte = ((uint8_t*)buffer->data)[i];
 
 		bufferPutHumanHex(result + resultIndex, byte);
 
@@ -387,14 +407,14 @@ void wren_array_toString(WrenVM* vm) {
 	free(result);
 }
 
-void wren_array_asString(WrenVM* vm) {
-	Array* array = (Array*)wrenGetSlotForeign(vm, 0);
+void wren_buffer_asString(WrenVM* vm) {
+	Buffer* buffer = (Buffer*)wrenGetSlotForeign(vm, 0);
 
-	wrenSetSlotBytes(vm, 0, (const char*)array->data, array->length);
+	wrenSetSlotBytes(vm, 0, (const char*)buffer->data, buffer->length);
 }
 
-void wren_array_copyFromString(WrenVM* vm) {
-	Array* array = (Array*)wrenGetSlotForeign(vm, 0);
+void wren_buffer_copyFromString(WrenVM* vm) {
+	Buffer* buffer = (Buffer*)wrenGetSlotForeign(vm, 0);
 
 	if (wrenGetSlotType(vm, 1) != WREN_TYPE_STRING) {
 		wrenAbort(vm, "arg must be a string");
@@ -404,10 +424,10 @@ void wren_array_copyFromString(WrenVM* vm) {
 	int byteLen;
 	const char* bytes = wrenGetSlotBytes(vm, 1, &byteLen);
 
-	if ((uint32_t)byteLen > array->length) {
+	if ((uint32_t)byteLen > buffer->length) {
 		wrenAbort(vm, "string is too big");
 	} else {
-		memcpy(array->data, bytes, byteLen);
+		memcpy(buffer->data, bytes, byteLen);
 	}
 }
 
@@ -415,7 +435,7 @@ static const char BASE64_CHARS[64] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnop
 
 static const unsigned char BASE64_CHAR_TO_BYTE[128] = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 62, 0, 0, 0, 63, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 0, 0, 0, 0, 0, 0, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 0, 0, 0, 0, 0 };
 
-void wren_array_fromBase64(WrenVM* vm) {
+void wren_buffer_fromBase64(WrenVM* vm) {
 	if (wrenGetSlotType(vm, 1) != WREN_TYPE_STRING) {
 		wrenAbort(vm, "args must be a string");
 		return;
@@ -452,16 +472,16 @@ void wren_array_fromBase64(WrenVM* vm) {
 		byteIndex += 3;
 	}
 
-	Array* array = (Array*)wrenSetSlotNewForeign(vm, 0, 0, sizeof(Array));
-	array->data = bytes;
-	array->length = byteLen;
+	Buffer* buffer = (Buffer*)wrenSetSlotNewForeign(vm, 0, 0, sizeof(Buffer));
+	buffer->data = bytes;
+	buffer->length = byteLen;
 }
 
-void wren_array_toBase64(WrenVM* vm) {
-	Array* array = (Array*)wrenGetSlotForeign(vm, 0);
-	uint8_t* bytes = (uint8_t*)array->data;
+void wren_buffer_toBase64(WrenVM* vm) {
+	Buffer* buffer = (Buffer*)wrenGetSlotForeign(vm, 0);
+	uint8_t* bytes = (uint8_t*)buffer->data;
 
-	uint32_t n = array->length;
+	uint32_t n = buffer->length;
 	uint32_t rem = n % 3;
 	n -= rem;
 
@@ -754,9 +774,9 @@ WrenForeignClassMethods wren_coreBindForeignClass(WrenVM* vm, const char* module
 		if (strcmp(className, "StringBuilder") == 0) {
 			result.allocate = wren_sbAllocate;
 			result.finalize = wren_sbFinalize;
-		} else if (strcmp(className, "Array") == 0) {
-			result.allocate = wren_arrayAllocate;
-			result.finalize = wren_arrayFinalize;
+		} else if (strcmp(className, "Buffer") == 0) {
+			result.allocate = wren_bufferAllocate;
+			result.finalize = wren_bufferFinalize;
 		}
 	}
 
@@ -772,19 +792,19 @@ WrenForeignMethodFn wren_coreBindForeignMethod(WrenVM* vm, const char* moduleNam
 				if (strcmp(signature, "clear()") == 0) return wren_sb_clear;
 				if (strcmp(signature, "toString") == 0) return wren_sb_toString;
 			}
-		} else if (strcmp(className, "Array") == 0) {
+		} else if (strcmp(className, "Buffer") == 0) {
 			if (isStatic) {
-				if (strcmp(signature, "fromBase64(_)") == 0) return wren_array_fromBase64;
+				if (strcmp(signature, "fromBase64(_)") == 0) return wren_buffer_fromBase64;
 			} else {
-				if (strcmp(signature, "count") == 0) return wren_array_count;
-				if (strcmp(signature, "resize(_)") == 0) return wren_array_resize;
-				if (strcmp(signature, "toBase64") == 0) return wren_array_toBase64;
-				if (strcmp(signature, "toString") == 0) return wren_array_toString;
-				if (strcmp(signature, "asString") == 0) return wren_array_asString;
-				if (strcmp(signature, "getByte(_)") == 0) return wren_array_uint8_get;
-				if (strcmp(signature, "setByte(_,_)") == 0) return wren_array_uint8_set;
-				if (strcmp(signature, "fillBytes(_)") == 0) return wren_array_uint8_fill;
-				if (strcmp(signature, "setFromString(_)") == 0) return wren_array_copyFromString;
+				if (strcmp(signature, "count") == 0) return wren_buffer_count;
+				if (strcmp(signature, "resize(_)") == 0) return wren_buffer_resize;
+				if (strcmp(signature, "toBase64") == 0) return wren_buffer_toBase64;
+				if (strcmp(signature, "toString") == 0) return wren_buffer_toString;
+				if (strcmp(signature, "asString") == 0) return wren_buffer_asString;
+				if (strcmp(signature, "getUint8(_)") == 0) return wren_buffer_uint8_get;
+				if (strcmp(signature, "setUint8(_,_)") == 0) return wren_buffer_uint8_set;
+				if (strcmp(signature, "fillUint8(_)") == 0) return wren_buffer_uint8_fill;
+				if (strcmp(signature, "setFromString(_)") == 0) return wren_buffer_copyFromString;
 			}
 		} else if (strcmp(className, "Color") == 0) {
 			if (isStatic) {
@@ -792,9 +812,9 @@ WrenForeignMethodFn wren_coreBindForeignMethod(WrenVM* vm, const char* moduleNam
 				if (strcmp(signature, "hsl(_,_,_,_)") == 0) return wren_color_hsl;
 				if (strcmp(signature, "toHexString(_)") == 0) return wren_color_toHexString;
 			}
-		} else if (strcmp(className, "Asset") == 0) {
+		} else if (strcmp(className, "Path") == 0) {
 			if (isStatic) {
-				if (strcmp(signature, "path(_,_)") == 0) return wren_Asset_resolvePath;
+				if (strcmp(signature, "resolve(_,_)") == 0) return wren_Path_resolvePath;
 			}
 		} else if (strcmp(className, "Game") == 0) {
 			if (isStatic) {
@@ -860,8 +880,6 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 	static uint32_t game_printColor = 0xffffffffU;
 	static SDL_SystemCursor game_cursor = SDL_SYSTEM_CURSOR_ARROW;
 	static SDL_Cursor* game_sdl_cursor = NULL;
-
-	static WrenVM* vm = NULL;
 
 	static WrenHandle* handle_Time = NULL;
 	static WrenHandle* handle_Input = NULL;
@@ -981,14 +999,11 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 	}
 
 	char* readAsset(const char* path, int64_t* size) {
-		if (path[0] != '/') {
-			quitError = printBuffer;
-			snprintf(printBuffer, PRINT_BUFFER_SIZE, "path must start with /: %s", path);
-			return NULL;
-		}
+		bool startingSlash = path[0] == '/';
 
 		int pathLen = (int)strlen(path);
 		int len = basePathLen + 6 + pathLen;
+		if (!startingSlash) len++;
 
 		char* absPath = malloc(len + 1);
 		if (absPath == NULL) {
@@ -998,7 +1013,13 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 		} else {
 			memcpy(absPath, basePath, basePathLen);
 			memcpy(absPath + basePathLen, "assets", 6);
-			memcpy(absPath + basePathLen + 6, path, pathLen);
+
+			int offset = 6;
+			if (!startingSlash) {
+				absPath[basePathLen + offset] = '/';
+				offset++;
+			}
+			memcpy(absPath + basePathLen + offset, path, pathLen);
 			absPath[len] = '\0';
 
 			char* result = fileRead(absPath, size);
@@ -1058,15 +1079,6 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 			return 3;
 
 		#endif
-	}
-
-
-	// === WREN UTILS ===
-
-	WrenHandle* wren_getHandle(const char* moduleName, const char* varName) {
-		wrenEnsureSlots(vm, 1);
-		wrenGetVariable(vm, moduleName, varName, 0);
-		return wrenGetSlotHandle(vm, 0);
 	}
 
 
@@ -2566,13 +2578,12 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 
 	// TIME
 
-	void updateTimeModule(uint64_t frame, uint64_t tick, double time) {
-		wrenEnsureSlots(vm, 4);
+	void updateTimeModule(double time, double deltaTime) {
+		wrenEnsureSlots(vm, 3);
 		wrenSetSlotHandle(vm, 0, handle_Time);
-		wrenSetSlotDouble(vm, 1, (double)frame);
-		wrenSetSlotDouble(vm, 2, (double)tick);
-		wrenSetSlotDouble(vm, 3, time);
-		wrenCall(vm, callHandle_update_3);
+		wrenSetSlotDouble(vm, 1, time);
+		wrenSetSlotDouble(vm, 2, deltaTime);
+		wrenCall(vm, callHandle_update_2);
 	}
 
 	// INPUT
@@ -2744,27 +2755,10 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 		wrenSetSlotBytes(vm, 0, textInputValue ? textInputValue : "", textInputValueLen);
 	}
 
-	// GRAPHICS
-
-	void wren_Graphics_clear3(WrenVM* vm) {
-		for (int i = 1; i <= 3; i++) {
-			if (wrenGetSlotType(vm, i) != WREN_TYPE_NUM) {
-				wrenAbort(vm, "args must be Nums");
-				return;
-			}
-		}
-
-		float r = (float)wrenGetSlotDouble(vm, 1);
-		float g = (float)wrenGetSlotDouble(vm, 2);
-		float b = (float)wrenGetSlotDouble(vm, 3);
-
-		glClearColor(r, g, b, 1.0f);
-		glClear(GL_COLOR_BUFFER_BIT);
-	}
 
 	// AUDIO
 
-	void wren_audio_load_(WrenVM* vm) {
+	void wren_audio_load(WrenVM* vm) {
 		if (wrenGetSlotType(vm, 1) != WREN_TYPE_STRING) {
 			wrenAbort(vm, "path must be a string");
 			return;
@@ -2782,22 +2776,18 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 
 		printf("file size = %d\n", (int)len);
 
-		if (wren_audio_loadHandler(vm, data, (unsigned int)len)) {
-			wrenSetSlotNull(vm, 0);
-		} else {
+		if (!wren_audio_loadHandler(vm, data, (unsigned int)len)) {
 			free(data);
 		}
 	}
 
 	// ARRAY
 
-	void wren_Array_load_(WrenVM* vm) {
+	void wren_Buffer_load(WrenVM* vm) {
 		if (wrenGetSlotType(vm, 1) != WREN_TYPE_STRING) {
 			wrenAbort(vm, "path must be a string");
 			return;
 		}
-
-		Array* array = (Array*)wrenGetSlotForeign(vm, 0);
 
 		const char* path = wrenGetSlotString(vm, 1);
 
@@ -2810,27 +2800,25 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 			return;
 		}
 
-		// Free old.
-		if (array->data) {
-			free(array->data);
+		if (arrayLength >= (int64_t)UINT32_MAX) {
+			free(data);
+			wrenAbort(vm, "Buffer cannot hold more than ~4GB");
+			return;
 		}
 
-		array->data = data;
-		array->length = (uint32_t)arrayLength;
-
-		// Return loaded.
-		wrenSetSlotNull(vm, 0);
+		// Save to new buffer.
+		Buffer* buffer = (Buffer*)wrenSetSlotNewForeign(vm, 0, 0, sizeof(Buffer));
+		buffer->length = (uint32_t)arrayLength;
+		buffer->data = data;
 	}
 
 	// ASSET
 
-	void wren_Asset_loadString_(WrenVM* vm) {
-		if (wrenGetSlotType(vm, 1) != WREN_TYPE_LIST) {
+	void wren_Asset_loadString(WrenVM* vm) {
+		if (wrenGetSlotType(vm, 1) != WREN_TYPE_STRING) {
 			wrenAbort(vm, "path must be a string");
 			return;
 		}
-
-		Array* array = (Array*)wrenGetSlotForeign(vm, 0);
 
 		const char* path = wrenGetSlotString(vm, 1);
 
@@ -2864,7 +2852,7 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 
 	// SPRITE
 
-	void wren_spriteAllocate(WrenVM* vm) {
+	Sprite* spriteAllocate(WrenVM* vm) {
 		Sprite* spr = (Sprite*)wrenSetSlotNewForeign(vm, 0, 0, sizeof(Sprite));
 		
 		spr->texture.width = 0;
@@ -2882,7 +2870,11 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 		spr->transform.originY = 0.0f;
 		spr->path = NULL;
 
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+		return spr;
+	}
+
+	void wren_spriteAllocate(WrenVM* vm) {
+		spriteAllocate(vm);
 	}
 
 	void wren_spriteFinalize(void* data) {
@@ -2906,13 +2898,11 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 		wrenSetSlotDouble(vm, 0, spr->texture.height);
 	}
 
-	void wren_sprite_load_(WrenVM* vm) {
+	void wren_Sprite_load(WrenVM* vm) {
 		if (wrenGetSlotType(vm, 1) != WREN_TYPE_STRING) {
 			wrenAbort(vm, "path must be a string");
 			return;
 		}
-
-		Sprite* spr = (Sprite*)wrenGetSlotForeign(vm, 0);
 
 		const char* path = wrenGetSlotString(vm, 1);
 
@@ -2939,22 +2929,20 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 		GLuint id;
 		glGenTextures(1, &id);
 		glBindTexture(GL_TEXTURE_2D, id);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, spr->texture.wrap);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, spr->texture.wrap);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, spr->texture.filter);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, spr->texture.filter);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, defaultSpriteWrap);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, defaultSpriteWrap);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, defaultSpriteFilter);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, defaultSpriteFilter);
 		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
 
 		stbi_image_free(data);
 
-		// Save texture info.
+		// Save to new Sprite.
+		Sprite* spr = spriteAllocate(vm);
 		spr->texture.width = width;
 		spr->texture.height = height;
 		spr->texture.id = id;
 		spr->path = _strdup(path);
-
-		// Return loaded.
-		wrenSetSlotNull(vm, 0);
 	}
 
 	void wren_sprite_scaleFilter(WrenVM* vm) {
@@ -3513,8 +3501,20 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 		game_printColor = (uint32_t)wrenGetSlotDouble(vm, 1);
 	}
 
-	void wren_Game_os(WrenVM* vm) {
-		wrenSetSlotString(vm, 0, SOCK_OS);
+	void wren_Game_clear3(WrenVM* vm) {
+		for (int i = 1; i <= 3; i++) {
+			if (wrenGetSlotType(vm, i) != WREN_TYPE_NUM) {
+				wrenAbort(vm, "args must be Nums");
+				return;
+			}
+		}
+
+		float r = (float)wrenGetSlotDouble(vm, 1);
+		float g = (float)wrenGetSlotDouble(vm, 2);
+		float b = (float)wrenGetSlotDouble(vm, 3);
+
+		glClearColor(r, g, b, 1.0f);
+		glClear(GL_COLOR_BUFFER_BIT);
 	}
 
 	void wren_Game_openURL(WrenVM* vm) {
@@ -3593,6 +3593,12 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 
 	void wren_Game_quit_(WrenVM* vm) {
 		game_quit = true;
+	}
+
+	// PLATFORM
+
+	void wren_Platform_os(WrenVM* vm) {
+		wrenSetSlotString(vm, 0, SOCK_OS);
 	}
 
 	// WINDOW
@@ -3677,13 +3683,13 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 
 	WrenForeignMethodFn wren_bindForeignMethod(WrenVM* vm, const char* moduleName, const char* className, bool isStatic, const char* signature) {
 		if (strcmp(moduleName, "sock") == 0) {
-			if (strcmp(className, "Array") == 0) {
-				if (!isStatic) {
-					if (strcmp(signature, "load_(_)") == 0) return wren_Array_load_;
+			if (strcmp(className, "Buffer") == 0) {
+				if (isStatic) {
+					if (strcmp(signature, "load(_)") == 0) return wren_Buffer_load;
 				}
 			} else if (strcmp(className, "Asset") == 0) {
 				if (isStatic) {
-					if (strcmp(signature, "loadString_(_)") == 0) return wren_Asset_loadString_;
+					if (strcmp(signature, "loadString(_)") == 0) return wren_Asset_loadString;
 				}
 			} else if (strcmp(className, "Input") == 0) {
 				if (isStatic) {
@@ -3694,10 +3700,6 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 					if (strcmp(signature, "textIsActive") == 0) return wren_Input_textIsActive;
 					if (strcmp(signature, "textSelection") == 0) return wren_Input_textSelection;
 					if (strcmp(signature, "textString") == 0) return wren_Input_textString;
-				}
-			} else if (strcmp(className, "Graphics") == 0) {
-				if (isStatic) {
-					if (strcmp(signature, "clear(_,_,_)") == 0) return wren_Graphics_clear3;
 				}
 			} else if (strcmp(className, "AudioBus") == 0) {
 				if (!isStatic) {
@@ -3712,8 +3714,8 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 				if (isStatic) {
 					if (strcmp(signature, "volume") == 0) return wren_Audio_volume;
 					if (strcmp(signature, "fadeVolume(_,_)") == 0) return wren_Audio_fadeVolume;
+					if (strcmp(signature, "load(_)") == 0) return wren_audio_load;
 				} else {
-					if (strcmp(signature, "load_(_)") == 0) return wren_audio_load_;
 					if (strcmp(signature, "duration") == 0) return wren_audio_duration;
 					if (strcmp(signature, "voice()") == 0) return wren_audio_voice;
 					if (strcmp(signature, "voice(_)") == 0) return wren_audio_voiceBus;
@@ -3752,6 +3754,7 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 				}
 			} else if (strcmp(className, "Sprite") == 0) {
 				if (isStatic) {
+					if (strcmp(signature, "load(_)") == 0) return wren_Sprite_load;
 					if (strcmp(signature, "defaultScaleFilter") == 0) return wren_Sprite_defaultScaleFilter;
 					if (strcmp(signature, "defaultScaleFilter=(_)") == 0) return wren_Sprite_defaultScaleFilter_set;
 					if (strcmp(signature, "defaultWrapMode") == 0) return wren_Sprite_defaultWrapMode;
@@ -3759,7 +3762,6 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 				} else {
 					if (strcmp(signature, "width") == 0) return wren_sprite_width;
 					if (strcmp(signature, "height") == 0) return wren_sprite_height;
-					if (strcmp(signature, "load_(_)") == 0) return wren_sprite_load_;
 					if (strcmp(signature, "scaleFilter") == 0) return wren_sprite_scaleFilter;
 					if (strcmp(signature, "scaleFilter=(_)") == 0) return wren_sprite_scaleFilter_set;
 					if (strcmp(signature, "wrapMode") == 0) return wren_sprite_wrapMode;
@@ -3801,12 +3803,16 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 					if (strcmp(signature, "setFullscreen_(_)") == 0) return wren_Game_setFullscreen_;
 					if (strcmp(signature, "print_(_,_,_)") == 0) return wren_Game_print_;
 					if (strcmp(signature, "setPrintColor_(_)") == 0) return wren_Game_printColorSet_;
-					if (strcmp(signature, "os") == 0) return wren_Game_os;
+					if (strcmp(signature, "clear(_,_,_)") == 0) return wren_Game_clear3;
 					if (strcmp(signature, "openURL(_)") == 0) return wren_Game_openURL;
 					if (strcmp(signature, "ready_()") == 0) return wren_Game_ready_;
 					if (strcmp(signature, "quit_()") == 0) return wren_Game_quit_;
 				}
-			} else if (strcmp(className, "Window") == 0) {
+			} else if (strcmp(className, "Platform") == 0) {
+				if (isStatic) {
+					if (strcmp(signature, "os") == 0) return wren_Platform_os;
+				}
+			} else if (strcmp(className, "Window_") == 0) {
 				if (isStatic) {
 					if (strcmp(signature, "left") == 0) return wren_Window_left;
 					if (strcmp(signature, "top") == 0) return wren_Window_top;
@@ -4064,9 +4070,9 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 		wrenAddImplicitImportModule(vm, "sock");
 
 		// Get handles.
-		handle_Time = wren_getHandle("sock", "Time");
-		handle_Input = wren_getHandle("sock", "Input");
-		handle_Game = wren_getHandle("sock", "Game");
+		handle_Time = wrenGetVariableHandle("sock", "Time");
+		handle_Input = wrenGetVariableHandle("sock", "Input");
+		handle_Game = wrenGetVariableHandle("sock", "Game");
 
 		// Init modules.
 		initGameModule();
@@ -4087,17 +4093,13 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 
 		// Setup
 		int inLoop = 1;
-		uint64_t frame = 0;
-		uint64_t tick = 0;
-		uint64_t prevTime = SDL_GetTicks64();
+		uint64_t prevTime = 0;
+		uint64_t startTime = 0;
+		uint64_t totalTime = 0;
 		double remainingTime = 0;
-		double totalTime = 60;
 		bool windowResized = false;
 
 		while (inLoop) {
-			// Update Sock time state.
-			updateTimeModule(frame, tick, totalTime);
-
 			// Get SDL events.
 			bool anyInputs = false;
 			SDL_Event event;
@@ -4296,16 +4298,30 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 
 			// Update time stuff..
 			uint64_t now = SDL_GetTicks64();
-			uint64_t delta = min(66, now - prevTime);
+			if (startTime == 0) startTime = now;
+			now -= startTime;
+
+			uint64_t tickDelta = prevTime == 0 ? 0 : min(66, now - prevTime);
 			prevTime = now;
 
-			remainingTime -= (double)delta / 1000.0;
+			if (game_ready) {
+				if (game_fps > 0) {
+					remainingTime -= (double)tickDelta / 1000.0;
+				} else {
+					remainingTime = 0;
+				}
 
-			if (remainingTime <= 0) {
-				remainingTime += 1.0 / game_fps;
+				if (game_fps <= 0 || remainingTime <= 0) {
+					// Increment frame timer.
+					if (game_fps > 0) {
+						remainingTime += 1.0 / game_fps;
+					}
 
-				// Do update.
-				if (game_ready) {
+					// Do update.
+					// Update Sock time state.
+					updateTimeModule((double)now / 1000.0, (double)(now - totalTime) / 1000.0);
+					totalTime = now;
+
 					// Update mouse position.
 					updateInputMouse();
 
@@ -4351,16 +4367,11 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 
 					// Check for GL errors.
 					if (debug_checkGlError("post update")) inLoop = 0;
-
-					// Update local time state.
-					frame++;
-					totalTime += 1.0 / game_fps;
 				}
 			}
 
 			// Wait and loop.
 			SDL_Delay(2);
-			tick++;
 		}
 
 		return 0;
@@ -4451,7 +4462,7 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 		config.loadModuleFn = wren_loadModuleShim;
 		config.resolveModuleFn = wren_resolveModule;
 
-		WrenVM* vm = wrenNewVM(&config);
+		vm = wrenNewVM(&config);
 
 		return vm;
 	}
@@ -4464,15 +4475,19 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 // 		return sock_init();
 // 	}
 
-	void* sock_array_setter_helper(WrenVM* vm, WrenHandle* handle, uint32_t length) {
+	void sock_new_buffer(void* data, uint32_t length) {
 		wrenEnsureSlots(vm, 1);
 
-		wrenSetSlotHandle(vm, 0, handle);
-		Array* array = (Array*)wrenGetSlotForeign(vm, 0);
+		if (handle_Buffer) {
+			wrenSetSlotHandle(vm, 0, handle_Buffer);
+		} else {
+			handle_Buffer = wrenGetVariableHandle("sock", "Buffer");
+		}
 
-		array_resize(array, length);
+		Buffer* buffer = (Buffer*)wrenSetSlotNewForeign(vm, 0, 0, sizeof(Buffer));
 
-		return array->data;
+		buffer->length = length;
+		buffer->data = length == 0 ? NULL : data;
 	}
 
 #endif

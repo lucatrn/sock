@@ -1,7 +1,7 @@
 
-class Window {
+//#if DESKTOP
 
-	//#if DESKTOP
+	class Window_ {
 
 		foreign static left
 		foreign static top
@@ -24,6 +24,6 @@ class Window {
 		foreign static resizable
 		foreign static resizable=(b)
 
-	//#endif
+	}
 
-}
+//#endif

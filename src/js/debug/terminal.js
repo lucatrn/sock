@@ -118,7 +118,7 @@ function interpret(s) {
  * @param {string} s
  */
 function startsWithStatement(s) {
-	return s.startsWith("if ") || s.startsWith("if(") || s.startsWith("for ") || s.startsWith("for(") || s.startsWith("while ") || s.startsWith("while(") || s.startsWith("import ") || s.startsWith("class ");
+	return s.startsWith("var ") || s.startsWith("if ") || s.startsWith("if(") || s.startsWith("for ") || s.startsWith("for(") || s.startsWith("while ") || s.startsWith("while(") || s.startsWith("import ") || s.startsWith("class ");
 }
 
 /**

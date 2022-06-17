@@ -24,6 +24,20 @@ class Input {
 		__mw = w
 	}
 
+	static touches { __ts }
+
+	static touch(id) { __ts.find{|t| t.id == id } }
+
+	static updateTouch_(i, d, f, x, y) {
+		var t = touch(i)
+		if (t) {
+			t.update_(d, f, x, y)
+		} else {
+			__ts.add(TouchInput.new(i, f, x, y))
+		}
+	}
+
+
 	static value(ids) {
 		return inputs_(ids).reduce(0) {|v, s| s ? s.value.max(v) : v }
 	}
@@ -125,7 +139,12 @@ class Input {
 
 	static init_() {
 		__inputs = {}
+		__ts = []
 		__hc = 0.5
+	}
+
+	static pupdate_() {
+		__ts.removeWhere {|t| t.released }
 	}
 }
 
@@ -164,4 +183,33 @@ class InputState {
 		_v = v
 		if (wasHeld != held) _t = Time.frame
 	}
+}
+
+class TouchInput {
+	construct new(i, f, x, y) {
+		_i = i
+		_d = true
+		_f = f
+		_c = Vec.new(x, y)
+		_t = Time.frame
+	}
+
+	update_(d, f, x, y) {
+		_f = f
+		_c.x = x
+		_c.y = y
+		if (d != _d) {
+			_d = d
+			_t = Time.frame
+		}
+	}
+
+	id { _i }
+	force { _f }
+	center { _c }
+	held { _d }
+	pressed { _t == Time.frame && _d }
+	released { _t == Time.frame && !_d }
+	x { _c.x }
+	y { _c.y }
 }

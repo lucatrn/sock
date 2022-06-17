@@ -2,7 +2,7 @@ import { sockJsGlobal } from "./globals.js";
 
 /** @type {"windows"|"mac"|"ios"|"linux"|"android"} */
 export let deviceOS;
-/** @type {null|"Chrome"|"Edge"|"Firefox"|"Safari"} */
+/** @type {null|"chrome"|"edge"|"firefox"|"safari"} */
 export let deviceBrowser;
 export let deviceIsMobile = false;
 
@@ -24,13 +24,13 @@ if (platform === "iPhone" || platform === "iPad" || userAgent.includes("iPhone")
 }
 
 if (userAgent.includes("Edg/")) {
-	deviceBrowser = "Edge";
+	deviceBrowser = "edge";
 } else if (userAgent.includes("Chrome/")) {
-	deviceBrowser = "Chrome";
+	deviceBrowser = "chrome";
 } else if (userAgent.includes("Safari/")) {
-	deviceBrowser = "Safari";
+	deviceBrowser = "safari";
 } else if (userAgent.includes("Firefox/")) {
-	deviceBrowser = "Firefox";
+	deviceBrowser = "firefox";
 }
 
 sockJsGlobal.device = {

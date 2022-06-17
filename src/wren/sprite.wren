@@ -1,17 +1,16 @@
 
 foreign class Sprite {
-	construct new() {}
+	//#if WEB
 
-	static load(p) {
-		p = Asset.path(Meta.module(1), p)
-		var s = new()
-		Loading.add_(s.load_(p))
-		return s
-	}
+		static load(p) { load_(p, Promise.new()).await }
 
-	foreign load_(path)
+		foreign static load_(path, promise)
 
-	// foreign loadPixels_(pixels)
+	//#else
+
+		foreign static load(path)
+
+	//#endif
 
 
 	// Texture properties.
@@ -94,12 +93,6 @@ foreign class Sprite {
 	foreign draw(x, y, w, h, c)
 
 	foreign draw(x, y, w, h, u, v, uw, vh, c)
-
-
-	// // Low level drawing for complex draw.
-	// foreign beginBatch_()
-	// foreign endBatch_()
-	// foreign vert_(x, y, z, u, v, c)
 
 
 	// Set/Get default Sprite properties.

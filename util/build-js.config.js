@@ -13,7 +13,7 @@ export default {
 	output: {
 		format: "iife",
 		file: "tmp/sock.js",
-		sourcemap: true,
+		sourcemap: !watch,
 	},
 	plugins: [
 		watch ? null : terser(),

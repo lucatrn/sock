@@ -146,7 +146,7 @@ let megaScript = files.map(file => {
 	}
 
 	return min;
-}).join("\n");
+}).join("");
 
 
 // Print or write to file.

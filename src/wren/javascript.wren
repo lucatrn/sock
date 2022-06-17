@@ -1,26 +1,16 @@
 
-class JavaScript {
-	
-	//#if WEB
+//#if WEB
 
+	class JavaScript_ {
 		static eval(s) { eval(null, null, s) }
 		
-		static eval(av, an, s) { JSON.fromString( eval_(true, av && JSON.toString(av), an && JSON.toString(an), s) ) }
+		static eval(av, an, s) { JSON.fromString( eval_(null, av && JSON.toString(av), an && JSON.toString(an), s) ) }
 
-		static evalAsync(s, f) { evalAsync(null, null, s, f) }
+		static evalAsync(s) { evalAsync(null, null, s) }
 
-		static evalAsync(av, an, s, f) {
-			var id = eval_(false, av && JSON.toString(av), an && JSON.toString(an), s)
-			if (!__async) __async = {}
-			__async[id] = f
-		}
+		static evalAsync(av, an, s) { eval_(Promise.new(), av && JSON.toString(av), an && JSON.toString(an), s) }
 
-		static update_(id, a, e) {
-			__async.remove(id).call(JSON.fromString(a), e)
-		}
+		foreign static eval_(promise, argValuesJSON, argNamesJSON, jsScript)
+	}
 
-		foreign static eval_(isSync, argValuesJSON, argNamesJSON, jsScript)
-
-	//#endif
-
-}
+//#endif

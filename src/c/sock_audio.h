@@ -22,7 +22,7 @@ void wren_audioFinalize(void* data);
 void wren_Audio_volume(WrenVM* vm);
 void wren_Audio_fadeVolume(WrenVM* vm);
 
-bool wren_audio_loadHandler(WrenVM* vm, const char* data, unsigned int len);
+bool wren_audio_loadHandler(WrenVM* vm, void* data, unsigned int len);
 void wren_audio_duration(WrenVM* vm);
 void wren_audio_voice(WrenVM* vm);
 void wren_audio_voiceBus(WrenVM* vm);

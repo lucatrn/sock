@@ -1,43 +1,55 @@
 import { addClassForeignStaticMethods } from "../foreign.js";
 import { jsToWrenJSON, wrenJSONToJS } from "../json.js";
-import { callHandle_update_3 } from "../vm-call-handles.js";
-import { wrenAbort, wrenCall, wrenEnsureSlots, wrenGetSlotBool, wrenGetSlotHandle, wrenGetSlotString, wrenGetSlotType, wrenGetVariable, wrenSetSlotBool, wrenSetSlotDouble, wrenSetSlotHandle, wrenSetSlotNull, wrenSetSlotString } from "../vm.js";
+import { wrenAbort, wrenGetSlotHandle, wrenGetSlotIsInstanceOf, wrenGetSlotString, wrenGetSlotType, wrenSetSlotHandle, wrenSetSlotString } from "../vm.js";
+import { handle_Promise, resolveWrenPromise } from "./promise.js";
 
-let handle_JavaScript = 0;
-
-export function initJavaScriptModule() {
-	wrenEnsureSlots(1);
-	wrenGetVariable("sock", "JavaScript", 0);
-	handle_JavaScript = wrenGetSlotHandle(0);
-}
-
-addClassForeignStaticMethods("sock", "JavaScript", {
+addClassForeignStaticMethods("sock", "JavaScript_", {
+	// eval_(promise, argValuesJSON, argNamesJSON, jsScript)
 	"eval_(_,_,_,_)"() {
-		if (wrenGetSlotType(1) !== 0 || wrenGetSlotType(4) !== 6) {
-			wrenAbort("invalid args");
+		// Get JavaScript source.
+		if (wrenGetSlotType(4) !== 6) {
+			wrenAbort("script must be a string");
 			return;
 		}
 
-		let isSync = wrenGetSlotBool(1);
 		let source = wrenGetSlotString(4);
+
+		// Get arg names and values.
+		let argNames = getJSONFromSlot(2);
+		if (!argNames) return;
 		
-		let argValues = getJSONFromSlot(2);
-		let argNames = getJSONFromSlot(3);
+		let argValues = getJSONFromSlot(3);
+		if (!argValues) return;
 
-		if (!argValues || !argNames) {
+		if (!isStringArray(argNames) || !Array.isArray(argValues)) {
+			wrenAbort("arg values and names must be Lists, arg names must be a String List");
 			return;
 		}
 
-		if (!Array.isArray(argValues) || !isStringArray(argNames)) {
-			wrenAbort("arg values and names must be Lists, arg names must be a String[]");
+		if (argNames.length !== argValues.length) {
+			wrenAbort("arg names and values must have same length");
 			return;
 		}
 
-		if (argValues.length !== argNames.length) {
-			wrenAbort("arg values and names must have same length");
-			return;
+		// Get promise.
+		let arg1Type = wrenGetSlotType(1);
+		let promise;
+		if (arg1Type === 5) {
+			promise = null;
+		} else {
+			wrenSetSlotHandle(2, handle_Promise);
+
+			if (!wrenGetSlotIsInstanceOf(1, 2)) {
+				wrenAbort("first arg must be null or Promise");
+				return;
+			}
+
+			promise = wrenGetSlotHandle(1);
 		}
 
+		let isSync = promise == null;
+
+		// Compile and execute function.
 		let fnArgs = argNames.concat(source);
 
 		let result;
@@ -50,19 +62,13 @@ addClassForeignStaticMethods("sock", "JavaScript", {
 			return;
 		}
 
+		// Return result.
 		if (isSync) {
 			wrenSetSlotString(0, jsToWrenJSON(result));
 		} else {
-			let id = asyncCallCount++;
-			
-			// Handle async result.
-			/** @type {Promise<any>} */(result).then((value) => {
-				sendAsyncResult(id, value, false);
-			}, (error) => {
-				sendAsyncResult(id, error, true);
-			});
+			resolveWrenPromise(promise, result.then(value => jsToWrenJSON(value)));
 
-			wrenSetSlotDouble(0, id);
+			wrenSetSlotHandle(0, promise);
 		}
 	}
 });
@@ -75,25 +81,11 @@ function getJSONFromSlot(slot) {
 	if (type === 5) {
 		return [];
 	} else if (type === 6) {
-		return wrenJSONToJS(wrenGetSlotString(2));
+		return wrenJSONToJS(wrenGetSlotString(slot));
 	} else {
 		wrenAbort("expected string or null for JS args");
 		return false;
 	}
-}
-
-/**
- * @param {number} id
- * @param {any} result 
- * @param {boolean} isError 
- */
-function sendAsyncResult(id, result, isError) {
-	wrenEnsureSlots(4);
-	wrenSetSlotHandle(0, handle_JavaScript);
-	wrenSetSlotDouble(1, id);
-	wrenSetSlotString(2, jsToWrenJSON(result));
-	wrenSetSlotBool(3, isError);
-	wrenCall(callHandle_update_3);
 }
 
 /**
@@ -105,5 +97,3 @@ function isStringArray(xs) {
 }
 
 let AsyncFunction = Object.getPrototypeOf(async function(){}).constructor;
-
-let asyncCallCount = 0;

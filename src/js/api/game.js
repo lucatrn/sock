@@ -1,13 +1,14 @@
 import { canvas } from "../canvas.js";
-import { deviceBrowser, deviceIsMobile, deviceOS } from "../device.js";
+import { deviceIsMobile } from "../device.js";
 import { addClassForeignStaticMethods } from "../foreign.js";
 import { wrenGlFilterStringToNumber } from "../gl/api.js";
 import { mainFramebuffer } from "../gl/framebuffer.js";
+import { gl } from "../gl/gl.js";
 import { createElement } from "../html.js";
 import { layoutOptions, queueLayout, screenHeight, screenWidth } from "../layout.js";
 import { systemFontDraw } from "../system-font.js";
 import { callHandle_init_2, callHandle_update_0, callHandle_update_2 } from "../vm-call-handles.js";
-import { wrenAbort, getSlotBytes, wrenCall, wrenEnsureSlots, wrenGetSlotBool, wrenGetSlotDouble, wrenGetSlotHandle, wrenGetSlotString, wrenGetSlotType, wrenGetVariable, wrenSetSlotBool, wrenSetSlotDouble, wrenSetSlotHandle, wrenSetSlotNull, wrenSetSlotString } from "../vm.js";
+import { getSlotBytes, wrenAbort, wrenCall, wrenEnsureSlots, wrenGetSlotBool, wrenGetSlotDouble, wrenGetSlotHandle, wrenGetSlotString, wrenGetSlotType, wrenGetVariable, wrenSetSlotBool, wrenSetSlotDouble, wrenSetSlotHandle, wrenSetSlotNull, wrenSetSlotString } from "../vm.js";
 
 // Wren -> JS
 
@@ -207,8 +208,8 @@ addClassForeignStaticMethods("sock", "Game", {
 		}
 
 		let bytes = getSlotBytes(1);
-		let x = wrenGetSlotDouble(2);
-		let y = wrenGetSlotDouble(3);
+		let x = Math.trunc(wrenGetSlotDouble(2));
+		let y = Math.trunc(wrenGetSlotDouble(3));
 
 		let resultY = systemFontDraw(bytes, x, y, printColor);
 
@@ -222,11 +223,20 @@ addClassForeignStaticMethods("sock", "Game", {
 
 		printColor = wrenGetSlotDouble(1);
 	},
-	"os"() {
-		wrenSetSlotString(0, deviceOS);
-	},
-	"browser"() {
-		wrenSetSlotString(0, deviceBrowser);
+	"clear(_,_,_)"() {
+		for (let i = 1; i <= 3; i++) {
+			if (wrenGetSlotType(i) !== 1) {
+				wrenAbort("colors must be numbers");
+				return;
+			}
+		}
+
+		let r = wrenGetSlotDouble(1);
+		let g = wrenGetSlotDouble(2);
+		let b = wrenGetSlotDouble(3);
+
+		gl.clearColor(r, g, b, 1);
+		gl.clear(gl.COLOR_BUFFER_BIT);
 	},
 	"openURL(_)"() {
 		if (wrenGetSlotType(1) !== 6) {

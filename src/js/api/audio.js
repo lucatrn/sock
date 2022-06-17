@@ -3,7 +3,8 @@ import { sockJsGlobal } from "../globals.js";
 import { httpGET } from "../network/http.js";
 import * as Path from "../path.js";
 import { wrenAbort, wrenEnsureSlots, wrenGetSlotBool, wrenGetSlotDouble, wrenGetSlotForeign, wrenGetSlotHandle, wrenGetSlotIsInstanceOf, wrenGetSlotString, wrenGetSlotType, wrenGetVariable, wrenReleaseHandle, wrenSetSlotBool, wrenSetSlotDouble, wrenSetSlotHandle, wrenSetSlotNewForeign } from "../vm.js";
-import { getAsset, initLoadingProgressList } from "./asset.js";
+import { loadAsset } from "./asset.js";
+import { WrenHandle } from "./promise.js";
 
 const MAX_EFFECT_PER_AUDIO = 8;
 
@@ -60,12 +61,17 @@ let masterGain;
 /**
  * @type {number}
  */
-let handle_AudioBus = null;
+let handle_Audio = 0;
 
 /**
  * @type {number}
  */
-let handle_Voice = null;
+let handle_AudioBus = 0;
+
+/**
+ * @type {number}
+ */
+let handle_Voice = 0;
 
 /**
  * @param {number} duration
@@ -99,6 +105,9 @@ let implulseChurch;
 
 export function initAudioModule() {
 	wrenEnsureSlots(1);
+
+	wrenGetVariable("sock", "Audio", 0);
+	handle_Audio = wrenGetSlotHandle(0);
 
 	wrenGetVariable("sock", "Voice", 0);
 	handle_Voice = wrenGetSlotHandle(0);
@@ -685,26 +694,6 @@ async function decodeOGG(buffer) {
 }
 
 /**
- * @param {number} audioHandle
- * @param {string} path
- * @param {number} progressListHandle
- */
-async function loadAudio(audioHandle, path, progressListHandle) {
-	try {
-		// Get ArrayBuffer and update progress in list.
-		await getAsset(progressListHandle, (onprogress) => loadAudioBuffer("assets" + path, onprogress), /** @param {AudioBuffer} buffer */(buffer) => {
-			wrenEnsureSlots(2);
-			wrenSetSlotHandle(0, audioHandle);
-			let audio = getAudio();
-			
-			audio.setBuffer(buffer);
-		});
-	} finally {
-		wrenReleaseHandle(audioHandle);
-	}
-}
-
-/**
  * @param {AudioControls} audio
  */
 function wrenAudioSetEffect(audio) {
@@ -961,20 +950,6 @@ addForeignClass("sock", "Audio", [
 		audios.delete(ptr);
 	},
 ], {
-	"load_(_)"() {
-		if (wrenGetSlotType(1) !== 6) {
-			wrenAbort("path must be a string");
-			return;
-		}
-
-		let audioHandle = wrenGetSlotHandle(0);
-
-		let path = wrenGetSlotString(1);
-
-		let progressListHandle = initLoadingProgressList();
-
-		loadAudio(audioHandle, path, progressListHandle);
-	},
 	"duration"() {
 		let audio = getAudio();
 		wrenSetSlotDouble(0, audio.buffer ? audio.buffer.duration : 0);
@@ -1020,6 +995,22 @@ addForeignClass("sock", "Audio", [
 		voices.set(ptr, voice);
 	},
 }, {
+	"load_(_,_)"() {
+		loadAsset(async (url) => {
+			let buffer = await loadAudioBuffer(url);
+
+			wrenEnsureSlots(1);
+			wrenSetSlotHandle(0, handle_Audio);
+			let ptr = wrenSetSlotNewForeign(0, 0, 0);
+
+			let audio = new Audio(ptr);
+			audios.set(ptr, audio);
+
+			audio.setBuffer(buffer);
+
+			return new WrenHandle(wrenGetSlotHandle(0));
+		});
+	},
 	"volume"() {
 		wrenSetSlotDouble(0, masterGain.gain.value / BASE_MASTER_GAIN);
 	},

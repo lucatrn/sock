@@ -489,11 +489,17 @@ extern "C" {
 		soloud.fadeGlobalVolume(volume, fade);
 	}
 
-	void wren_audioAllocate(WrenVM* vm) {
+	Audio* audioAllocate(WrenVM* vm) {
 		Audio* audio = (Audio*)wrenSetSlotNewForeign(vm, 0, 0, sizeof(Audio));
 		SoLoud::Wav* ptr = &audio->wav;
 
 		new(ptr) SoLoud::Wav();
+
+		return audio;
+	}
+
+	void wren_audioAllocate(WrenVM* vm) {
+		audioAllocate(vm);
 	}
 	
 	void wren_audioFinalize(void* data) {
@@ -502,17 +508,17 @@ extern "C" {
 		audio->wav.~Wav();
 	}
 
-	bool wren_audio_loadHandler(WrenVM* vm, const char* data, unsigned int len) {
-		Audio* audio = (Audio*)wrenGetSlotForeign(vm, 0);
-
-		if (audio->wav.mData) {
-			wrenAbort(vm, "Audio already loaded");
-			return false;
-		}
+	bool wren_audio_loadHandler(WrenVM* vm, void* data, unsigned int len) {
+		Audio* audio = audioAllocate(vm);
 
 		SoLoud::result err = audio->wav.loadMem((unsigned char*)data, len, false, true);
 		if (err != SoLoud::SO_NO_ERROR) {
-			printf("SoLoud error: %s\n", soloud.getErrorString(err));
+			#if DEBUG
+
+				printf("SoLoud error: %s\n", soloud.getErrorString(err));
+
+			#endif
+
 			wrenAbort(vm, "could not load Audio");
 			return false;
 		}

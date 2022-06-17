@@ -12,16 +12,18 @@ import { canvas } from "./canvas.js";
 import { showError, showWrenError } from "./error.js";
 import { until } from "./async.js";
 import { terminalInterpret } from "./debug/terminal.js";
-import { loadEmscripten, wrenAddImplicitImportModule, wrenCall, wrenErrorString, wrenHasError, wrenInterpret } from "./vm.js";
+import { loadEmscripten, wrenAddImplicitImportModule, wrenHasError, wrenInterpret } from "./vm.js";
 import { makeCallHandles } from "./vm-call-handles.js";
 import { initSystemFont } from "./system-font.js";
-import { initJavaScriptModule } from "./api/javascript.js";
 import { createAudioContext, initAudioModule, loadAudioModule, stopAllAudio } from "./api/audio.js";
+import { initPromiseModule } from "./api/promise.js";
+import { initSpriteModule } from "./api/sprite.js";
 
 /** @type {number} */
 let prevTime = null;
+/** @type {number} */
+let startTime = null;
 let time = 0;
-let frame = 0;
 let tick = 0;
 let remainingTime = 0;
 let quit = false;
@@ -59,11 +61,12 @@ async function init() {
 
 	// Init sock modules.
 	initTimeModule();
+	initPromiseModule();
 	initAssetModule();
 	initGameModule();
 	initInputModule();
+	initSpriteModule();
 	initAudioModule();
-	initJavaScriptModule();
 
 	// Wait for user click.
 	await playClicked();
@@ -80,6 +83,13 @@ async function init() {
 
 	// Load main game module
 	let gameMainScript = await promGameMainScript;
+
+// 	wrenEnsureSlots(1);
+// 	wrenGetVariable("sock", "Game", 0);
+// 	wrenCall(callHandle_call_0);
+// 
+// 	console.log("TODO early exit")
+// 	return;
 
 	result = wrenInterpret("/main", gameMainScript);
 	if (result !== 0) {
@@ -118,23 +128,32 @@ async function playClicked() {
 
 function update() {
 	let now = performance.now() / 1000;
-	let delta = Math.min(4 / 60, prevTime == null ? 0 : now - prevTime);
-	let isBusy = gameBusyWithDOMFallback();
+	if (startTime == null) startTime = now;
+	now -= startTime;
+
+	let tickDelta = prevTime == null ? 0 : Math.min(4 / 60, now - prevTime);
 	prevTime = now;
+
+	let isBusy = gameBusyWithDOMFallback();
 	
 	if (gameIsReady && !isBusy) {
-		remainingTime -= delta;
+		if (fps) {
+			remainingTime -= tickDelta;
+		} else {
+			remainingTime = 0;
+		}
 	
-		if (remainingTime <= 0) {
+		if (!fps || remainingTime <= 0) {
 			// Increment frame timer.
-			remainingTime += 1 / fps;
-	
+			if (fps) {
+				remainingTime += 1 / fps;
+			}
+			
 			// Update module state.
-			updateTimeModule(frame, tick, time);
+			updateTimeModule(now, now - time);
+			time = now;
+			
 			updateInputModule();
-
-			frame++;
-			time += 1 / fps;
 
 			// Prepare WebGL.
 			let layoutChanged = finalizeLayout();

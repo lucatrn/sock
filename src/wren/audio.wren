@@ -159,16 +159,17 @@ foreign class AudioBus is AudioControls {
 }
 
 foreign class Audio {
-	construct new() {}
+	//#if WEB
 
-	static load(p) {
-		p = Asset.path(Meta.module(1), p)
-		var a = new()
-		Loading.add_(a.load_(p))
-		return a
-	}
+		static load(p) { load_(p, Promise.new()).await }
 
-	foreign load_(path)
+		foreign static load_(path, promise)
+
+	//#else
+
+		foreign static load(path)
+
+	//#endif
 
 	foreign duration
 
@@ -227,20 +228,3 @@ foreign class Voice is AudioControls {
 	foreign getParam_(index, type, param)
 	foreign setParam_(index, type, param, value, time)
 }
-
-
-//#if NEVER
-
-
-	var clip = Audio.load("chiptune.wav")
-
-	var busMusic = Bus.new("music")
-
-	clip.play()
-	clip.playAtVolume(0.2)
-
-	var voice = clip.voice()
-	var lp = voice.addLowpass(0, 1024)
-	var
-	
-//#endif

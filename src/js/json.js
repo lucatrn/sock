@@ -32,7 +32,7 @@ export function wrenJSONToJS(s) {
 				return { r: u8[0], g: u8[1], b: u8[2], a: u8[3] };
 			}
 
-			if (type === "Array") {
+			if (type === "Buffer") {
 				let b = atob(value);
 				let array = new Uint8Array(b.length);
 				for (let i = 0; i < b.length; i++) array[i] = b.charCodeAt(i);
@@ -65,7 +65,7 @@ function wrenObjectToJS(obj) {
 				let u8 = new Uint8Array(new Uint32Array([ obj ]).buffer);
 				return { r: u8[0] / 255, g: u8[1] / 255, b: u8[2] / 255, a: u8[3] / 255 };
 			}
-			if (type === "Array") {
+			if (type === "Buffer") {
 				let s = atob(obj);
 				let array = new Uint8Array(s.length);
 				for (let i = 0; i < s.length; i++) array[i] = s.charCodeAt(i);

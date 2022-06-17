@@ -1,7 +1,7 @@
 [
 	"common",
 	"asset",
-	"array",
+	"buffer",
 	"stringbuilder",
 	"vector",
 	"transform",
@@ -10,15 +10,15 @@
 	"game",
 	"screen",
 	"input",
-	"loading",
+	"promise",
 	"camera",
 	"sprite",
 	"quad",
-	"graphics",
 	"audio",
 	"json",
 	"storage",
 	"javascript",
 	"window",
+	"platform",
 	""
 ]

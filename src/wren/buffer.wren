@@ -1,31 +1,34 @@
 
-foreign class Array is Sequence {
+foreign class Buffer is Sequence {
 	construct new(n) {}
 
-	static new() { new(0) }
-
 	static fromString(s) {
-		var a = Array.new(s.byteCount)
-		a.setFromString(s)
-		return a
+		var b = Buffer.new(s.byteCount)
+		b.setFromString(s)
+		return b
 	}
 
-	static fromBytes(a) {
+	static fromUint8(a) {
 		var b = new(a.count)
 		var i = 0
 		for (c in a) {
-			b.setByte(i, c)
+			b.setUint8(i, c)
 			i = i + 1
 		}
 		return b
 	}
 
-	static load(p) {
-		p = Asset.path(Meta.module(1), p)
-		var a = new()
-		Loading.add_(a.load_(p))
-		return a
-	}
+	//#if WEB
+
+		static load(p) { load_(p, Promise.new()).await }
+
+		foreign static load_(path, promise)
+
+	//#else
+
+		foreign static load(path)
+
+	//#endif
 
 	foreign static fromBase64(s)
 
@@ -33,23 +36,23 @@ foreign class Array is Sequence {
 
 	foreign resize(n)
 
-	foreign getByte(i)
-	foreign setByte(i, b)
-	foreign fillBytes(b)
+	foreign getUint8(i)
+	foreign setUint8(i, b)
+	foreign fillUint8(b)
 
 // 	foreign getInt16(i)
 // 	foreign setInt16(i, b)
 // 	foreign fillInt16(i, b)
 // 	
-// 	foreign getUInt16(i)
-// 	foreign setUInt16(i, b)
-// 	foreign fillUInt16(i, b)
+// 	foreign getUint16(i)
+// 	foreign setUint16(i, b)
+// 	foreign fillUint16(i, b)
 // 	
 // 	foreign getInt32(i)
 // 	foreign setInt32(i, b)
 // 	foreign fillInt32(i, b)
 // 
-// 	foreign getUInt32(i)
+// 	foreign getUint32(i)
 // 	foreign setUIint32(i, b)
 // 	foreign fillUIint32(i, b)
 // 
@@ -69,21 +72,15 @@ foreign class Array is Sequence {
 
 	foreign setFromString(s)
 
-	foreign load_(path)
-
 	iterate(i) {
 		i = i ? i + 1 : 0
 		return i < count ? i : false
 	}
 
-	iteratorValue(i) { getByte(i) }
+	iteratorValue(i) { getUint8(i) }
 
 	toJSON { toBase64 }
 
-	static fromJSON(a) { (a is String ? fromBase64(a) : (a is List ? fromBytes(a) : null)) }
-
-	[i] { getByte(i) }
-
-	[i]=(b) { setByte(i, b) }
+	static fromJSON(a) { a is String ? fromBase64(a) : null }
 
 }

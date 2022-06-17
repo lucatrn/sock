@@ -4,7 +4,7 @@ import { addClassForeignStaticMethods } from "../foreign.js";
 import { createElement } from "../html.js";
 import { keyboardLayout } from "../keyboard-layout.js";
 import { releaseLayoutContainer, useLayoutContainer, viewportOffsetX, viewportOffsetY, viewportScale } from "../layout.js";
-import { callHandle_updateMouse_3, callHandle_update_2 } from "../vm-call-handles.js";
+import { callHandle_updateMouse_3, callHandle_updateTouch_5, callHandle_update_2 } from "../vm-call-handles.js";
 import { wrenAbort, wrenCall, wrenEnsureSlots, wrenGetSlotHandle, wrenGetSlotString, wrenGetSlotType, wrenGetVariable, wrenSetSlotBool, wrenSetSlotDouble, wrenSetSlotHandle, wrenSetSlotNull, wrenSetSlotRange, wrenSetSlotString } from "../vm.js";
 
 let textInput = createElement("input");
@@ -358,9 +358,12 @@ canvas.addEventListener("contextmenu", (event) => {
 
 canvas.addEventListener("touchstart", (event) => {
 	event.preventDefault();
+
+	updateTouches(event.changedTouches, true);
+
+	// Emulate mouse with touch.
 	if (event.changedTouches.length === event.touches.length) {
 		let touch = event.changedTouches[0];
-		updateInputValue("Tap", 1);
 		updateInputValue("MouseLeft", 1);
 		updateMousePosition(touch.clientX, touch.clientY);
 	}
@@ -368,17 +371,50 @@ canvas.addEventListener("touchstart", (event) => {
 
 canvas.addEventListener("touchmove", (event) => {
 	event.preventDefault();
+
+	updateTouches(event.changedTouches, true);
+
+	// Emulate mouse with touch.
 	let touch = event.changedTouches[0];
 	updateMousePosition(touch.clientX, touch.clientY);
 }, { passive: false });
 
 canvas.addEventListener("touchend", (event) => {
 	event.preventDefault();
+
+	updateTouches(event.changedTouches, false);
+
+	// Emulate mouse with touch.
 	if (event.touches.length === 0) {
-		updateInputValue("Tap", 0);
 		updateInputValue("MouseLeft", 0);
 	}
 }, { passive: false });
+
+/**
+ * 
+ * @param {TouchList} touches
+ * @param {boolean} isDown
+ */
+function updateTouches(touches, isDown) {
+	for (let i = 0; i < touches.length; i++) {
+		let touch = touches[i];
+
+		let id = touch.identifier;
+		let x = (touch.clientX - viewportOffsetX) / viewportScale;
+		let y = (touch.clientY - viewportOffsetY) / viewportScale;
+		let force = touch.force;
+		if (force === 0) force = (isDown ? 1 : 0);
+
+		wrenEnsureSlots(6);
+		wrenSetSlotHandle(0, handle_Input);
+		wrenSetSlotDouble(1, id);
+		wrenSetSlotBool(2, isDown);
+		wrenSetSlotDouble(3, force);
+		wrenSetSlotDouble(4, x);
+		wrenSetSlotDouble(5, y);
+		wrenCall(callHandle_updateTouch_5);
+	}
+}
 
 /**
  * @param {number} x

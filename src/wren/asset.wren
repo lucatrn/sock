@@ -1,28 +1,22 @@
 
 class Asset {
-	static path() { "%(Meta.module(1)).wren" }
-
-	static path(p) { path(Meta.module(1), p) }
-
-	foreign static path(curr, next)
-
 	//#if WEB
 
-		static loadString(p) {
-			p = path(Meta.module(1), p)
+		static loadString(p) { loadString_(p, Promise.new()).await }
 
-			var a = Async.new()
-			loadString_(a.loader, p)
-			return a
-		}
-
-		foreign static loadString_(list, path)
+		foreign static loadString_(path, promise)
 
 	//#else
 
-		static loadString(p) { loadString_(path(Meta.module(1), p)) }
-
-		foreign static loadString_(path)
+		foreign static loadString(path)
 
 	//#endif
+}
+
+class Path {
+	static current { Meta.module(1) }
+
+	static resolve(p) { resolve(Meta.module(1), p) }
+
+	foreign static resolve(curr, next)
 }

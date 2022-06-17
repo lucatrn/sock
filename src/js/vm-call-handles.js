@@ -15,8 +15,10 @@ export let callHandle_update_0 = 0;
 export let callHandle_update_1 = 0;
 export let callHandle_update_2 = 0;
 export let callHandle_update_3 = 0;
+export let callHandle_resolve_2 = 0;
 export let callHandle_toString = 0;
 export let callHandle_updateMouse_3 = 0;
+export let callHandle_updateTouch_5 = 0;
 
 
 export function makeCallHandles() {
@@ -32,8 +34,10 @@ export function makeCallHandles() {
 	callHandle_update_1 = wrenMakeCallHandle("update_(_)");
 	callHandle_update_2 = wrenMakeCallHandle("update_(_,_)");
 	callHandle_update_3 = wrenMakeCallHandle("update_(_,_,_)");
+	callHandle_resolve_2 = wrenMakeCallHandle("resolve_(_,_)");
 	callHandle_toString = wrenMakeCallHandle("toString");
 	callHandle_updateMouse_3 = wrenMakeCallHandle("updateMouse_(_,_,_)")
+	callHandle_updateTouch_5 = wrenMakeCallHandle("updateTouch_(_,_,_,_,_)")
 }
 
 /**

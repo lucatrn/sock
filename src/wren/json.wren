@@ -11,18 +11,13 @@ class JSON {
 
 	// === ASSETS ===
 
-	static load(p) {
-		p = Asset.path(Meta.module(1), p)
-
-		var a = Async.new()
-		Asset.loadString_(a.loader { |s| fromString(s) }, p)
-		return a
-	}
+	static load(p) { fromString(Asset.loadString(p)) }
 
 
 	// === PARSING ===
 
 	static fromString(s) {
+		if (s == null) return s
 		var p = JSON.new_(s)
 		p.SKIP()
 		return p.MORE ? p.value() : null
@@ -504,6 +499,6 @@ class JSON {
 
 JSON.init_()
 
-JSON.register(Array)
+JSON.register(Buffer)
 JSON.register(Vec)
 JSON.register(Transform)

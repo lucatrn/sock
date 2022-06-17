@@ -4,8 +4,18 @@ import { gl } from "../gl/gl.js";
 import { SpriteBatcher } from "../gl/sprite-batcher.js";
 import { Texture } from "../gl/texture.js";
 import { httpGETImage } from "../network/http.js";
-import { wrenAbort, vm, wrenEnsureSlots, wrenGetSlotDouble, wrenGetSlotForeign, wrenGetSlotHandle, wrenGetSlotString, wrenGetSlotType, wrenInsertInList, wrenReleaseHandle, wrenSetListElement, wrenSetSlotDouble, wrenSetSlotHandle, wrenSetSlotNewForeign, wrenSetSlotNewList, wrenSetSlotNull, wrenSetSlotString } from "../vm.js";
-import { initLoadingProgressList } from "./asset.js";
+import { wrenAbort, vm, wrenEnsureSlots, wrenGetSlotDouble, wrenGetSlotForeign, wrenGetSlotHandle, wrenGetSlotString, wrenGetSlotType, wrenInsertInList, wrenReleaseHandle, wrenSetListElement, wrenSetSlotDouble, wrenSetSlotHandle, wrenSetSlotNewForeign, wrenSetSlotNewList, wrenSetSlotNull, wrenSetSlotString, wrenGetVariable } from "../vm.js";
+import { loadAsset } from "./asset.js";
+import { WrenHandle } from "./promise.js";
+
+
+let handle_Sprite = 0;
+
+export function initSpriteModule() {
+	wrenEnsureSlots(1);
+	wrenGetVariable("sock", "Sprite", 0);
+	handle_Sprite = wrenGetSlotHandle(0);
+}
 
 let defaultFilter = gl.NEAREST;
 let defaultWrap = gl.CLAMP_TO_EDGE;
@@ -43,38 +53,6 @@ class Sprite extends Texture {
 
 	name() {
 		return this.path || "Sprite#" + this.ptr;
-	}
-
-	/**
-	 * @param {number} progressListHandle
-	 */
-	async loadFromPath(progressListHandle) {
-		try {
-			let progress = -1;
-			let error;
-			
-			let source = await httpGETImage("assets" + this.path);
-			
-			if (source == null) {
-				error = `failed to load sprite ${this.path}`;
-			} else {
-				this.load(source);
-				progress = 1;
-			}
-
-			wrenEnsureSlots(2);
-			wrenSetSlotHandle(0, progressListHandle);
-
-			wrenSetSlotDouble(1, progress);
-			wrenSetListElement(0, 0, 1);
-
-			if (error) {
-				wrenSetSlotString(1, error);
-				wrenSetListElement(0, 1, 1);
-			}
-		} finally {
-			wrenReleaseHandle(progressListHandle);
-		}
 	}
 
 	beginBatch() {
@@ -133,9 +111,9 @@ addForeignClass("sock", "Sprite", [
 	() => {
 		let ptr = wrenSetSlotNewForeign(0, 0, 0);
 
-		let tex = new Sprite(ptr);
+		let spr = new Sprite(ptr);
 
-		sprites.set(ptr, tex);
+		sprites.set(ptr, spr);
 	},
 	(ptr) => {
 		let tex = sprites.get(ptr);
@@ -148,20 +126,6 @@ addForeignClass("sock", "Sprite", [
 	},
 	"height"() {
 		wrenSetSlotDouble(0, getSprite().height);
-	},
-	"load_(_)"() {
-		if (wrenGetSlotType(1) !== 6) {
-			wrenAbort("path must be a string");
-			return;
-		}
-
-		let spr = getSprite();
-
-		spr.path = wrenGetSlotString(1);
-
-		let progressListHandle = initLoadingProgressList();
-
-		spr.loadFromPath(progressListHandle);
 	},
 	"scaleFilter"() {
 		wrenSetSlotString(0, glFilterNumberToString(getSprite().filter));
@@ -309,6 +273,24 @@ addForeignClass("sock", "Sprite", [
 		wrenSetSlotString(0, getSprite().name());
 	}
 }, {
+	"load_(_,_)"() {
+		loadAsset(async (url, path) => {
+			let img = await httpGETImage(url);
+
+			wrenEnsureSlots(2);
+			wrenSetSlotHandle(0, handle_Sprite);
+			let ptr = wrenSetSlotNewForeign(0, 0, 0);
+
+			let spr = new Sprite(ptr);
+			spr.path = path;
+
+			sprites.set(ptr, spr);
+
+			spr.load(img);
+
+			return new WrenHandle(wrenGetSlotHandle(0));
+		});
+	},
 	"defaultScaleFilter"() {
 		wrenSetSlotString(0, glFilterNumberToString(defaultFilter));
 	},

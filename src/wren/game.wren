@@ -99,21 +99,13 @@ class Game {
 
 	foreign static setPrintColor_(d)
 
-	foreign static platform
+	foreign static clear(r, g, b)
 
-	foreign static os
+	static clear(c) { clear(c.red / 255, c.green / 255, c.blue / 255) }
+
+	static clear() { color(0, 0, 0) }
 
 	foreign static openURL(url)
-
-	//#if WEB
-
-		foreign static browser
-
-	//#else
-
-		static browser { null }
-
-	//#endif
 
 	static init_(w, h) {
 		__SIZE_IS_FIXED = false
@@ -150,10 +142,14 @@ class Game {
 		// Init print location.
 		__drawX = __drawY = 4
 
-		// Update modules.
-		Loading.update_()
-
+		// Do update
 		if (__fn) __fn.call()
+		
+		// Post update modules.
+		Input.pupdate_()
+		Time.pupdate_()
+
+		// Done!
 		ready_()
 	}
 
