@@ -37,6 +37,8 @@
 
 #endif
 
+#define TAU 6.28318530717958647692528676655900577
+
 typedef struct {
 	int x;
 	int y;
@@ -273,6 +275,84 @@ void wren_Path_resolvePath(WrenVM* vm) {
 }
 
 
+// Random
+// Uses JSF: Bob Jenkins's Small/Fast Chaotic PRNG (public domain)
+// http://burtleburtle.net/bob/rand/smallprng.html
+
+typedef struct jsf_state {
+	uint32_t a;
+	uint32_t b;
+	uint32_t c;
+	uint32_t d;
+} jsf_state;
+
+#define jsf_rot(x,k) (((x)<<(k))|((x)>>(32-(k))))
+
+uint32_t jsf_val(jsf_state* x) {
+    uint32_t e = x->a - jsf_rot(x->b, 27);
+    x->a = x->b ^ jsf_rot(x->c, 17);
+    x->b = x->c + x->d;
+    x->c = x->d + e;
+    x->d = e + x->a;
+    return x->d;
+}
+
+void jsf_init(jsf_state* x, uint32_t seed) {
+    x->a = 0xf1ea5eed, x->b = x->c = x->d = seed;
+
+    for (int i = 0; i < 20; i++) {
+        (void)jsf_val(x);
+    }
+}
+
+static void wren_randomAllocate(WrenVM* vm) {
+	wrenSetSlotNewForeign(vm, 0, 0, sizeof(jsf_state));
+}
+
+static void wren_random_seed(WrenVM* vm) {
+	jsf_state* jsf = (jsf_state*)wrenGetSlotForeign(vm, 0);
+
+	if (wrenGetSlotType(vm, 1) != WREN_TYPE_NUM) {
+		wrenAbort(vm, "seed must be a Num");
+		return;
+	}
+
+	double value = wrenGetSlotDouble(vm, 1);
+
+	// Use both integer and fractional parts of the double to generate the integer seed.
+	jsf_init(jsf, (uint32_t)value + (uint32_t)((value - floor(value)) * 9007199254740991.0));
+}
+
+static void wren_random_int(WrenVM* vm) {
+	jsf_state* jsf = (jsf_state*)wrenGetSlotForeign(vm, 0);
+
+	wrenSetSlotDouble(vm, 0, jsf_val(jsf));
+}
+
+void wren_random_float(WrenVM* vm) {
+	jsf_state* jsf = (jsf_state*)wrenGetSlotForeign(vm, 0);
+
+	// The following 2x uint32_t -> double conversion method was taken from Wren's Random implementation.
+	// https://github.com/wren-lang/wren/blob/main/src/optional/wren_opt_random.c
+	// https://github.com/wren-lang/wren/blob/main/LICENSE
+
+	// A double has 53 bits of precision in its mantissa, and we'd like to take
+	// full advantage of that, so we need 53 bits of random source data.
+
+	// First, start with 32 random bits, shifted to the left 21 bits.
+	double result = (double)jsf_val(jsf) * (1 << 21);
+
+	// Then add another 21 random bits.
+	result += (double)(jsf_val(jsf) & ((1 << 21) - 1));
+
+	// Now we have a number from 0 - (2^53). Divide be the range to get a double
+	// from 0 to 1.0 (half-inclusive).
+	result /= 9007199254740992.0;
+
+	wrenSetSlotDouble(vm, 0, result);
+}
+
+
 // Buffer
 
 static WrenHandle* handle_Buffer = NULL;
@@ -349,7 +429,7 @@ void wren_buffer_resize(WrenVM* vm) {
 
 // Returns true if not a number.
 bool wren_buffer_validateValue(WrenVM* vm, int slot) {
-	if (wrenGetSlotType(vm, 2) != WREN_TYPE_NUM) {
+	if (wrenGetSlotType(vm, slot) != WREN_TYPE_NUM) {
 		wrenAbort(vm, "value must be a number");
 		return true;
 	}
@@ -383,6 +463,38 @@ void wren_buffer_uint8_fill(WrenVM* vm) {
 	if (wren_buffer_validateValue(vm, 1)) return;
 
 	memset(buffer->data, (int)wrenGetSlotDouble(vm, 1), buffer->length);
+}
+
+void wren_buffer_uint8_iterate(WrenVM* vm) {
+	Buffer* buffer = (Buffer*)wrenGetSlotForeign(vm, 0);
+
+	WrenType iterType = wrenGetSlotType(vm, 1);
+	if (iterType == WREN_TYPE_NULL) {
+		if (buffer->length == 0) {
+			wrenSetSlotBool(vm, 0, false);
+		} else {
+			wrenSetSlotDouble(vm, 0, 0);
+		}
+		return;
+	}
+
+	if (iterType != WREN_TYPE_NUM) {
+		wrenAbort(vm, "index must be a Num");
+		return;
+	}
+
+	double index = wrenGetSlotDouble(vm, 1);
+	if (trunc(index) != index) {
+		wrenAbort(vm, "index must be an integer");
+		return;
+	}
+
+	index++;
+	if (index >= buffer->length) {
+		wrenSetSlotBool(vm, 0, false);
+	} else {
+		wrenSetSlotDouble(vm, 0, index);
+	}
 }
 
 void wren_buffer_toString(WrenVM* vm) {
@@ -742,6 +854,294 @@ void wren_color_toHexString(WrenVM* vm) {
 }
 
 
+// Transform
+
+#define TRANSFORM_SIZE (sizeof(float) * 6)
+
+static WrenHandle* handle_Transform = NULL;
+static WrenHandle* handle_Vec = NULL;
+
+// Puts Transform class handle in slot 0.
+void transform_putClassHandle(WrenVM* vm) {
+	if (handle_Transform) {
+		wrenSetSlotHandle(vm, 0, handle_Transform);
+	} else {
+		handle_Transform = wrenGetVariableHandle("sock", "Transform");
+	}
+}
+
+// Puts Vec class handle in slot 0.
+void vec_putClassHandle(WrenVM* vm) {
+	if (handle_Vec) {
+		wrenSetSlotHandle(vm, 0, handle_Vec);
+	} else {
+		handle_Vec = wrenGetVariableHandle("sock", "Vec");
+	}
+}
+
+void transform_setRotation(float* t, double angle) {
+	angle = angle * TAU;
+	float c = (float)cos(angle);
+	float s = (float)sin(angle);
+	t[0] = c;
+	t[1] = s;
+	t[2] = -s;
+	t[3] = c;
+	t[4] = 0;
+	t[5] = 0;
+}
+
+void transform_mulRotation(double angle, float* t, float* out) {
+	angle = angle * TAU;
+	float c = (float)cos(angle);
+	float s = (float)sin(angle);
+	float t0 = t[0];
+	float t1 = t[1];
+	float t2 = t[2];
+	float t3 = t[3];
+	float t4 = t[4];
+	float t5 = t[5];
+	out[0] = c*t0 - s*t1;
+	out[1] = s*t0 + c*t1;
+	out[2] = c*t2 - s*t3;
+	out[3] = s*t2 + c*t3;
+	out[4] = c*t4 - s*t5;
+	out[5] = s*t4 + c*t5;
+}
+
+void transform_setScale(float* t, float x, float y) {
+	t[0] = x;
+	t[1] = 0;
+	t[2] = 0;
+	t[3] = y;
+	t[4] = 0;
+	t[5] = 0;
+}
+
+void transform_mulScale(float x, float y, float* t, float* out) {
+	out[0] = x * t[0];
+	out[1] = y * t[1];
+	out[2] = x * t[2];
+	out[3] = y * t[3];
+	out[4] = x * t[4];
+	out[5] = y * t[5];
+}
+
+void transform_setTranslate(float* t, float x, float y) {
+	t[0] = 1;
+	t[1] = 0;
+	t[2] = 0;
+	t[3] = 1;
+	t[4] = x;
+	t[5] = y;
+}
+
+// Multiply two transforms.
+// Can use the same memory for the [a]/[b] and [out].
+void transform_mul(float* a, float* b, float* out) {
+	float a0 = a[0];
+	float a1 = a[1];
+	float a2 = a[2];
+	float a3 = a[3];
+
+	float b0 = b[0];
+	float b1 = b[1];
+	float b2 = b[2];
+	float b3 = b[3];
+	float b4 = b[4];
+	float b5 = b[5];
+
+	out[0] = a0*b0 + a2*b1;
+	out[1] = a1*b0 + a3*b1;
+	out[2] = a0*b2 + a2*b3;
+	out[3] = a1*b2 + a3*b3;
+	out[4] = a0*b4 + a2*b5 + a[4];
+	out[5] = a1*b4 + a3*b5 + a[5];
+}
+
+void wren_transfrom_new(WrenVM* vm) {
+	for (int i = 1; i <= 6; i++) {
+		if (wrenGetSlotType(vm, i) != WREN_TYPE_NUM) {
+			wrenAbort(vm, "args must be Nums");
+			return;
+		}
+	}
+
+	float* t = (float*)wrenSetSlotNewForeign(vm, 0, 0, TRANSFORM_SIZE);
+	t[0] = wrenGetSlotDouble(vm, 1);
+	t[1] = wrenGetSlotDouble(vm, 2);
+	t[2] = wrenGetSlotDouble(vm, 3);
+	t[3] = wrenGetSlotDouble(vm, 4);
+	t[4] = wrenGetSlotDouble(vm, 5);
+	t[5] = wrenGetSlotDouble(vm, 6);
+}
+
+void wren_transfrom_rotate(WrenVM* vm) {
+	if (wrenGetSlotType(vm, 1) != WREN_TYPE_NUM) {
+		wrenAbort(vm, "rotation must be a Num");
+		return;
+	}
+
+	double angle = wrenGetSlotDouble(vm, 1);
+	float* t = (float*)wrenSetSlotNewForeign(vm, 0, 0, TRANSFORM_SIZE);
+	transform_setRotation(t, angle);
+}
+
+void wren_transfrom_rotateMul(WrenVM* vm) {
+	if (wrenGetSlotType(vm, 1) != WREN_TYPE_NUM) {
+		wrenAbort(vm, "rotation must be a Num");
+		return;
+	}
+
+	float* t = (float*)wrenGetSlotForeign(vm, 0);
+	double angle = wrenGetSlotDouble(vm, 1);
+	transform_mulRotation(angle, t, t);
+}
+
+void wren_transfrom_scale(WrenVM* vm) {
+	if (wrenGetSlotType(vm, 1) != WREN_TYPE_NUM || wrenGetSlotType(vm, 2) != WREN_TYPE_NUM) {
+		wrenAbort(vm, "scale x/y must be Nums");
+		return;
+	}
+
+	float x = (float)wrenGetSlotDouble(vm, 1);
+	float y = (float)wrenGetSlotDouble(vm, 2);
+	float* t = (float*)wrenSetSlotNewForeign(vm, 0, 0, TRANSFORM_SIZE);
+	transform_setScale(t, x, y);
+}
+
+void wren_transfrom_scaleMul(WrenVM* vm) {
+	if (wrenGetSlotType(vm, 1) != WREN_TYPE_NUM || wrenGetSlotType(vm, 2) != WREN_TYPE_NUM) {
+		wrenAbort(vm, "scale x/y must be Nums");
+		return;
+	}
+
+	float* t = (float*)wrenGetSlotForeign(vm, 0);
+	float x = (float)wrenGetSlotDouble(vm, 1);
+	float y = (float)wrenGetSlotDouble(vm, 2);
+	transform_mulScale(x, y, t, t);
+}
+
+void wren_transfrom_translate(WrenVM* vm) {
+	if (wrenGetSlotType(vm, 1) != WREN_TYPE_NUM || wrenGetSlotType(vm, 2) != WREN_TYPE_NUM) {
+		wrenAbort(vm, "translate x/y must be Nums");
+		return;
+	}
+
+	float x = (float)wrenGetSlotDouble(vm, 1);
+	float y = (float)wrenGetSlotDouble(vm, 2);
+	float* t = (float*)wrenSetSlotNewForeign(vm, 0, 0, TRANSFORM_SIZE);
+	transform_setTranslate(t, x, y);
+}
+
+void wren_transfrom_translateMul(WrenVM* vm) {
+	if (wrenGetSlotType(vm, 1) != WREN_TYPE_NUM || wrenGetSlotType(vm, 2) != WREN_TYPE_NUM) {
+		wrenAbort(vm, "translate x/y must be Nums");
+		return;
+	}
+
+	float* t = (float*)wrenGetSlotForeign(vm, 0);
+	float x = (float)wrenGetSlotDouble(vm, 1);
+	float y = (float)wrenGetSlotDouble(vm, 2);
+	t[4] = t[4] + x;
+	t[5] = t[5] + y;
+}
+
+void wren_transfrom_subscript(WrenVM* vm) {
+	uint32_t index = wren_validateIndex(vm, 6, 1);
+	if (index == UINT32_MAX) return;
+
+	float* t = (float*)wrenGetSlotForeign(vm, 0);
+	
+	wrenSetSlotDouble(vm, 0, t[index]);
+}
+
+void wren_transfrom_subscriptSet(WrenVM* vm) {
+	uint32_t index = wren_validateIndex(vm, 6, 1);
+	if (index == UINT32_MAX) return;
+
+	if (wrenGetSlotType(vm, 2) != WREN_TYPE_NUM) {
+		wrenAbort(vm, "Transform element must be a Num");
+		return;
+	}
+
+	float value = (float)wrenGetSlotDouble(vm, 2);
+	float* t = (float*)wrenGetSlotForeign(vm, 0);
+	
+	t[index] = value;
+}
+
+void wren_transfrom_mul(WrenVM* vm) {
+	float* left = (float*)wrenGetSlotForeign(vm, 0);
+
+	transform_putClassHandle(vm);
+	if (wrenGetSlotIsInstanceOf(vm, 1, 0)) {
+		float* right = (float*)wrenGetSlotForeign(vm, 1);
+		float* out = (float*)wrenSetSlotNewForeign(vm, 0, 0, TRANSFORM_SIZE);
+
+		transform_mul(left, right, out);
+		return;
+	}
+
+	wrenAbort(vm, "Transform * operand must be a Transform");
+}
+
+void wren_transfrom_toJSON(WrenVM* vm) {
+	float* t = (float*)wrenGetSlotForeign(vm, 0);
+
+	wrenEnsureSlots(vm, 2);
+	wrenSetSlotNewList(vm, 0);
+
+	for (int i = 0; i < 6; i++) {
+		wrenSetSlotDouble(vm, 1, t[i]);
+		wrenInsertInList(vm, 0, -1, 1);
+	}
+}
+
+
+// // Camera
+// 
+// static float cameraOffsetX__ = 0;
+// static float cameraOffsetY__ = 0;
+// static float cameraMatrix__[9];
+// static bool cameraIsCentered__ = false;
+// static bool cameraMatrixDirty__ = false;
+// 
+// void wren_Camera_setSetLeft(WrenVM* vm) {
+// 	if (wrenGetSlotType(vm, 1) != WREN_TYPE_NUM || wrenGetSlotType(vm, 2) != WREN_TYPE_NUM) {
+// 		wrenAbort(vm, "x/y must be a Nums");
+// 		return;
+// 	}
+// 
+// 	if (wrenGetSlotType(vm, 3) == WREN_TYPE_NULL) {
+// 		cameraMatrix__[0] = 1.0f;
+// 		cameraMatrix__[1] = 0.0f;
+// 		cameraMatrix__[2] = 0.0f;
+// 
+// 		cameraMatrix__[3] = 0.0f;
+// 		cameraMatrix__[4] = 1.0f;
+// 		cameraMatrix__[5] = 0.0f;
+// 
+// 		cameraMatrix__[6] = 0.0f;
+// 		cameraMatrix__[7] = 0.0f;
+// 		cameraMatrix__[8] = 1.0f;
+// 	} else {
+// 		transform_putClassHandle(vm);
+// 		if (!wrenGetSlotIsInstanceOf(vm, 3, 0)) {
+// 			wrenAbort(vm, "transform must be null or a Transform");
+// 			return;
+// 		}
+// 
+// 		float* t = (float*)wrenGetSlotForeign(vm, 3);
+// 	}
+// 
+// 	cameraOffsetX__ = wrenGetSlotDouble(vm, 1);
+// 	cameraOffsetY__ = wrenGetSlotDouble(vm, 2);
+// 	cameraIsCentered__ = false;
+// 	cameraMatrixDirty__ = true;
+// }
+
+
 // Game
 
 void wren_Game_platform(WrenVM* vm) {
@@ -777,6 +1177,8 @@ WrenForeignClassMethods wren_coreBindForeignClass(WrenVM* vm, const char* module
 		} else if (strcmp(className, "Buffer") == 0) {
 			result.allocate = wren_bufferAllocate;
 			result.finalize = wren_bufferFinalize;
+		} else if (strcmp(className, "Random") == 0) {
+			result.allocate = wren_randomAllocate;
 		}
 	}
 
@@ -796,16 +1198,42 @@ WrenForeignMethodFn wren_coreBindForeignMethod(WrenVM* vm, const char* moduleNam
 			if (isStatic) {
 				if (strcmp(signature, "fromBase64(_)") == 0) return wren_buffer_fromBase64;
 			} else {
-				if (strcmp(signature, "count") == 0) return wren_buffer_count;
+				if (strcmp(signature, "byteCount") == 0) return wren_buffer_count;
 				if (strcmp(signature, "resize(_)") == 0) return wren_buffer_resize;
 				if (strcmp(signature, "toBase64") == 0) return wren_buffer_toBase64;
 				if (strcmp(signature, "toString") == 0) return wren_buffer_toString;
 				if (strcmp(signature, "asString") == 0) return wren_buffer_asString;
-				if (strcmp(signature, "getUint8(_)") == 0) return wren_buffer_uint8_get;
-				if (strcmp(signature, "setUint8(_,_)") == 0) return wren_buffer_uint8_set;
-				if (strcmp(signature, "fillUint8(_)") == 0) return wren_buffer_uint8_fill;
+				if (strcmp(signature, "byteAt(_)") == 0) return wren_buffer_uint8_get;
+				if (strcmp(signature, "setByteAt(_,_)") == 0) return wren_buffer_uint8_set;
+				if (strcmp(signature, "fillBytes(_)") == 0) return wren_buffer_uint8_fill;
+				if (strcmp(signature, "iterateByte_(_)") == 0) return wren_buffer_uint8_iterate;
 				if (strcmp(signature, "setFromString(_)") == 0) return wren_buffer_copyFromString;
 			}
+		} else if (strcmp(className, "Transform") == 0) {
+			if (isStatic) {
+				if (strcmp(signature, "new(_,_,_,_,_,_)") == 0) return wren_transfrom_new;
+				if (strcmp(signature, "translate(_,_)") == 0) return wren_transfrom_translate;
+				if (strcmp(signature, "rotate(_)") == 0) return wren_transfrom_rotate;
+				if (strcmp(signature, "scale(_,_)") == 0) return wren_transfrom_scale;
+			} else {
+				if (strcmp(signature, "[_]") == 0) return wren_transfrom_subscript;
+				if (strcmp(signature, "[_]=(_)") == 0) return wren_transfrom_subscriptSet;
+				if (strcmp(signature, "mul_(_)") == 0) return wren_transfrom_mul;
+				if (strcmp(signature, "toJSON") == 0) return wren_transfrom_toJSON;
+				if (strcmp(signature, "translate(_,_)") == 0) return wren_transfrom_translateMul;
+				if (strcmp(signature, "rotate(_)") == 0) return wren_transfrom_rotateMul;
+				if (strcmp(signature, "scale(_,_)") == 0) return wren_transfrom_scaleMul;
+			}
+		} else if (strcmp(className, "Random") == 0) {
+			if (!isStatic) {
+				if (strcmp(signature, "seed(_)") == 0) return wren_random_seed;
+				if (strcmp(signature, "integer()") == 0) return wren_random_int;
+				if (strcmp(signature, "float()") == 0) return wren_random_float;
+			}
+		// } else if (strcmp(className, "Camera") == 0) {
+		// 	if (isStatic) {
+		// 		if (strcmp(signature, "setTopLeft(_,_,_)") == 0) return wren_Camera_setSetLeft;
+		// 	}
 		} else if (strcmp(className, "Color") == 0) {
 			if (isStatic) {
 				if (strcmp(signature, "rgb(_,_,_,_)") == 0) return wren_color_rgb;
@@ -3264,21 +3692,26 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 
 	// SCREEN
 
-	void wren_Screen_size_(WrenVM* vm) {
-		// Get screen size using SDL API.
+	SockIntPoint wren_getScreenSize(WrenVM* vm) {
+		SockIntPoint point;
+
 		int displayIndex = SDL_GetWindowDisplayIndex(window);
 		if (displayIndex >= 0) {
 			SDL_DisplayMode mode;
 			if (SDL_GetCurrentDisplayMode(displayIndex, &mode) == 0) {
-				wrenReturnNumList2(vm, mode.w, mode.h);
-				return;
+				point.x = mode.w;
+				point.y = mode.h;
+				return point;
 			}
 		}
 
 		wrenAbort(vm, SDL_GetError());
+		point.x = -1;
+		
+		return point;
 	}
 
-	void wren_Screen_sizeAvail_(WrenVM* vm) {
+	SockIntPoint wren_getScreenSizeAvailable(WrenVM* vm) {
 		#ifdef SOCK_WIN
 
 			// Use win32 api to get [MONITORINFO.rcWork];
@@ -3291,12 +3724,10 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 				minfo.cbSize = sizeof(MONITORINFO);
 
 				if (GetMonitorInfoA(monitor, &minfo)) {
-					wrenReturnNumList2(vm,
-						minfo.rcWork.right - minfo.rcWork.left,
-						minfo.rcWork.bottom - minfo.rcWork.top
-					);
-
-					return;
+					SockIntPoint point;
+					point.x = minfo.rcWork.right - minfo.rcWork.left;
+					point.y = minfo.rcWork.bottom - minfo.rcWork.top;
+					return point;
 				}
 			}
 
@@ -3309,7 +3740,27 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 		#endif
 
 		// Default to SDL's screen size.
-		wren_Screen_size_(vm);
+		return wren_getScreenSize(vm);
+	}
+
+	void wren_Screen_width(WrenVM* vm) {
+		SockIntPoint size = wren_getScreenSize(vm);
+		if (size.x >= 0) wrenSetSlotDouble(vm, 0, size.x);
+	}
+	
+	void wren_Screen_height(WrenVM* vm) {
+		SockIntPoint size = wren_getScreenSize(vm);
+		if (size.x >= 0) wrenSetSlotDouble(vm, 0, size.y);
+	}
+	
+	void wren_Screen_widthAvailable(WrenVM* vm) {
+		SockIntPoint size = wren_getScreenSizeAvailable(vm);
+		if (size.x >= 0) wrenSetSlotDouble(vm, 0, size.x);
+	}
+	
+	void wren_Screen_heightAvailable(WrenVM* vm) {
+		SockIntPoint size = wren_getScreenSizeAvailable(vm);
+		if (size.x >= 0) wrenSetSlotDouble(vm, 0, size.y);
 	}
 
 	// GAME
@@ -3494,7 +3945,7 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 
 	void wren_Game_printColorSet_(WrenVM* vm) {
 		if (wrenGetSlotType(vm, 1) != WREN_TYPE_NUM) {
-			wrenAbort(vm, "invalid args");
+			wrenAbort(vm, "invalid color type");
 			return;
 		}
 
@@ -3739,10 +4190,10 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 					if (strcmp(signature, "getParam_(_,_,_)") == 0) return wren_voice_getParam_;
 					if (strcmp(signature, "setParam_(_,_,_,_,_)") == 0) return wren_voice_setParam_;
 				}
-			} else if (strcmp(className, "Camera") == 0) {
-				if (isStatic) {
-					if (strcmp(signature, "update_(_,_,_)") == 0) return wren_Camera_update_3;
-				}
+			// } else if (strcmp(className, "Camera") == 0) {
+			// 	if (isStatic) {
+			// 		if (strcmp(signature, "update_(_,_,_)") == 0) return wren_Camera_update_3;
+			// 	}
 			} else if (strcmp(className, "Storage") == 0) {
 				if (isStatic) {
 					if (strcmp(signature, "id") == 0) return wren_Storage_id;
@@ -3785,8 +4236,10 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 				}
 			} else if (strcmp(className, "Screen") == 0) {
 				if (isStatic) {
-					if (strcmp(signature, "sz_") == 0) return wren_Screen_size_;
-					if (strcmp(signature, "sza_") == 0) return wren_Screen_sizeAvail_;
+					if (strcmp(signature, "width") == 0) return wren_Screen_width;
+					if (strcmp(signature, "height") == 0) return wren_Screen_height;
+					if (strcmp(signature, "availableWidth") == 0) return wren_Screen_widthAvailable;
+					if (strcmp(signature, "availableHeight") == 0) return wren_Screen_heightAvailable;
 				}
 			} else if (strcmp(className, "Game") == 0) {
 				if (isStatic) {
@@ -3859,8 +4312,8 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 		return methods;
 	}
 
-	void wren_write(WrenVM* vm, const char* text) {
-		printf("[WREN] %s", text);
+	void wren_write(WrenVM* vm, const char* line) {
+		printf("[WREN] %s\n", line);
 	}
 
 	void wren_error(WrenVM* vm, WrenErrorType type, const char* moduleName, int line, const char* message) {
@@ -4488,6 +4941,31 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 
 		buffer->length = length;
 		buffer->data = length == 0 ? NULL : data;
+	}
+	
+	void sock_new_transform(float n0, float n1, float n2, float n3, float n4, float n5) {
+		wrenEnsureSlots(vm, 1);
+
+		transform_putClassHandle(vm);
+
+		float* t = (float*)wrenSetSlotNewForeign(vm, 0, 0, TRANSFORM_SIZE);
+
+		t[0] = n0;
+		t[1] = n1;
+		t[2] = n2;
+		t[3] = n3;
+		t[4] = n4;
+		t[5] = n5;
+	}
+	
+	float* sock_get_transform(int slot) {
+		transform_putClassHandle(vm);
+		if (!wrenGetSlotIsInstanceOf(vm, slot, 0)) {
+			wrenAbort(vm, "arg must be a Transform");
+			return NULL;
+		}
+
+		return (float*)wrenGetSlotForeign(vm, slot);
 	}
 
 #endif

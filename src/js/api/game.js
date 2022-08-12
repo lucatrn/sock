@@ -17,10 +17,20 @@ let title = document.title;
 export let fps = 60;
 export let quitFromAPI = false;
 export let gameIsReady = false;
+/** @type {Promise<any>} */
+export let updatePromise = null;
+/** @type {(value: any) => void} */
+let updatePromiseFunction = null;
 let cursor = "default";
 let printColor = 0xffffffff;
 let wantFullscreen = false;
 let gettingDOMFullscreen = false;
+
+export function prepareUpdatePromise() {
+	return updatePromise = new Promise((resolve) => {
+		updatePromiseFunction = resolve;
+	});
+}
 
 export function gameBusyWithDOMFallback() {
 	return gettingDOMFullscreen;
@@ -195,11 +205,17 @@ addClassForeignStaticMethods("sock", "Game", {
 
 		canvas.style.cursor = cursorSockToCSS[cursor] || cursor;
 	},
-	"quit_()"() {
+	"quit()"() {
 		quitFromAPI = true;
 	},
 	"ready_()"() {
 		gameIsReady = true;
+
+		if (updatePromiseFunction) {
+			updatePromiseFunction();
+			updatePromiseFunction = null;
+			updatePromise = null;
+		}
 	},
 	"print_(_,_,_)"() {
 		if (wrenGetSlotType(1) !== 6 || wrenGetSlotType(2) !== 1 || wrenGetSlotType(3) !== 1) {
@@ -223,7 +239,7 @@ addClassForeignStaticMethods("sock", "Game", {
 
 		printColor = wrenGetSlotDouble(1);
 	},
-	"clear(_,_,_)"() {
+	"clear_(_,_,_)"() {
 		for (let i = 1; i <= 3; i++) {
 			if (wrenGetSlotType(i) !== 1) {
 				wrenAbort("colors must be numbers");

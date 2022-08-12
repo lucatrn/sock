@@ -52,6 +52,5 @@ export function bindQuadIndexBuffer(indexCount) {
 		indices = newIndices;
 
 		sockJsGlobal.quadSize = capacity;
-		console.log("resize count = " + capacity);
 	}
 }

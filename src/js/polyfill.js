@@ -22,6 +22,12 @@ if (!elementProto.requestFullscreen) {
 			}
 		});
 
+		documentProto["exitFullscreen"] = function () {
+			this["webkitExitFullscreen"]();
+
+			return Promise.resolve();
+		};
+
 		elementProto["requestFullscreen"] = function () {
 			return new Promise((resolve, reject) => {
 				let fullscreenChange = () => {
@@ -44,12 +50,6 @@ if (!elementProto.requestFullscreen) {
 
 				this["webkitRequestFullscreen"]();
 			});
-		};
-
-		elementProto["exitFullscreen"] = function () {
-			this["webkitExitFullscreen"]();
-
-			return Promise.resolve();
 		};
 	}
 }

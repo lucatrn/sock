@@ -15,11 +15,11 @@ addClassForeignStaticMethods("sock", "JavaScript_", {
 		let source = wrenGetSlotString(4);
 
 		// Get arg names and values.
-		let argNames = getJSONFromSlot(2);
-		if (!argNames) return;
-		
-		let argValues = getJSONFromSlot(3);
+		let argValues = getJSONFromSlot(2);
 		if (!argValues) return;
+
+		let argNames = getJSONFromSlot(3);
+		if (!argNames) return;
 
 		if (!isStringArray(argNames) || !Array.isArray(argValues)) {
 			wrenAbort("arg values and names must be Lists, arg names must be a String List");

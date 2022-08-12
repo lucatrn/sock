@@ -16,7 +16,7 @@ call emcc ^
   --pre-js src/js-em/common.js ^
   --js-library src/js-em/library.js ^
   -o tmp/sock_c.js ^
-  -O3 ^
+  -O3 -DWREN_OPT_RANDOM=0 ^
   -Werror -Wall ^
   -s ASSERTIONS=0 -s ENVIRONMENT='web' ^ -s MODULARIZE=1 -s EXPORT_ES6=1 ^
   -s FILESYSTEM=0 -s ^ -s ALLOW_MEMORY_GROWTH=1 -s ALLOW_TABLE_GROWTH=1 ^

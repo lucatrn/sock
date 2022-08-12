@@ -10,4 +10,8 @@ export function httpGET(url: string, type: XMLHttpRequestResponseType, progress?
  */
 export function httpGETImage(url: string): Promise<HTMLImageElement | null>;
 
+export function httpExists(url: string): Promise<boolean>;
+
+export function httpContentLength(url: string): Promise<number>;
+
 type ProgressCallback = (loaded: number, total: number) => void;

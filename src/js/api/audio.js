@@ -506,6 +506,12 @@ class Voice extends AudioControls {
 
 		this._initSource();
 
+		/**
+		 * 0: not yet started  
+		 * 1: playing  
+		 * 2: paused  
+		 * 3: stopped  
+		 */
 		this.state = 0;
 		this.time = 0;
 	}
@@ -516,6 +522,10 @@ class Voice extends AudioControls {
 	_initSource() {
 		this.source = audioctx.createBufferSource();
 		this.source.buffer = this.audio.buffer;
+		this.source.onended = () => {
+			this.state = 3;
+			this.time = this.audio.buffer.duration;
+		};
 	}
 	
 	play() {
@@ -544,11 +554,24 @@ class Voice extends AudioControls {
 
 	pause() {
 		if (this.state === 1) {
-			console.log(this.source.playbackRate.value);
-			this.time += (audioctx.currentTime - this.startTime) * this.source.playbackRate.value;
-			this.source.stop();
-			this.source.disconnect();
+			this.saveTime();
+			this.stopSource();
 			this.state = 2;
+		}
+	}
+ 
+	stopSource() { 
+		this.source.onended = null;
+		this.source.stop();
+		this.source.disconnect();
+	}
+
+	updateGraph() {
+		super.updateGraph();
+
+		if (this.source) {
+			this.source.disconnect();
+			this.source.connect(this.getInput());
 		}
 	}
 }
@@ -1051,12 +1074,31 @@ addForeignClass("sock", "Voice", [
 	},
 	"isPaused"() {
 		let voice = getVoice();
-		wrenSetSlotBool(0, voice.state === 0 || voice.state === 2);
+		wrenSetSlotBool(0, voice.state !== 1);
 	},
 	"stop()"() {
 		let voice = getVoice();
-		voice.source.stop();
+		voice.stopSource();
 		voice.state = 3;
+	},
+	"time"() {
+		let voice = getVoice();
+		if (voice.state === 1) {
+			voice.saveTime();
+		}
+		wrenSetSlotDouble(0, voice.time);
+	},
+	"time=(_)"() {
+		if (wrenGetSlotType(1) !== 1) {
+			wrenAbort("time must be Num");
+			return;
+		}
+		let time = wrenGetSlotDouble(1);
+
+		let voice = getVoice();
+		voice.pause();
+		voice.time = time;
+		voice.play();
 	},
 	"volume"() {
 		let voice = getVoice();

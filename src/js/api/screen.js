@@ -1,24 +1,30 @@
 import { addClassForeignStaticMethods } from "../foreign.js";
-import { wrenEnsureSlots, wrenInsertInList, wrenSetSlotDouble, wrenSetSlotNewList } from "../vm.js";
+import { wrenSetSlotDouble } from "../vm.js";
+
+
+let refreshRate = 60;
 
 /**
- * @param {number[]} xs
+ * @param {number} rate
  */
-function returnWrenNumList(xs) {
-	wrenEnsureSlots(2);
-	wrenSetSlotNewList(0);
-
-	for (let x of xs) {
-		wrenSetSlotDouble(1, x);
-		wrenInsertInList(0, -1, 1);
-	}
+export function updateRefreshRate(rate) {
+	refreshRate = rate;
 }
 
 addClassForeignStaticMethods("sock", "Screen", {
-	"sz_"() {
-		returnWrenNumList([ screen.width, screen.height ]);
+	"width"() {
+		wrenSetSlotDouble(0, screen.width);
 	},
-	"sza_"() {
-		returnWrenNumList([ screen.availWidth, screen.availHeight ]);
+	"height"() {
+		wrenSetSlotDouble(0, screen.height);
+	},
+	"availableWidth"() {
+		wrenSetSlotDouble(0, screen.availWidth);
+	},
+	"availableHeight"() {
+		wrenSetSlotDouble(0, screen.availHeight);
+	},
+	"refreshRate"() {
+		wrenSetSlotDouble(0, refreshRate);
 	},
 });

@@ -1,5 +1,5 @@
 import { addClassForeignStaticMethods } from "../foreign.js";
-import { httpGET } from "../network/http.js";
+import { httpExists, httpGET } from "../network/http.js";
 import { resolveAbsoluteAssetPath } from "../path.js";
 import { wrenAbort, wrenEnsureSlots, wrenGetSlotHandle, wrenGetSlotIsInstanceOf, wrenGetSlotString, wrenGetSlotType, wrenGetVariable, wrenSetSlotHandle } from "../vm.js";
 import { handle_Promise, resolveWrenPromise } from "./promise.js";
@@ -15,6 +15,9 @@ export function initAssetModule() {
 addClassForeignStaticMethods("sock", "Asset", {
 	"loadString_(_,_)"() {
 		loadAsset(url => httpGET(url, "arraybuffer"));
+	},
+	"exists_(_,_)"() {
+		loadAsset(url => httpExists(url));
 	},
 });
 

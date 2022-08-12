@@ -8,7 +8,7 @@
 
 		static evalAsync(s) { evalAsync(null, null, s) }
 
-		static evalAsync(av, an, s) { eval_(Promise.new(), av && JSON.toString(av), an && JSON.toString(an), s) }
+		static evalAsync(av, an, s) { eval_(Promise.new(), av && JSON.toString(av), an && JSON.toString(an), s).then {|v| JSON.fromString(v) } }
 
 		foreign static eval_(promise, argValuesJSON, argNamesJSON, jsScript)
 	}

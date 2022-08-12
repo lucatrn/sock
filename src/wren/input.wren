@@ -1,4 +1,6 @@
 
+//#define __INPUTS __i
+
 class Input {
 	static holdCutoff { __hc }
 
@@ -37,13 +39,22 @@ class Input {
 		}
 	}
 
-
-	static value(ids) {
-		return inputs_(ids).reduce(0) {|v, s| s ? s.value.max(v) : v }
+	static value(s) {
+		var v = 0
+		if (s is String) {
+			var i = __INPUTS[s]
+			if (i) v = i.value
+		} else if (s is Sequence) {
+			for (e in s) {
+				var i = __INPUTS[e]
+				if (i) v = i.value.max(v)
+			}
+		}
+		return v
 	}
 
 	static value(neg, pos) {
-		return value(neg) - value(pos)
+		return value(pos) - value(neg)
 	}
 
 	static value(negX, posX, negY, posY) {
@@ -65,59 +76,83 @@ class Input {
 		return Vec.new(valuePressed(negX, posX), valuePressed(negY, posY))
 	}
 
-	static held(ids) {
-		return inputs_(ids).any {|s| s && s.held }
+	static held(s) {
+		if (s is String) {
+			var i = __INPUTS[s]
+			if (i && i.held) return true
+		} else if (s is Sequence) {
+			for (e in s) {
+				var i = __INPUTS[e]
+				if (i && i.held) return true
+			}
+		}
+		return false
 	}
 	
-	static pressed(ids) {
-		return inputs_(ids).any {|s| s && s.pressed }
+	static pressed(s) {
+		var p = false
+		if (s is String) {
+			var i = __INPUTS[s]
+			if (i) p = i.pressed
+		} else if (s is Sequence) {
+			// Atleast one pressed, plus none held but not pressed.
+			for (e in s) {
+				var i = __INPUTS[e]
+				if (i && i.held) {
+					if (!i.pressed) return false
+					p = true
+				}
+			}
+		}
+		return p
 	}
 	
-	static pressed(ids, repeatDelay, repeatStartDelay) {
-		return inputs_(ids).any {|s| s && s.pressed(repeatDelay, repeatStartDelay) }
-	}
+	// static pressed(ids, repeatDelay, repeatStartDelay) {
+	// 	return inputs_(ids).any {|s| s && s.pressed(repeatDelay, repeatStartDelay) }
+	// }
 
-	static released(ids) {
-		return inputs_(ids).any {|s| s && s.released }
+	static released(s) {
+		var r = false
+		if (s is String) {
+			var i = __INPUTS[s]
+			if (i) r = i.released
+		} else if (s is Sequence) {
+			// Atleast one released, plus none held.
+			for (e in s) {
+				var i = __INPUTS[e]
+				if (i) {
+					if (i.held) return false
+					r = r || i.released
+				}
+			}
+		}
+		return r
 	}
 
 	static whichPressed {
-		for (id in __inputs.keys) {
-			if (__inputs[id].pressed) return id
+		for (id in __INPUTS.keys) {
+			if (__INPUTS[id].pressed) return id
 		}
 	}
 
-	static anyPressed {
-		return whichPressed != null
-	}
+	static anyPressed { whichPressed != null }
 
 	foreign static localize(_)
 
-	static inputs_(ids) {
-		if (ids is String) {
-			// return [ __inputs[ids] ]
-			return Sequence.of(__inputs[ids])
-		} else if (ids is Sequence) {
-			return ids.map {|id| __inputs[id] }
-		} else {
-			return Sequence.empty
-		}
-	}
-
 	static update_(id, v) {
-		var s = __inputs[id]
+		var s = __INPUTS[id]
 		if (s) {
 			s.update_(v)
 		} else {
-			__inputs[id] = s = InputState.new(id, v)
+			__INPUTS[id] = s = InputState.new(id, v)
 		}
 
-		if (__f) __f.call(s)
+		// if (__f) __f.call(s)
 	}
 
-	static setCallback(f) {
-		__f = f
-	}
+	// static setCallback(f) {
+	// 	__f = f
+	// }
 
 	static textBegin() { textBegin(null) }
 
@@ -138,7 +173,7 @@ class Input {
 	// }
 
 	static init_() {
-		__inputs = {}
+		__INPUTS = {}
 		__ts = []
 		__hc = 0.5
 	}
@@ -168,20 +203,20 @@ class InputState {
 
 	pressed { _t == Time.frame && held }
 
-	pressed(repeatDelay, repeatStartDelay) {
-		if (held) {
-			var t = Time.frame - _t - repeatStartDelay
-			return t >= 0 && (t % repeatDelay) == 0
-		}
-		return false
-	}
+	// pressed(repeatDelay, repeatStartDelay) {
+	// 	if (held) {
+	// 		var t = Time.frame - _t - repeatStartDelay
+	// 		return t >= 0 && (t % repeatDelay) == 0
+	// 	}
+	// 	return false
+	// }
 
 	released { _t == Time.frame && !held }
 
 	update_(v) {
-		var wasHeld = held
+		var h = held
 		_v = v
-		if (wasHeld != held) _t = Time.frame
+		if (h != held) _t = Time.frame
 	}
 }
 

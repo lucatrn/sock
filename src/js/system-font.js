@@ -3,7 +3,6 @@ import { Texture } from "./gl/texture.js";
 import { HEAPU8, Module } from "./vm.js";
 import { SpriteBatcher } from "./gl/sprite-batcher.js";
 import { httpGETImage } from "./network/http.js";
-import { loadCameraMatrix, saveCameraMatrix, setCameraMatrixTopLeft } from "./api/camera.js";
 import { Color } from "./color.js";
 import { internalResolutionWidth } from "./layout.js";
 
@@ -50,16 +49,12 @@ export function systemFontDraw(s, cornerX, cornerY, color) {
 
 	let colorInt = color == null ? 0xffffffff : (typeof color === "number" ? color : color.int);
 
-	let oldCamera = saveCameraMatrix();
-	setCameraMatrixTopLeft(0, 0);
-
 	if (!systemFontSpriteBatcher) systemFontSpriteBatcher = new SpriteBatcher();
 
 	systemFontSpriteBatcher.begin(SYSTEM_FONT);
 
 	let dx = cornerX;
 	let dy = cornerY;
-	let screenWidth = internalResolutionWidth - 8;
 
 	for (let i = 0; i < s.length; i++) {
 		let c = s[i];
@@ -96,16 +91,9 @@ export function systemFontDraw(s, cornerX, cornerY, color) {
 	
 			dx += 6;
 		}
-
-		if (dx >= screenWidth) {
-			dx = cornerX;
-			dy += 14;
-		}
 	}
 
 	systemFontSpriteBatcher.end();
-
-	loadCameraMatrix(oldCamera);
 
 	return dy;
 }

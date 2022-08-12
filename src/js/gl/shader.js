@@ -140,6 +140,17 @@ export class Shader {
 
 	/**
 	 * @param {string} name
+	 * @param {number} x 
+	 * @param {number} y 
+	 */
+	setUniformFloat2(name, x, y) {
+		let location = this.getUniformLocation(name);
+
+		gl.uniform2f(location, x, y);
+	}
+
+	/**
+	 * @param {string} name
 	 * @param {number[]|Float32Array} matrix 
 	 */
 	setUniformMatrix3(name, matrix) {

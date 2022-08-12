@@ -94,6 +94,7 @@ addClassForeignStaticMethods("sock", "Storage", {
 		let key = validateKey(1);
 		if (key) {
 			localStorage.removeItem(key);
+			wrenSetSlotNull(0);
 		}
 	},
 // 	"keys"() {

@@ -13,6 +13,8 @@ let functions = [
 	"sock_init",
 	"sock_font",
 	"sock_new_buffer",
+	"sock_new_transform",
+	"sock_get_transform",
 ];
 
 for (let l = 0; l < lines.length; l++) {

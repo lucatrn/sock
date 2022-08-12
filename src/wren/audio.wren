@@ -53,7 +53,7 @@ class AudioControls {
 		var t = getEffect_(i)
 		if (t == TYPE_FILTER) return FilterEffect.new(this, i)
 		if (t == TYPE_ECHO) return EchoEffect.new(this, i)
-		// if (t == TYPE_REVERB) return ReverbEffect.new(this, i)
+		if (t == TYPE_REVERB) return ReverbEffect.new(this, i)
 		// if (t == TYPE_DISTORTION) return DistortionEffect.new(this, i)
 		return null
 	}
@@ -90,7 +90,7 @@ class FilterEffect {
 		_i = i
 	}
 
-	index { _i }
+	slot { _i }
 	remove() { _o.removeEffect(_i) }
 
 	type {
@@ -117,7 +117,7 @@ class EchoEffect {
 		_i = i
 	}
 
-	index { _i }
+	slot { _i }
 	remove() { _o.removeEffect(_i) }
 
 	volume { _o.getParam_(_i, TYPE_ECHO, PARAM_ECHO_VOLUME) }
@@ -137,7 +137,7 @@ class ReverbEffect {
 		_i = i
 	}
 
-	index { _i }
+	slot { _i }
 	remove() { _o.removeEffect(_i) }
 
 	volume { _o.getParam_(_i, TYPE_REVERB, PARAM_REVERB_VOLUME) }
@@ -195,6 +195,9 @@ foreign class Audio {
 }
 
 foreign class Voice is AudioControls {
+	foreign time
+	foreign time=(t)
+
 	foreign play()
 	foreign pause()
 	foreign stop()

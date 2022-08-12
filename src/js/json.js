@@ -14,6 +14,15 @@ export function wrenJSONToJS(s) {
 				if (value === "nan") return NaN;
 				return Number(value);
 			}
+			
+			if (type === "Range") {
+				return {
+					from: value[0],
+					to: value[1],
+					step: value[2],
+					isInclusive: value[3],
+				};
+			}
 
 			if (type === "Map") {
 				let map = new Map();

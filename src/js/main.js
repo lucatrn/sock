@@ -1,7 +1,7 @@
 import "./polyfill.js";
 import "./api/add-all-api.js";
 import { initTimeModule, updateTimeModule } from "./api/time.js";
-import { fps, gameBusyWithDOMFallback, gameIsReady, gameUpdate, initGameModule, quitFromAPI } from "./api/game.js";
+import { fps, gameBusyWithDOMFallback, gameIsReady, gameUpdate, initGameModule, prepareUpdatePromise, quitFromAPI } from "./api/game.js";
 import { initAssetModule } from "./api/asset.js";
 import { initInputModule, recalculateAndUpdateMousePosition, updateInputModule } from "./api/input.js";
 import { httpGET } from "./network/http.js";
@@ -18,23 +18,40 @@ import { initSystemFont } from "./system-font.js";
 import { createAudioContext, initAudioModule, loadAudioModule, stopAllAudio } from "./api/audio.js";
 import { initPromiseModule } from "./api/promise.js";
 import { initSpriteModule } from "./api/sprite.js";
+import { sockJsGlobal } from "./globals.js";
+import { updateRefreshRate } from "./api/screen.js";
+import { messagingEnabled, sendMessage, waitForMessage } from "./messaging.js";
 
 /** @type {number} */
 let prevTime = null;
 /** @type {number} */
 let startTime = null;
 let time = 0;
-let tick = 0;
+let refreshrateCounter = 0;
+let refreshrateInterval = 0;
 let remainingTime = 0;
 let quit = false;
+/** @type {Promise<string|ArrayBuffer>} */
+let promGameMainScript;
 
 let playButton = document.getElementById("play-button");
 playButton.tabIndex = 0;
 
+
+
+if (messagingEnabled) {
+	playButton.remove();
+	
+	promGameMainScript = waitForMessage("script");
+
+	sendMessage("ready");
+} else {
+	promGameMainScript = httpGET("assets/main.wren", "arraybuffer");
+}
+
 async function init() {
 	// Get scripts in parallel.
 	let promSockScript = httpGET("sock_web.wren", "arraybuffer");
-	let promGameMainScript = httpGET("assets/main.wren", "arraybuffer");
 	
 	// Load Wren VM.
 	await loadEmscripten();
@@ -115,15 +132,27 @@ async function init() {
 /**
  * @returns {Promise<void>}
  */
-async function playClicked() {
-	return new Promise((resolve) => {
-		function oninput() {
-			createAudioContext();
-			resolve();
-		}
+function playClicked() {
+	// Wait for user input (button click).
+	if (messagingEnabled) {
+		initModules();
 
-		playButton.onclick = oninput;
-	});
+		return Promise.resolve();
+	} else {
+		return new Promise((resolve) => {
+			playButton.onclick = oninput;
+			
+			function oninput() {
+				initModules();
+				resolve();
+			}
+		});
+	}
+
+	// We also initialize some systems here that require a user event.
+	function initModules() {
+		createAudioContext()
+	}
 }
 
 function update() {
@@ -133,6 +162,13 @@ function update() {
 
 	let tickDelta = prevTime == null ? 0 : Math.min(4 / 60, now - prevTime);
 	prevTime = now;
+
+	refreshrateInterval += tickDelta;
+	refreshrateCounter++;
+	if (refreshrateCounter === 60) {
+		updateRefreshRate(Math.round(refreshrateCounter / refreshrateInterval));
+		refreshrateCounter = refreshrateInterval = 0;
+	}
 
 	let isBusy = gameBusyWithDOMFallback();
 	
@@ -173,17 +209,35 @@ function update() {
 				quit = true;
 			}
 
-			// Finalize WebGL.
-			mainFramebuffer.draw();
+			// Await update promise.
+			if (!gameIsReady && !quit && !quitFromAPI) {
+				console.log("awaiting update completion...")
+				prepareUpdatePromise().then(() => {
+					finalizeUpdateInner();
+					finalizeUpdateOuter();
+				});
+				return;
+			}
+
+			// ...otherwise finalize synchronusly.
+			finalizeUpdateInner();
 		}
 	}
 
+	finalizeUpdateOuter();
+}
+
+function finalizeUpdateInner() {
+	// Finalize WebGL.
+	mainFramebuffer.draw();
+}
+
+function finalizeUpdateOuter() {
 	if (quit || quitFromAPI) {
 		// End the loop.
 		canvas.classList.add("quit");
 		finalize();
 	} else {
-		tick++;
 		requestAnimationFrame(update);
 	}
 }

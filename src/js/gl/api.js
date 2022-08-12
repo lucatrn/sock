@@ -27,8 +27,8 @@ export function wrenGlFilterStringToNumber(slot) {
 
 	let name = wrenGetSlotString(slot);
 
-	if (GL_WRAP_MAP.hasOwnProperty(name)) {
-		return GL_WRAP_MAP[name];
+	if (GL_FILTER_MAP.hasOwnProperty(name)) {
+		return GL_FILTER_MAP[name];
 	} else {
 		wrenAbort(`invalid filter "${name}"`);
 		return null;
@@ -47,8 +47,8 @@ export function wrenGlWrapModeStringToNumber(slot) {
 
 	let name = wrenGetSlotString(slot);
 
-	if (GL_FILTER_MAP.hasOwnProperty(name)) {
-		return GL_FILTER_MAP[name];
+	if (GL_WRAP_MAP.hasOwnProperty(name)) {
+		return GL_WRAP_MAP[name];
 	} else {
 		wrenAbort(`invalid wrap mode "${name}"`);
 		return null;

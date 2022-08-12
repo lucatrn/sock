@@ -1,12 +1,19 @@
 
 class Asset {
+
 	//#if WEB
+
+		static exists(p) { exists_(p, Promise.new()).await }
+
+		foreign static exists_(path, promise)
 
 		static loadString(p) { loadString_(p, Promise.new()).await }
 
 		foreign static loadString_(path, promise)
 
 	//#else
+
+		foreign static exists(path)
 
 		foreign static loadString(path)
 

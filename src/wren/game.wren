@@ -1,37 +1,30 @@
 
 //#define __IS_PIXEL_PERFECT __pp
-//#define __SIZE_MAX __szm
 //#define __SIZE_IS_FIXED __szf
-//#define __SIZE __sz
 //#define __SCALE_MAX __km
 
 class Game {
 	foreign static title
-
 	foreign static title=(s)
 
-	static size { __SIZE }
-
-	static width { __SIZE.x }
+	static width { __w }
+	static width=(w) { setSize(w, __h) }
 	
-	static height { __SIZE.y }
+	static height { __h }
+	static height=(h) { setSize(__w, h) }
 
-	static center { __SIZE / 2 }
+	static setSize(w, h) {
+		__w = w
+		__h = h
+		__SIZE_IS_FIXED = true
+		layoutChanged_()
+	}
 
-	static fixedSize { __SIZE_IS_FIXED ? __SIZE : null }
-
-	static fixedSize=(v) {
-		if (v == null) {
-			if (__SIZE_IS_FIXED) {
-				__SIZE.x = __SIZE_MAX.x
-				__SIZE.y = __SIZE_MAX.y
-				__SIZE_IS_FIXED = false
-				layoutChanged_()
-			}
-		} else if (!__SIZE_IS_FIXED || __SIZE.x != v.x || __SIZE.y != v.y) {
-			__SIZE.x = v.x.floor.clamp(1, 2048)
-			__SIZE.y = v.y.floor.clamp(1, 2048)
-			__SIZE_IS_FIXED = true
+	static clearSize() {
+		if (__SIZE_IS_FIXED) {
+			__SIZE_IS_FIXED = false
+			__w = __wm
+			__h = __hm
 			layoutChanged_()
 		}
 	}
@@ -70,7 +63,7 @@ class Game {
 	foreign static fps=(fps)
 
 	static layoutChanged_() {
-		layoutChanged_(__SIZE.x, __SIZE.y, __SIZE_IS_FIXED, __IS_PIXEL_PERFECT, __SCALE_MAX)
+		layoutChanged_(__w, __h, __SIZE_IS_FIXED, __IS_PIXEL_PERFECT, __SCALE_MAX)
 	}
 
 	foreign static layoutChanged_(x, y, fixed, pp, maxs)
@@ -91,39 +84,39 @@ class Game {
 	static printColor { __drawC }
 
 	static printColor=(c) {
-		__drawC = c
 		setPrintColor_(c)
+		__drawC = c
 	}
 
 	foreign static print_(s, x, y)
 
 	foreign static setPrintColor_(d)
 
-	foreign static clear(r, g, b)
+	static clear() { clear_(0, 0, 0) }
 
-	static clear(c) { clear(c.red / 255, c.green / 255, c.blue / 255) }
+	static clear(c) { clear_(c.red / 255, c.green / 255, c.blue / 255) }
 
-	static clear() { color(0, 0, 0) }
+	foreign static clear_(r, g, b)
 
 	foreign static openURL(url)
 
 	static init_(w, h) {
-		__SIZE_IS_FIXED = false
-		__SIZE_MAX = Vec.new(w, h)
-		__SIZE = Vec.new(w, h)
+		__w = __wm = w
+		__h = __hm = h
 		__SCALE_MAX = Num.infinity
+		__SIZE_IS_FIXED = false
 		__IS_PIXEL_PERFECT = false
 		__drawX = __drawY = 4
-		__drawC = Color.white
+		__drawC = #fff
 	}
 
 	static update_(w, h) {
-		__SIZE_MAX.x = w
-		__SIZE_MAX.y = h
+		__wm = w
+		__hm = h
 
 		if (!__SIZE_IS_FIXED) {
-			__SIZE.x = w
-			__SIZE.y = h
+			__w = w
+			__h = h
 		}
 	}
 
@@ -142,6 +135,12 @@ class Game {
 		// Init print location.
 		__drawX = __drawY = 4
 
+		// Reset camera.
+		Camera.reset()
+
+		// Pre update modules.
+		Timer.update_()
+
 		// Do update
 		if (__fn) __fn.call()
 		
@@ -155,10 +154,10 @@ class Game {
 
 	foreign static ready_()
 
-	static quit() {
-		quit_()
+	static quitNow() {
+		quit()
 		Fiber.suspend()
 	}
 
-	foreign static quit_()
+	foreign static quit()
 }

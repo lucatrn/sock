@@ -224,28 +224,28 @@ export function updateInputModule() {
 				let buttons = gp.buttons;
 				let axes = gp.axes;
 	
-				updateInputValue("GamepadFaceDown", buttons[0].value);
-				updateInputValue("GamepadFaceRight", buttons[1].value);
-				updateInputValue("GamepadFaceLeft", buttons[2].value);
-				updateInputValue("GamepadFaceUp", buttons[3].value);
-				updateInputValue("GamepadLeftBumper", buttons[4].value);
-				updateInputValue("GamepadRightBumper", buttons[5].value);
-				updateInputValue("GamepadLeftTrigger", buttons[6].value);
-				updateInputValue("GamepadRightTrigger", buttons[7].value);
-				updateInputValue("GamepadSelect", buttons[8].value);
-				updateInputValue("GamepadStart", buttons[9].value);
-				updateInputValue("GamepadLeftStick", buttons[10].value);
-				updateInputValue("GamepadRightStick", buttons[11].value);
-				updateInputValue("GamepadDPadUp", buttons[12].value);
-				updateInputValue("GamepadDPadDown", buttons[13].value);
-				updateInputValue("GamepadDPadLeft", buttons[14].value);
-				updateInputValue("GamepadDPadRight", buttons[15].value);
-				updateInputValue("GamepadHome", buttons[16].value);
+				updateInputValue("FaceDown", buttons[0].value);
+				updateInputValue("FaceRight", buttons[1].value);
+				updateInputValue("FaceLeft", buttons[2].value);
+				updateInputValue("FaceUp", buttons[3].value);
+				updateInputValue("LeftBumper", buttons[4].value);
+				updateInputValue("RightBumper", buttons[5].value);
+				updateInputValue("LeftTrigger", buttons[6].value);
+				updateInputValue("RightTrigger", buttons[7].value);
+				updateInputValue("Select", buttons[8].value);
+				updateInputValue("Start", buttons[9].value);
+				updateInputValue("LeftStick", buttons[10].value);
+				updateInputValue("RightStick", buttons[11].value);
+				updateInputValue("DPadUp", buttons[12].value);
+				updateInputValue("DPadDown", buttons[13].value);
+				updateInputValue("DPadLeft", buttons[14].value);
+				updateInputValue("DPadRight", buttons[15].value);
+				updateInputValue("Guide", buttons[16].value);
 	
-				updateInputValue1D("GamepadLeftStickLeft", "GamepadLeftStickRight", axes[0]);
-				updateInputValue1D("GamepadLeftStickUp", "GamepadLeftStickDown", axes[1]);
-				updateInputValue1D("GamepadRightStickLeft", "GamepadRightStickRight", axes[2]);
-				updateInputValue1D("GamepadRightStickUp", "GamepadRightStickDown", axes[3]);
+				updateInputValue1D("LeftStickLeft", "LeftStickRight", axes[0]);
+				updateInputValue1D("LeftStickUp", "LeftStickDown", axes[1]);
+				updateInputValue1D("RightStickLeft", "RightStickRight", axes[2]);
+				updateInputValue1D("RightStickUp", "RightStickDown", axes[3]);
 			}
 		}
 	}
@@ -341,8 +341,11 @@ addEventListener("mousemove", (event) => {
 });
 
 addEventListener("wheel", (event) => {
+	event.preventDefault();
+	event.stopPropagation();
 	mouseWheel += event.deltaY;
-}, { passive: true });
+	updateInputValue1D("MouseWheelUp", "MouseWheelDown", Math.sign(event.deltaY));
+}, { passive: false });
 
 addEventListener("mousedown", (event) => {
 	updateMouseButton(event.button, 1);

@@ -121,6 +121,10 @@ class JSON {
 
 						if (k == "Num") {
 							if (v is String) return Num.fromString(v)
+						} else if (k == "Range") {
+							if (v is List && v.count == 4 && v[0] is Num && v[1] is Num && v[2] is Num && v[2] > 0 && v[3] is Bool) {
+								return Range.new(v[0], v[1], v[2], v[3])
+							}
 						} else if (k == "Map") {
 							if (v is List) {
 								var m = {}
@@ -380,6 +384,16 @@ class JSON {
 			sb.add(x)
 		} else if (x is String) {
 			addString_(sb, x)
+		} else if (x is Range) {
+			sb.add("[\"»Range\",[")
+			sb.add(x.from)
+			sb.addByte(44)
+			sb.add(x.to)
+			sb.addByte(44)
+			sb.add(x.step)
+			sb.addByte(44)
+			sb.add(x.isInclusive)
+			sb.add("]]")
 		} else if (x is List) {
 			addList_(sb, x)
 		} else if (x is Map) {
@@ -426,7 +440,7 @@ class JSON {
 			toString_(sb, x.toJSON)
 			sb.addByte(93)
 		} else if (x is Sequence) {
-			addList_(sb, x.toList)
+			addList_(sb, x)
 		} else {
 			addString_(sb, x)
 		}

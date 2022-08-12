@@ -1,6 +1,7 @@
 import { resolveForeignMethod, resolveForeignClass } from "./foreign.js";
 import { httpGET } from "./network/http.js";
 import sockEmscriptenFactory from "../js-generated/sock_c.js";
+import { messagingEnabled, sendMessage } from "./messaging.js";
 
 /**
  * The Emscripten module. Loaded asyncronusly.
@@ -45,27 +46,13 @@ export async function loadEmscripten() {
 	// This is used by [src/js-esm/library.js] to enable C->JS communication.
 	Module.sock = {
 		/**
-		 * @param {string} text
+		 * @param {string} line
 		 */
-		write(text) {
-			if (writeBufferTimeoutID) clearTimeout(writeBufferTimeoutID);
+		write(line) {
+			console.log(line);
 
-			let i = 0;
-			let next;
-			while ((next = text.indexOf("\n", i)) >= 0) {
-				let line = writeBuffer + text.slice(i, next);
-				writeBuffer = "";
-				i = next + 1;
-				console.log("[WREN] " + line);
-			}
-			writeBuffer += text.slice(i);
-			
-			// Flush write buffer if not written to in a while.
-			if (writeBuffer) {
-				writeBufferTimeoutID = setTimeout(() => {
-					console.log("(WREN) " + writeBuffer);
-					writeBuffer = "";
-				}, 50);
+			if (messagingEnabled) {
+				sendMessage("print", line);
 			}
 		},
 
@@ -653,6 +640,14 @@ function stackAllocUTF8ArrayAsCString(arraySource) {
 	}
 
 	return ptr;
+}
+
+/**
+ * @param {number} slot
+ * @returns {number}
+ */
+export function wren_sock_get_transform(slot) {
+	return Module.ccall("sock_get_transform", "number", [ "number" ], [ slot ]);
 }
 
 /**

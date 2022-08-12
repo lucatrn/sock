@@ -5,11 +5,9 @@
 
 		foreign static left
 		foreign static top
-		static left=(x) { setPos_(x, top) }
-		static top=(y) { setPos_(left, y) }
-		static topLeft { Vec.new(left, top) }
-		static topleft=(a) { setPos_(a.x, a.y) }
-		foreign static setPos_(x, y)
+		static left=(x) { setPosition(x, top) }
+		static top=(y) { setPosition(left, y) }
+		foreign static setPosition(x, y)
 		
 		foreign static center()
 
@@ -17,9 +15,7 @@
 		foreign static height
 		static width=(w) { setSize_(w, height) }
 		static height=(h) { setSize_(width, h) }
-		static size { Vec.new(width, height) }
-		static size=(a) { setSize_(a.x, a.y) }
-		foreign static setSize_(w, h)
+		foreign static setSize(w, h)
 
 		foreign static resizable
 		foreign static resizable=(b)

@@ -4,7 +4,7 @@ import { gl } from "../gl/gl.js";
 import { SpriteBatcher } from "../gl/sprite-batcher.js";
 import { Texture } from "../gl/texture.js";
 import { httpGETImage } from "../network/http.js";
-import { wrenAbort, vm, wrenEnsureSlots, wrenGetSlotDouble, wrenGetSlotForeign, wrenGetSlotHandle, wrenGetSlotString, wrenGetSlotType, wrenInsertInList, wrenReleaseHandle, wrenSetListElement, wrenSetSlotDouble, wrenSetSlotHandle, wrenSetSlotNewForeign, wrenSetSlotNewList, wrenSetSlotNull, wrenSetSlotString, wrenGetVariable } from "../vm.js";
+import { wrenAbort, vm, wrenEnsureSlots, wrenGetSlotDouble, wrenGetSlotForeign, wrenGetSlotHandle, wrenGetSlotString, wrenGetSlotType, wrenInsertInList, wrenReleaseHandle, wrenSetListElement, wrenSetSlotDouble, wrenSetSlotHandle, wrenSetSlotNewForeign, wrenSetSlotNewList, wrenSetSlotNull, wrenSetSlotString, wrenGetVariable, Module, HEAP, wren_sock_get_transform } from "../vm.js";
 import { loadAsset } from "./asset.js";
 import { WrenHandle } from "./promise.js";
 
@@ -37,6 +37,8 @@ class Sprite extends Texture {
 
 		/** @type {SpriteBatcher|null} */
 		this.batcher = null;
+
+		this.color = 0xffffffff;
 
 		/**
 		 * Transform origin.
@@ -147,6 +149,16 @@ addForeignClass("sock", "Sprite", [
 			getSprite().setWrap(wrapMode);
 		}
 	},
+	"color"() {
+		wrenSetSlotDouble(0, getSprite().color);
+	},
+	"color=(_)"() {
+		if (wrenGetSlotType(1) === 1) {
+			getSprite().color = wrenGetSlotDouble(1);
+		} else {
+			wrenAbort("color must be Num");
+		}
+	},
 	"beginBatch()"() {
 		let spr = getSprite();
 		if (spr.batcher) {
@@ -163,95 +175,54 @@ addForeignClass("sock", "Sprite", [
 			wrenAbort("batch no yet started");
 		}
 	},
-	"transform_"() {
+	"transform"() {
 		let spr = getSprite();
 
 		if (spr.tf == null) {
 			wrenSetSlotNull(0);
 		} else {
-			wrenEnsureSlots(2);
-			wrenSetSlotNewList(0);
-	
-			for (let i = 0; i < 6; i++) {
-				wrenSetSlotDouble(1, spr.tf[i]);
-				wrenInsertInList(0, -1, 1);
-			}
+			Module.ccall("sock_new_transform", null, [ "number", "number", "number", "number", "number", "number" ], spr.tf);
 		}
 	},
-	"setTransform_(_,_,_,_,_,_)"() {
-		for (let i = 1; i <= 6; i++) {
-			if (wrenGetSlotType(i) !== 1) {
-				wrenAbort("args must be Nums");
-				return;
-			}
-		}
-
+	"transform=(_)"() {
 		let spr = getSprite();
-		let n0 = wrenGetSlotDouble(1);
-
-		if (isNaN(n0)) {
-			spr.tf = null;
-		} else {
-			spr.tf = [
-				n0,
-				wrenGetSlotDouble(2),
-				wrenGetSlotDouble(3),
-				wrenGetSlotDouble(4),
-				wrenGetSlotDouble(5),
-				wrenGetSlotDouble(6),
-			];
-		}
-	},
-	"transformOrigin_"() {
-		let spr = getSprite();
-
-		if (spr.tfo == null) {
-			wrenSetSlotNull(0);
-		} else {
-			wrenEnsureSlots(2);
-			wrenSetSlotNewList(0);
-	
-			for (let i = 0; i < 2; i++) {
-				wrenSetSlotDouble(1, spr.tfo[i]);
-				wrenInsertInList(0, -1, 1);
-			}
-		}
-	},
-	"setTransformOrigin(_,_)"() {
-		for (let i = 1; i <= 2; i++) {
-			if (wrenGetSlotType(i) !== 1) {
-				wrenAbort("args must be Nums");
-				return;
-			}
-		}
-
-		let spr = getSprite();
-		let n0 = wrenGetSlotDouble(1);
-
-		if (isNaN(n0)) {
+		let ptr = /** @type {number} */( Module.ccall("sock_get_transform", "number", [ "number" ], [ 1 ]) );
+		if (ptr) {
 			spr.tfo = null;
-		} else {
-			spr.tfo = [
-				n0,
-				wrenGetSlotDouble(2),
-			];
+			spr.tf = Array.from(new Float32Array(HEAP(), ptr, 6));
 		}
 	},
-	"draw(_,_,_,_,_)"() {
+	"setTransform(_,_,_)"() {
+		let spr = getSprite();
+
+		if (wrenGetSlotType(1) !== 1 || wrenGetSlotType(2) !== 1) {
+			wrenAbort("x/y must be Nums");
+			return;
+		}
+
+		let x = wrenGetSlotDouble(1);
+		let y = wrenGetSlotDouble(2);
+		let ptr = wren_sock_get_transform(3);
+
+		if (ptr) {
+			spr.tfo = [ x, y ];
+			spr.tf = Array.from(new Float32Array(HEAP(), ptr, 6));
+		}
+	},
+	"draw(_,_,_,_)"() {
 		let spr = getSprite();
 		let x1 = wrenGetSlotDouble(1);
 		let y1 = wrenGetSlotDouble(2);
 		let x2 = x1 + wrenGetSlotDouble(3);
 		let y2 = y1 + wrenGetSlotDouble(4);
-		let c = wrenGetSlotDouble(5);
 
 		let bat = spr.batcher || getTempBatcher().begin(spr);
 
-		bat.drawQuad(x1, y1, x2, y2, 0, 0, 0, 1, 1, c, spr.tf, spr.tfo);
+		bat.drawQuad(x1, y1, x2, y2, 0, 0, 0, 1, 1, spr.color, spr.tf, spr.tfo);
 
 		if (!spr.batcher) bat.end();
 	},
-	"draw(_,_,_,_,_,_,_,_,_)"() {
+	"draw(_,_,_,_,_,_,_,_)"() {
 		let spr = getSprite();
 		let x1 = wrenGetSlotDouble(1);
 		let y1 = wrenGetSlotDouble(2);
@@ -261,11 +232,10 @@ addForeignClass("sock", "Sprite", [
 		let v1 = wrenGetSlotDouble(6) / spr.height;
 		let u2 = u1 + wrenGetSlotDouble(7) / spr.width;
 		let v2 = v1 + wrenGetSlotDouble(8) / spr.height;
-		let c = wrenGetSlotDouble(9);
 
 		let bat = spr.batcher || getTempBatcher().begin(spr);
 
-		bat.drawQuad(x1, y1, x2, y2, 0, u1, v1, u2, v2, c, spr.tf, spr.tfo);
+		bat.drawQuad(x1, y1, x2, y2, 0, u1, v1, u2, v2, spr.color, spr.tf, spr.tfo);
 
 		if (!spr.batcher) bat.end();
 	},
