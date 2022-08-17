@@ -1,9 +1,9 @@
+import { getAssetAsIMG } from "../asset-database.js";
 import { addForeignClass } from "../foreign.js";
 import { glFilterNumberToString, glFilterStringToNumber, glWrapModeNumberToString, glWrapModeStringToNumber, GL_FILTER_MAP, GL_WRAP_MAP, wrenGlFilterStringToNumber, wrenGlWrapModeStringToNumber } from "../gl/api.js";
 import { gl } from "../gl/gl.js";
 import { SpriteBatcher } from "../gl/sprite-batcher.js";
 import { Texture } from "../gl/texture.js";
-import { httpGETImage } from "../network/http.js";
 import { wrenAbort, vm, wrenEnsureSlots, wrenGetSlotDouble, wrenGetSlotForeign, wrenGetSlotHandle, wrenGetSlotString, wrenGetSlotType, wrenInsertInList, wrenReleaseHandle, wrenSetListElement, wrenSetSlotDouble, wrenSetSlotHandle, wrenSetSlotNewForeign, wrenSetSlotNewList, wrenSetSlotNull, wrenSetSlotString, wrenGetVariable, Module, HEAP, wren_sock_get_transform } from "../vm.js";
 import { loadAsset } from "./asset.js";
 import { WrenHandle } from "./promise.js";
@@ -77,7 +77,6 @@ function getBatcher() {
 	if (freeSpriteBatchers.length > 0) {
 		return freeSpriteBatchers.pop();
 	} else {
-		console.log("allocate new sprite batcher");
 		return new SpriteBatcher();
 	}
 }
@@ -86,7 +85,6 @@ function getTempBatcher() {
 	if (freeSpriteBatchers.length > 0) {
 		return freeSpriteBatchers[0];
 	} else {
-		console.log("allocate new sprite batcher");
 		let bat = new SpriteBatcher();
 		freeSpriteBatchers.push(bat);
 		return bat;
@@ -244,8 +242,8 @@ addForeignClass("sock", "Sprite", [
 	}
 }, {
 	"load_(_,_)"() {
-		loadAsset(async (url, path) => {
-			let img = await httpGETImage(url);
+		loadAsset(async (path) => {
+			let img = await getAssetAsIMG(path);
 
 			wrenEnsureSlots(2);
 			wrenSetSlotHandle(0, handle_Sprite);

@@ -2,6 +2,7 @@ import { resolveForeignMethod, resolveForeignClass } from "./foreign.js";
 import { httpGET } from "./network/http.js";
 import sockEmscriptenFactory from "../js-generated/sock_c.js";
 import { messagingEnabled, sendMessage } from "./messaging.js";
+import { sockJsGlobal } from "./globals.js";
 
 /**
  * The Emscripten module. Loaded asyncronusly.
@@ -41,6 +42,8 @@ export let vm;
 export async function loadEmscripten() {
 	// Load the Emscripten module.
 	Module = await sockEmscriptenFactory();
+	
+	sockJsGlobal.Module = Module;
 
 	// Setup [Module.sock] object.
 	// This is used by [src/js-esm/library.js] to enable C->JS communication.

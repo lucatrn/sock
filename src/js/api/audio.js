@@ -1,6 +1,6 @@
+import { getAssetAsArrayBuffer } from "../asset-database.js";
 import { addForeignClass } from "../foreign.js";
 import { sockJsGlobal } from "../globals.js";
-import { httpGET } from "../network/http.js";
 import * as Path from "../path.js";
 import { wrenAbort, wrenEnsureSlots, wrenGetSlotBool, wrenGetSlotDouble, wrenGetSlotForeign, wrenGetSlotHandle, wrenGetSlotIsInstanceOf, wrenGetSlotString, wrenGetSlotType, wrenGetVariable, wrenReleaseHandle, wrenSetSlotBool, wrenSetSlotDouble, wrenSetSlotHandle, wrenSetSlotNewForeign } from "../vm.js";
 import { loadAsset } from "./asset.js";
@@ -104,6 +104,17 @@ function generateImpulse(duration) {
 let implulseChurch;
 
 export function initAudioModule() {
+	// Init audio graph
+	audioctx = sockJsGlobal.audio;
+	if (!(audioctx instanceof AudioContext)) throw Error("audio not initialized from HTML");
+	if (audioctx.state === "suspended") throw Error("audio suspended?");
+	
+	masterGain = new GainNode(audioctx, {
+		gain: BASE_MASTER_GAIN,
+	});
+	masterGain.connect(audioctx.destination);
+
+	// Get handles.
 	wrenEnsureSlots(1);
 
 	wrenGetVariable("sock", "Audio", 0);
@@ -114,21 +125,6 @@ export function initAudioModule() {
 	
 	wrenGetVariable("sock", "AudioBus", 0);
 	handle_AudioBus = wrenGetSlotHandle(0);
-}
-
-export function createAudioContext() {
-	audioctx = new AudioContext();
-	sockJsGlobal.audio = audioctx;
-	
-	// Create main audio graph.
-	masterGain = new GainNode(audioctx, {
-		gain: BASE_MASTER_GAIN,
-	});
-	masterGain.connect(audioctx.destination);
-}
-
-export function loadAudioModule() {
-	implulseChurch = generateImpulse(3);
 }
 
 export function stopAllAudio() {
@@ -443,6 +439,10 @@ class ReverbEffect {
 	}
 
 	create() {
+		if (!implulseChurch) {
+			implulseChurch = generateImpulse(3);
+		}
+
 		this.convolver = new ConvolverNode(audioctx, {
 			buffer: implulseChurch,
 			disableNormalization: true,
@@ -618,14 +618,13 @@ function getVoice() {
 let canDecodeOGG = true;
 
 /**
- * @param {string} url
- * @param {(progress: number) => void} [onprogress]
+ * @param {string} path
  * @returns {Promise<AudioBuffer>}
  */
-async function loadAudioBuffer(url, onprogress) {
-	let buffer = await httpGET(url, "arraybuffer", onprogress);
+async function loadAudioBuffer(path) {
+	let buffer = await getAssetAsArrayBuffer(path);
 
-	let ext = Path.getExtension(url);
+	let ext = Path.getExtension(path);
 	let isOGG = ext === "ogg";
 
 	try {
@@ -641,7 +640,7 @@ async function loadAudioBuffer(url, onprogress) {
 			} catch (error) {
 				// Handle OGG failure.
 				if (isOGG) {
-					console.info(`Failed to natively decode ${url}, switching to JavaScript OGG decoder`, error);
+					console.info(`Failed to natively decode ${path}, switching to JavaScript OGG decoder`, error);
 					canDecodeOGG = false;
 					return await decodeOGG(buffer);
 				} else {
@@ -651,7 +650,7 @@ async function loadAudioBuffer(url, onprogress) {
 		}
 	} catch (error) {
 		console.error(error);
-		throw Error(`failed to decode audio ${url}`);
+		throw Error(`failed to decode audio ${path}`);
 	}
 }
 
@@ -1019,8 +1018,8 @@ addForeignClass("sock", "Audio", [
 	},
 }, {
 	"load_(_,_)"() {
-		loadAsset(async (url) => {
-			let buffer = await loadAudioBuffer(url);
+		loadAsset(async (path) => {
+			let buffer = await loadAudioBuffer(path);
 
 			wrenEnsureSlots(1);
 			wrenSetSlotHandle(0, handle_Audio);

@@ -11,9 +11,17 @@ export function getExtension(path) {
  * @param {string} path
  * @returns {string}
  */
-export function resolveAbsoluteAssetPath(path) {
+export function resolveAssetURL(path) {
+	return "assets" + resolveAbsoluteAssetPath(path);
+}
+
+/**
+ * @param {string} path
+ * @returns {string}
+ */
+ export function resolveAbsoluteAssetPath(path) {
 	if (path[0] !== "/") {
 		path = "/" + path;
 	}
-	return "assets" + path;
+	return path;
 }

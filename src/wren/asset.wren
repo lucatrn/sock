@@ -3,13 +3,17 @@ class Asset {
 
 	//#if WEB
 
-		static exists(p) { exists_(p, Promise.new()).await }
+		static exists(p) { Promise.await(exists_(p, Promise.new())) }
 
 		foreign static exists_(path, promise)
 
-		static loadString(p) { loadString_(p, Promise.new()).await }
+		static loadString(p) { Promise.await(loadString_(p, Promise.new())) }
 
 		foreign static loadString_(path, promise)
+		
+		static loadBundle(p) { Promise.await(loadBundle_(p, Promise.new())) }
+
+		foreign static loadBundle_(path, promise)
 
 	//#else
 
@@ -17,7 +21,10 @@ class Asset {
 
 		foreign static loadString(path)
 
+		foreign static loadBundle(path)
+
 	//#endif
+
 }
 
 class Path {

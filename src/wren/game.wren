@@ -130,8 +130,6 @@ class Game {
 	}
 
 	static update_() {
-		if (Input.held("F4")) quit()
-
 		// Init print location.
 		__drawX = __drawY = 4
 

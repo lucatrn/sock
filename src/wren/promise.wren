@@ -23,6 +23,8 @@ class Promise {
 		_f = []
 	}
 
+	static await(a) { a is Promise ? a.await : a }
+
 	isResolved { _s != 0 }
 	isError { _s == 2 }
 	value { _s == 1 ? _v : null }

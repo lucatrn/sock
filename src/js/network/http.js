@@ -2,7 +2,7 @@
 /**
  * @param {string} url
  * @param {XMLHttpRequestResponseType} type
- * @param {(progress: number) => void} [progressCallback]
+ * @param {(progress: number, ok: boolean) => void} [progressCallback]
  * @returns {Promise<any>}
  */
 export function httpGET(url, type, progressCallback) {
@@ -14,8 +14,13 @@ export function httpGET(url, type, progressCallback) {
 
 		if (progressCallback) {
 			xhr.onprogress = (event) => {
+				let ok = xhr.status === 0 || xhr.status === 200;
+
 				if (event.lengthComputable) {
-					progressCallback(event.loaded / event.total)
+					progressCallback(event.loaded / event.total, ok);
+				} else {
+					// Guestimate progress.
+					progressCallback(Math.min(0.95, event.loaded / 1000000), ok);
 				}
 			};
 		}
@@ -28,7 +33,7 @@ export function httpGET(url, type, progressCallback) {
 			if (xhr.status === 200) {
 				resolve(xhr.response);
 			} else {
-				reject(xhr.status + ": " + xhr.statusText + ": " + url);
+				reject(new HTTPError(url, xhr.status, xhr.statusText));
 			}
 		};
 
@@ -86,4 +91,19 @@ export async function httpContentLength(url) {
 		console.error("error for head request at " + url, error);
 	}
 	return 0;
+}
+
+export class HTTPError extends Error {
+	/**
+	 * @param {string} url
+	 * @param {number} status
+	 * @param {string} statusText
+	 */
+	constructor(url, status, statusText) {
+		super(status + ": " + statusText + ": " + url)
+
+		this.url = url;
+		this.status = status;
+		this.statusText = statusText;
+	}
 }

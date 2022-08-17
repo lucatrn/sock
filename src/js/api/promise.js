@@ -11,18 +11,21 @@ export function initPromiseModule() {
 
 /**
  * @param {number} promiseHandle
- * @param {Promise<WrenPromiseResult>} pvalue
+ * @param {WrenPromiseResult|Promise<WrenPromiseResult>} pvalue
  */
 export function resolveWrenPromise(promiseHandle, pvalue) {
-	pvalue.then(result => {
-		resolve(promiseHandle, true, result);
-	}, error => {
-		resolve(promiseHandle, false, String(error));
-	});
+	if (pvalue instanceof Promise) {
+		Promise.resolve(pvalue).then(result => {
+			resolve(promiseHandle, true, result);
+		}, error => {
+			resolve(promiseHandle, false, String(error));
+		});
+	} else {
+		resolveSync(promiseHandle, pvalue);
+	}
 }
 
 /**
- * 
  * @param {number} promiseHandle 
  * @param {boolean} success 
  * @param {WrenPromiseResult} result 
@@ -32,18 +35,7 @@ function resolve(promiseHandle, success, result) {
 	wrenSetSlotHandle(0, promiseHandle);
 	wrenSetSlotBool(1, success);
 
-	if (result instanceof ArrayBuffer || typeof result === "string") {
-		wrenSetSlotString(2, result);
-	} else if (result instanceof WrenHandle) {
-		wrenSetSlotHandle(2, result.handle);
-		wrenReleaseHandle(result.handle);
-	} else if (typeof result === "number") {
-		wrenSetSlotDouble(2, result);
-	} else if (typeof result === "boolean") {
-		wrenSetSlotBool(2, result);
-	} else {
-		wrenSetSlotNull(2);
-	}
+	putResultInSlot(result, 2);
 
 	while (true) {
 		if (wrenCall(callHandle_resolve_2) !== 0) {
@@ -64,6 +56,34 @@ function resolve(promiseHandle, success, result) {
 	wrenReleaseHandle(promiseHandle);
 }
 
+/**
+ * @param {number} promiseHandle
+ * @param {WrenPromiseResult} result
+ */
+function resolveSync(promiseHandle, result) {
+	wrenReleaseHandle(promiseHandle);
+	putResultInSlot(result, 0);
+}
+
+/**
+ * @param {WrenPromiseResult} result
+ * @param {number} slot
+ */
+function putResultInSlot(result, slot) {
+	if (result instanceof ArrayBuffer || typeof result === "string") {
+		wrenSetSlotString(slot, result);
+	} else if (result instanceof WrenHandle) {
+		wrenSetSlotHandle(slot, result.handle);
+		wrenReleaseHandle(result.handle);
+	} else if (typeof result === "number") {
+		wrenSetSlotDouble(slot, result);
+	} else if (typeof result === "boolean") {
+		wrenSetSlotBool(slot, result);
+	} else {
+		wrenSetSlotNull(slot);
+	}
+}
+
 export class WrenHandle {
 	/**
 	 * @param {number} handle 
@@ -75,5 +95,5 @@ export class WrenHandle {
 
 /**
  * To provide a value that is already in VM slot 2, pass the `IN_SLOT_2` object.
- * @typedef {string | number | boolean | ArrayBuffer | WrenHandle} WrenPromiseResult
+ * @typedef {string | number | boolean | ArrayBuffer | WrenHandle | void} WrenPromiseResult
  */

@@ -14,4 +14,12 @@ export function httpExists(url: string): Promise<boolean>;
 
 export function httpContentLength(url: string): Promise<number>;
 
-type ProgressCallback = (loaded: number, total: number) => void;
+export class HTTPError extends Error {
+	readonly url: string;
+	readonly status: number;
+	readonly statusText: string;
+
+	constructor(url: string, status: number, statusText: string)
+}
+
+type ProgressCallback = (progress: number, ok: boolean) => void;

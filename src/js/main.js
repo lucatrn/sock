@@ -15,12 +15,13 @@ import { terminalInterpret } from "./debug/terminal.js";
 import { loadEmscripten, wrenAddImplicitImportModule, wrenHasError, wrenInterpret } from "./vm.js";
 import { makeCallHandles } from "./vm-call-handles.js";
 import { initSystemFont } from "./system-font.js";
-import { createAudioContext, initAudioModule, loadAudioModule, stopAllAudio } from "./api/audio.js";
+import { initAudioModule, stopAllAudio } from "./api/audio.js";
 import { initPromiseModule } from "./api/promise.js";
 import { initSpriteModule } from "./api/sprite.js";
 import { sockJsGlobal } from "./globals.js";
 import { updateRefreshRate } from "./api/screen.js";
 import { messagingEnabled, sendMessage, waitForMessage } from "./messaging.js";
+import { getAssetAsArrayBuffer, loadOptionalBundle } from "./asset-database.js";
 
 /** @type {number} */
 let prevTime = null;
@@ -31,39 +32,108 @@ let refreshrateCounter = 0;
 let refreshrateInterval = 0;
 let remainingTime = 0;
 let quit = false;
-/** @type {Promise<string|ArrayBuffer>} */
+/** @type {string|ArrayBuffer|Promise<string|ArrayBuffer>} */
 let promGameMainScript;
-
-let playButton = document.getElementById("play-button");
-playButton.tabIndex = 0;
+let loadingBarProgress = document.getElementById("loading-bar-progress");
 
 
+/**
+ * We want track loading progress accumulated from multiple sources, each with different 'weights'.
+ * 
+ * These weights are purely aesthetic and arbitary, they were chosen based on feel/timing.
+ * 
+ * Represent this with progress slots. Each slot is `[progress, weight]`.
+ * @type {number[][]}
+ */
+let loadingBarProgressSlots = [];
 
+function addProgressSlot(weight = 1, progress = 0) {
+	let slot = [ progress, weight ];
+	loadingBarProgressSlots.push(slot);
+	return slot;
+}
+
+/**
+ * @param {number[]} slot
+ * @param {number} progress 0..1
+ */
+function setLoadingBarSlotProgress(slot, progress) {
+	slot[0] = progress;
+
+	// Get total progress and render to progress bar.
+	let total = 0;
+	let sum = 0;
+	for (let slot of loadingBarProgressSlots) {
+		total += slot[1];
+		sum += slot[0] * slot[1];
+	}
+	let totalProgress = sum / total;
+
+	// Using clipping to move the progress bar has severable advantages:
+	// * does not trigger layout
+	// * works well with textured progress bars (e.g. someone may want to put an image as the loading bar)
+	// * simple to implement in CSS
+	//
+	// Note we use "-1px" on the edges to ensure those edges don't get clipped unnecessarily.
+	loadingBarProgress.style.clipPath = `inset(-1px ${((1 - totalProgress) * 100).toFixed(1)}% -1px -1px)`;
+	loadingBarProgress.hidden = false;
+}
+
+// Handle setup when messaing is enabled.
 if (messagingEnabled) {
-	playButton.remove();
-	
 	promGameMainScript = waitForMessage("script");
 
 	sendMessage("ready");
-} else {
-	promGameMainScript = httpGET("assets/main.wren", "arraybuffer");
 }
 
-async function init() {
-	// Get scripts in parallel.
+/**
+ * Loads all resources and performs setup.
+ * 
+ * Called automatically as soon as possible.
+ */
+async function play() {
+	// Setup loading bar slots.
+	let progressSlotEmscripten = addProgressSlot(0.75);
+	let progressSlotSystemFont = addProgressSlot(0.05);
+	let progressSlotMainScript = addProgressSlot(0.15);
+	let progressSlotMainBundle;
+
+	// Load the following resources in parallel.
 	let promSockScript = httpGET("sock_web.wren", "arraybuffer");
+
+	// Load the main asset bundle (if it exists).
+	let promMainBundle = loadOptionalBundle("assets.zip", progress => {
+		if (!progressSlotMainBundle) progressSlotMainBundle = addProgressSlot();
+
+		setLoadingBarSlotProgress(progressSlotMainBundle, progress);
+	});
+	
+	// As soon as the main bundle loads (or we know it doesn't exist) start loading the main script.
+	promMainBundle.then(() => {
+		promGameMainScript = getAssetAsArrayBuffer("main.wren", (progress) => {
+			setLoadingBarSlotProgress(progressSlotMainScript, progress);
+		});
+	});
 	
 	// Load Wren VM.
 	await loadEmscripten();
+
+	setLoadingBarSlotProgress(progressSlotEmscripten, 1);
 	
+	// Load system font from WASM code.
 	let promSystemFont = initSystemFont();
+
+	// Create the shared Wren call handles.
 	makeCallHandles();
 
 	// Prepare preview / core init.
 	redoLayout();
+	canvas.hidden = false;
 
 	// Load in the "sock" script.
 	await promSystemFont;
+	setLoadingBarSlotProgress(progressSlotSystemFont, 1);
+
 	let sockScript = await promSockScript;
 	
 	let result = wrenInterpret("sock", sockScript);
@@ -85,29 +155,19 @@ async function init() {
 	initSpriteModule();
 	initAudioModule();
 
-	// Wait for user click.
-	await playClicked();
-
-	playButton.remove();
-
 	// Init WebGL.
 	mainFramebuffer.updateResolution();
 
 	Shader.compileAll();
 
-	// Load modules.
-	loadAudioModule();
-
 	// Load main game module
+	await promMainBundle;
 	let gameMainScript = await promGameMainScript;
 
-// 	wrenEnsureSlots(1);
-// 	wrenGetVariable("sock", "Game", 0);
-// 	wrenCall(callHandle_call_0);
-// 
-// 	console.log("TODO early exit")
-// 	return;
+	// Setup is mostly done! Hide loading UI.
+	document.getElementById("setup").remove();
 
+	// Load the main game script.
 	result = wrenInterpret("/main", gameMainScript);
 	if (result !== 0) {
 		finalize();
@@ -127,32 +187,6 @@ async function init() {
 
 	// Begin!
 	requestAnimationFrame(update);
-}
-
-/**
- * @returns {Promise<void>}
- */
-function playClicked() {
-	// Wait for user input (button click).
-	if (messagingEnabled) {
-		initModules();
-
-		return Promise.resolve();
-	} else {
-		return new Promise((resolve) => {
-			playButton.onclick = oninput;
-			
-			function oninput() {
-				initModules();
-				resolve();
-			}
-		});
-	}
-
-	// We also initialize some systems here that require a user event.
-	function initModules() {
-		createAudioContext()
-	}
 }
 
 function update() {
@@ -211,7 +245,7 @@ function update() {
 
 			// Await update promise.
 			if (!gameIsReady && !quit && !quitFromAPI) {
-				console.log("awaiting update completion...")
+				console.info("[SOCK] awaiting update completion")
 				prepareUpdatePromise().then(() => {
 					finalizeUpdateInner();
 					finalizeUpdateOuter();
@@ -255,6 +289,21 @@ function finalize(error) {
 	}
 }
 
-init();
-
+// Add some useful globals.
 self["wren"] = terminalInterpret;
+
+// When to start playing?
+if (sockJsGlobal.play) {
+	// Play already clicked (`sock.play = true` handled by JS in main HTML).
+
+	// This slot represents the time taken to load the JavaScript code.
+	addProgressSlot(0.2, 1);
+
+	play();
+} else {
+	// Play not clicked yet. Set our own callback, which the other JS will call.
+	sockJsGlobal.play = () => {
+		sockJsGlobal.play = null;
+		play();
+	};
+}

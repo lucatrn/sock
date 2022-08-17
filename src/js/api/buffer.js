@@ -1,13 +1,13 @@
+import { getAssetAsArrayBuffer } from "../asset-database.js";
 import { addClassForeignStaticMethods } from "../foreign.js";
-import { httpGET } from "../network/http.js";
 import { Module, wrenGetSlotHandle } from "../vm.js";
 import { loadAsset } from "./asset.js";
 import { WrenHandle } from "./promise.js";
 
 addClassForeignStaticMethods("sock", "Buffer", {
 	"load_(_,_)"() {
-		loadAsset(async (url) => {
-			let buffer = await httpGET(url, "arraybuffer");
+		loadAsset(async (path) => {
+			let buffer = await getAssetAsArrayBuffer(path);
 
 			// Copy ArrayBuffer to C.
 			let len = buffer.byteLength;

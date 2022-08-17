@@ -6,13 +6,13 @@ class Time {
 	static time { __t }
 	static delta { __d }
 
+	static init_() {
+		__f = __t = __d = 0
+	}
+
 	static update_(t, d) {
 		__t = t
 		__d = d
-	}
-
-	static init_() {
-		__f = 0
 	}
 
 	static pupdate_() {

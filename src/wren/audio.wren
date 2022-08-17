@@ -161,7 +161,7 @@ foreign class AudioBus is AudioControls {
 foreign class Audio {
 	//#if WEB
 
-		static load(p) { load_(p, Promise.new()).await }
+		static load(p) { Promise.await(load_(p, Promise.new())) }
 
 		foreign static load_(path, promise)
 

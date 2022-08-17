@@ -1,7 +1,8 @@
+import { getAssetAsArrayBuffer, loadBundle } from "../asset-database.js";
 import { addClassForeignStaticMethods } from "../foreign.js";
-import { httpExists, httpGET } from "../network/http.js";
-import { resolveAbsoluteAssetPath } from "../path.js";
-import { wrenAbort, wrenEnsureSlots, wrenGetSlotHandle, wrenGetSlotIsInstanceOf, wrenGetSlotString, wrenGetSlotType, wrenGetVariable, wrenSetSlotHandle } from "../vm.js";
+import { httpExists } from "../network/http.js";
+import { resolveAssetURL } from "../path.js";
+import { wrenAbort, wrenEnsureSlots, wrenGetSlotHandle, wrenGetSlotIsInstanceOf, wrenGetSlotString, wrenGetSlotType, wrenGetVariable, wrenSetSlotDouble, wrenSetSlotHandle, wrenSetSlotNull } from "../vm.js";
 import { handle_Promise, resolveWrenPromise } from "./promise.js";
 
 let handle_Asset = 0;
@@ -14,16 +15,19 @@ export function initAssetModule() {
 
 addClassForeignStaticMethods("sock", "Asset", {
 	"loadString_(_,_)"() {
-		loadAsset(url => httpGET(url, "arraybuffer"));
+		loadAsset(path => getAssetAsArrayBuffer(path));
 	},
 	"exists_(_,_)"() {
-		loadAsset(url => httpExists(url));
+		loadAsset(path => httpExists(resolveAssetURL(path)));
+	},
+	"loadBundle_(_,_)"() {
+		loadAsset(path => loadBundle(resolveAssetURL(path)));
 	},
 });
 
 /**
  * Loads asset from (path, promise) call.
- * @param {(url: string, path: string) => Promise<import("./promise.js").WrenPromiseResult>} loader
+ * @param {(path: string) => (import("./promise.js").WrenPromiseResult | Promise<import("./promise.js").WrenPromiseResult>)} loader
  */
 export function loadAsset(loader) {
 	wrenEnsureSlots(4);
@@ -35,10 +39,9 @@ export function loadAsset(loader) {
 	}
 
 	let path = wrenGetSlotString(1);
-	let url = resolveAbsoluteAssetPath(path);
 	let promise = wrenGetSlotHandle(2);
 
 	wrenSetSlotHandle(0, promise);
 
-	resolveWrenPromise(promise, loader(url, path));
+	resolveWrenPromise(promise, loader(path));
 }
