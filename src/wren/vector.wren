@@ -22,7 +22,7 @@ class Vec {
 	x=(x) { _x = x }
 	y=(y) { _y = y }
 
-	rotation { _y.atan(_x) }
+	rotation { _x.atan(_y) }
 
 	rotation=(a) {
 		var n = length
@@ -68,10 +68,10 @@ class Vec {
 	}
 
 	- { Vec.new(-_x, -_y) }
-	+ (v) { Vec.new(_x + v.x, _y + v.y ) }
-	- (v) { Vec.new(_x - v.x, _y - v.y ) }
-	* (a) { a is Num ? Vec.new(_x * a, _y * a) : dot(a) }
-	/ (k) { Vec.new(_x / k, _y / k ) }
+	+ (v) { Vec.new(_x + v.x, _y + v.y) }
+	- (v) { Vec.new(_x - v.x, _y - v.y) }
+	* (k) { Vec.new(_x * k, _y * k) }
+	/ (k) { Vec.new(_x / k, _y / k) }
 	== (v) { v is Vec && _x == v.x && _y == v.y }
 
 	dot(v) { _x*v.x + _y*v.y }
@@ -84,13 +84,13 @@ class Vec {
 
 	lerp(v, t) { Vec.new(_x + (v.x - _x) * t, _y + (v.y - _y) * t) }
 
-	step(v, d) {
+	moveToward(v, d) {
 		var x = v.x - _x
 		var y = v.y - _y
 		var n = (x*x + y*y).sqrt
 		if (n <= d || n == 0) return Vec.new(v.x, v.y)
 		d = d / n
-		return Vec.new(x * d, y * d)
+		return Vec.new(_x + x * d, _y + y * d)
 	}
 
 	project(v) { v * (dot(v) / v.dot(v)) }

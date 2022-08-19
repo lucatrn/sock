@@ -1,7 +1,7 @@
 
 //#if DESKTOP
 
-	class Window_ {
+	class Window {
 
 		foreign static left
 		foreign static top
@@ -21,5 +21,9 @@
 		foreign static resizable=(b)
 
 	}
+
+//#else
+
+	var Window = null
 
 //#endif

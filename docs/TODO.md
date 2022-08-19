@@ -5,7 +5,6 @@ In order of importance.
 
 ## Essentials
 
-* Touch Input
 * Gamepad Input (per controller?)
 
 * Array more datatypes
@@ -20,12 +19,6 @@ In order of importance.
 
 
 ## Would Be Cool
-
-* Command Line / URL Arguments
-	* To keep things simple, we could only support named arguments.
-		* e.g. `example.exe -frog -cat 42` => `{ "frog": "", "cat": "42" }`
-		* e.g. `https://example.com/?frog&cat=42` => `{ "frog": "", "cat": "42" }`
-	* Store in map e.g. `Game.arguments`
 
 * RGBA based pixel drawing:
 	* Write pixels as RGBA bytes to an `Array`.
@@ -47,8 +40,6 @@ for (i in 0...40000..4) {
 }
 var clp = Audio.fromSamples(pcm, 1)
 ```
-
-* Control graphics blend function (is this transferable to Metal?)
 
 * `Array.fromHexString(s)` e.g. `Array.fromHexString("8f14a0")`
 

@@ -1,14 +1,15 @@
 import { canvas } from "../canvas.js";
+import { packFloatColor } from "../color.js";
 import { deviceIsMobile } from "../device.js";
 import { addClassForeignStaticMethods } from "../foreign.js";
-import { wrenGlFilterStringToNumber } from "../gl/api.js";
+import { wrenGlBlendConstantStringToNumber, wrenGlBlendEquationStringToNumber, wrenGlFilterStringToNumber } from "../gl/api.js";
 import { mainFramebuffer } from "../gl/framebuffer.js";
-import { gl } from "../gl/gl.js";
+import { gl, resetGlBlending } from "../gl/gl.js";
 import { createElement } from "../html.js";
 import { layoutOptions, queueLayout, screenHeight, screenWidth } from "../layout.js";
 import { systemFontDraw } from "../system-font.js";
 import { callHandle_init_2, callHandle_update_0, callHandle_update_2 } from "../vm-call-handles.js";
-import { getSlotBytes, wrenAbort, wrenCall, wrenEnsureSlots, wrenGetSlotBool, wrenGetSlotDouble, wrenGetSlotHandle, wrenGetSlotString, wrenGetSlotType, wrenGetVariable, wrenSetSlotBool, wrenSetSlotDouble, wrenSetSlotHandle, wrenSetSlotNull, wrenSetSlotString } from "../vm.js";
+import { getSlotBytes, wrenAbort, wrenCall, wrenEnsureSlots, wrenGetSlotBool, wrenGetSlotDouble, wrenGetSlotHandle, wrenGetSlotString, wrenGetSlotType, wrenGetVariable, wrenSetMapValue, wrenSetSlotBool, wrenSetSlotDouble, wrenSetSlotHandle, wrenSetSlotNewMap, wrenSetSlotNull, wrenSetSlotString } from "../vm.js";
 
 // Wren -> JS
 
@@ -25,6 +26,8 @@ let cursor = "default";
 let printColor = 0xffffffff;
 let wantFullscreen = false;
 let gettingDOMFullscreen = false;
+/** @type {number} */
+let argumentsMapHandle = null;
 
 export function prepareUpdatePromise() {
 	return updatePromise = new Promise((resolve) => {
@@ -254,6 +257,62 @@ addClassForeignStaticMethods("sock", "Game", {
 		gl.clearColor(r, g, b, 1);
 		gl.clear(gl.COLOR_BUFFER_BIT);
 	},
+	"blendColor"() {
+		let color = gl.getParameter(gl.BLEND_COLOR);
+
+		wrenSetSlotDouble(0, packFloatColor(color[0], color[1], color[2], color[3]));
+	},
+	"setBlendingColor(_,_,_,_)"() {
+		for (let i = 1; i <= 4; i++) {
+			if (wrenGetSlotType(i) !== 1) {
+				wrenAbort("colors must be numbers");
+				return;
+			}
+		}
+
+		let r = wrenGetSlotDouble(1);
+		let g = wrenGetSlotDouble(2);
+		let b = wrenGetSlotDouble(3);
+		let a = wrenGetSlotDouble(4);
+
+		gl.blendColor(r, g, b, a);
+	},
+	"setBlendMode(_,_,_,_,_,_)"() {
+		// Convert Sock strings to GL constants.
+		let eqRGB = wrenGlBlendEquationStringToNumber(1);
+		if (eqRGB == null) return;
+		
+		let eqAlpha = wrenGlBlendEquationStringToNumber(2);
+		if (eqAlpha == null) return;
+
+		let srcRGB = wrenGlBlendConstantStringToNumber(3);
+		if (srcRGB == null) return;
+		
+		let srcAlpha = wrenGlBlendConstantStringToNumber(4);
+		if (srcAlpha == null) return;
+		
+		let dstRGB = wrenGlBlendConstantStringToNumber(5);
+		if (dstRGB == null) return;
+		
+		let dstAlpha = wrenGlBlendConstantStringToNumber(6);
+		if (dstAlpha == null) return;
+
+		// Set GL state.
+		if (eqRGB === eqAlpha) {
+			gl.blendEquation(eqRGB);
+		} else {
+			gl.blendEquationSeparate(eqRGB, eqAlpha);
+		}
+
+		if (srcRGB === srcAlpha && dstRGB === dstAlpha) {
+			gl.blendFunc(srcRGB, dstRGB);
+		} else {
+			gl.blendFuncSeparate(srcRGB, dstRGB, srcAlpha, dstAlpha);
+		}
+	},
+	"resetBlendMode()"() {
+		resetGlBlending();
+	},
 	"openURL(_)"() {
 		if (wrenGetSlotType(1) !== 6) {
 			wrenAbort("url must be a string");
@@ -263,6 +322,23 @@ addClassForeignStaticMethods("sock", "Game", {
 		let url = wrenGetSlotString(1);
 
 		open(url, "_blank", "noreferrer");
+	},
+	"arguments"() {
+		if (argumentsMapHandle) {
+			wrenSetSlotHandle(0, argumentsMapHandle);
+		} else {
+			wrenEnsureSlots(3);
+			wrenSetSlotNewMap(0);
+
+			let search = new URL(location.href).searchParams;
+			search.forEach((value, key) => {
+				wrenSetSlotString(1, key);
+				wrenSetSlotString(2, value);
+				wrenSetMapValue(0, 1, 2);
+			});
+
+			argumentsMapHandle = wrenGetSlotHandle(0);
+		}
 	},
 });
 

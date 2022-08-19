@@ -4,6 +4,8 @@
 //#define __SCALE_MAX __km
 
 class Game {
+	foreign static arguments
+
 	foreign static title
 	foreign static title=(s)
 
@@ -97,6 +99,15 @@ class Game {
 	static clear(c) { clear_(c.red / 255, c.green / 255, c.blue / 255) }
 
 	foreign static clear_(r, g, b)
+
+	foreign static blendColor
+	static blendColor=(c) { setBlendingColor(c.red / 255, c.green / 255, c.blue / 255, c.alpha / 255) }
+	foreign static setBlendingColor(r, g, b, a)
+
+	static setBlendMode(func, src, dst) { setBlendMode(func, func, src, src, dst, dst) }
+	static setBlendMode(func, srcRGB, srcA, dstRGB, dstA) { setBlendMode(func, func, srcRGB, srcA, dstRGB, dstA) }
+	foreign static setBlendMode(funcRGB, funcA, srcRGB, srcA, dstRGB, dstA)
+	foreign static resetBlendMode()
 
 	foreign static openURL(url)
 

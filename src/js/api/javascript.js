@@ -3,7 +3,7 @@ import { jsToWrenJSON, wrenJSONToJS } from "../json.js";
 import { wrenAbort, wrenGetSlotHandle, wrenGetSlotIsInstanceOf, wrenGetSlotString, wrenGetSlotType, wrenSetSlotHandle, wrenSetSlotString } from "../vm.js";
 import { handle_Promise, resolveWrenPromise } from "./promise.js";
 
-addClassForeignStaticMethods("sock", "JavaScript_", {
+addClassForeignStaticMethods("sock", "JavaScript", {
 	// eval_(promise, argValuesJSON, argNamesJSON, jsScript)
 	"eval_(_,_,_,_)"() {
 		// Get JavaScript source.

@@ -8,7 +8,14 @@ export let gl = canvas.getContext("webgl", {
 	antialias: false,
 });
 
+export let glExtMinMax = gl.getExtension("EXT_blend_minmax");
+
+export function resetGlBlending() {
+	gl.blendEquation(gl.FUNC_ADD);
+	gl.blendFuncSeparate(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA, gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+}
+
 gl.enable(gl.BLEND);
-gl.blendFuncSeparate(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA, gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+resetGlBlending();
 
 sockJsGlobal.gl = gl;

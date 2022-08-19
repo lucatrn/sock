@@ -1,4 +1,3 @@
-import { Color } from "../color.js";
 import { gl } from "./gl.js";
 
 /**

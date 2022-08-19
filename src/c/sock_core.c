@@ -4265,7 +4265,7 @@ const char* wren_resolveModule(WrenVM* vm, const char* importer, const char* nam
 				if (isStatic) {
 					if (strcmp(signature, "os") == 0) return wren_Platform_os;
 				}
-			} else if (strcmp(className, "Window_") == 0) {
+			} else if (strcmp(className, "Window") == 0) {
 				if (isStatic) {
 					if (strcmp(signature, "left") == 0) return wren_Window_left;
 					if (strcmp(signature, "top") == 0) return wren_Window_top;

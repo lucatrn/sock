@@ -1,4 +1,3 @@
-import { Color } from "../color.js";
 import { gl } from "./gl.js";
 import { PrimitiveBatcher } from "./primitive-batcher.js";
 import { Shader } from "./shader.js";
@@ -156,7 +155,7 @@ export class PolygonBatcher extends PrimitiveBatcher {
 	 * @param {number} cy
 	 * @param {number} w
 	 * @param {number} h
-	 * @param {Color|number} color
+	 * @param {number} color
 	 * @param {number} [z]
 	 * @param {number|null} [rotationAngle] Counter-clockwise Tau
 	 */
@@ -198,7 +197,7 @@ export class PolygonBatcher extends PrimitiveBatcher {
 	 * @param {number} cy
 	 * @param {number} w
 	 * @param {number} h
-	 * @param {Color|number} color
+	 * @param {number} color
 	 * @param {number} [z]
 	 */
 	drawTriangle(cx, cy, w, h, color, z) {

@@ -329,6 +329,30 @@ export function wrenInsertInList(listSlot, index, elementSlot) {
 }
 
 /**
+ * @param {number} mapSlot
+ */
+export function wrenSetSlotNewMap(mapSlot) {
+	Module.ccall("wrenSetSlotNewMap",
+		null,
+		["number", "number"],
+		[vm, mapSlot]
+	);
+}
+
+/**
+ * @param {number} mapSlot
+ * @param {number} keySlot
+ * @param {number} valueSlot
+ */
+export function wrenSetMapValue(mapSlot, keySlot, valueSlot) {
+	Module.ccall("wrenSetMapValue",
+		null,
+		["number", "number", "number", "number"],
+		[vm, mapSlot, keySlot, valueSlot]
+	);
+}
+
+/**
  * @param {number} slot
  * @returns {number}
  */

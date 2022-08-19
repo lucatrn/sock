@@ -3,8 +3,6 @@ import { Texture } from "./gl/texture.js";
 import { HEAPU8, Module } from "./vm.js";
 import { SpriteBatcher } from "./gl/sprite-batcher.js";
 import { httpGETImage } from "./network/http.js";
-import { Color } from "./color.js";
-import { internalResolutionWidth } from "./layout.js";
 
 // TODO: most of this file will end up in C eventually.
 
@@ -40,14 +38,14 @@ export async function initSystemFont() {
  * @param {Uint8Array|string} s
  * @param {number} cornerX
  * @param {number} cornerY
- * @param {Color|number} [color]
+ * @param {number} [color]
  */
 export function systemFontDraw(s, cornerX, cornerY, color) {
 	if (typeof s === "string") {
 		s = new TextEncoder().encode(s);
 	}
 
-	let colorInt = color == null ? 0xffffffff : (typeof color === "number" ? color : color.int);
+	color = color ?? 0xffffffff;
 
 	if (!systemFontSpriteBatcher) systemFontSpriteBatcher = new SpriteBatcher();
 
@@ -86,7 +84,7 @@ export function systemFontDraw(s, cornerX, cornerY, color) {
 				0,
 				spx / BITMAP_WIDTH, spy / BITMAP_HEIGHT,
 				(spx + 6) / BITMAP_WIDTH, (spy + 12) / BITMAP_HEIGHT,
-				colorInt
+				color
 			);
 	
 			dx += 6;

@@ -22,6 +22,7 @@ import { sockJsGlobal } from "./globals.js";
 import { updateRefreshRate } from "./api/screen.js";
 import { messagingEnabled, sendMessage, waitForMessage } from "./messaging.js";
 import { getAssetAsArrayBuffer, loadOptionalBundle } from "./asset-database.js";
+import { resetGlBlending } from "./gl/gl.js";
 
 /** @type {number} */
 let prevTime = null;
@@ -83,6 +84,10 @@ function setLoadingBarSlotProgress(slot, progress) {
 if (messagingEnabled) {
 	promGameMainScript = waitForMessage("script");
 
+	promGameMainScript.then(() => {
+		play();
+	});
+
 	sendMessage("ready");
 }
 
@@ -109,11 +114,13 @@ async function play() {
 	});
 	
 	// As soon as the main bundle loads (or we know it doesn't exist) start loading the main script.
-	promMainBundle.then(() => {
-		promGameMainScript = getAssetAsArrayBuffer("main.wren", (progress) => {
-			setLoadingBarSlotProgress(progressSlotMainScript, progress);
+	if (!promGameMainScript) {
+		promMainBundle.then(() => {
+			promGameMainScript = getAssetAsArrayBuffer("main.wren", (progress) => {
+				setLoadingBarSlotProgress(progressSlotMainScript, progress);
+			});
 		});
-	});
+	}
 	
 	// Load Wren VM.
 	await loadEmscripten();
@@ -263,6 +270,7 @@ function update() {
 
 function finalizeUpdateInner() {
 	// Finalize WebGL.
+	resetGlBlending();
 	mainFramebuffer.draw();
 }
 
@@ -291,6 +299,10 @@ function finalize(error) {
 
 // Add some useful globals.
 self["wren"] = terminalInterpret;
+
+sockJsGlobal.quit = () => {
+	quit = true;
+};
 
 // When to start playing?
 if (sockJsGlobal.play) {

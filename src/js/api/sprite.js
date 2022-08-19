@@ -1,10 +1,10 @@
 import { getAssetAsIMG } from "../asset-database.js";
 import { addForeignClass } from "../foreign.js";
-import { glFilterNumberToString, glFilterStringToNumber, glWrapModeNumberToString, glWrapModeStringToNumber, GL_FILTER_MAP, GL_WRAP_MAP, wrenGlFilterStringToNumber, wrenGlWrapModeStringToNumber } from "../gl/api.js";
+import { glFilterNumberToString, glWrapModeNumberToString, wrenGlFilterStringToNumber, wrenGlWrapModeStringToNumber } from "../gl/api.js";
 import { gl } from "../gl/gl.js";
 import { SpriteBatcher } from "../gl/sprite-batcher.js";
 import { Texture } from "../gl/texture.js";
-import { wrenAbort, vm, wrenEnsureSlots, wrenGetSlotDouble, wrenGetSlotForeign, wrenGetSlotHandle, wrenGetSlotString, wrenGetSlotType, wrenInsertInList, wrenReleaseHandle, wrenSetListElement, wrenSetSlotDouble, wrenSetSlotHandle, wrenSetSlotNewForeign, wrenSetSlotNewList, wrenSetSlotNull, wrenSetSlotString, wrenGetVariable, Module, HEAP, wren_sock_get_transform } from "../vm.js";
+import { wrenAbort, vm, wrenEnsureSlots, wrenGetSlotDouble, wrenGetSlotForeign, wrenGetSlotHandle, wrenGetSlotType, wrenSetSlotDouble, wrenSetSlotHandle, wrenSetSlotNewForeign, wrenSetSlotNewList, wrenSetSlotNull, wrenSetSlotString, wrenGetVariable, Module, HEAP, wren_sock_get_transform } from "../vm.js";
 import { loadAsset } from "./asset.js";
 import { WrenHandle } from "./promise.js";
 

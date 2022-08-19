@@ -1,7 +1,7 @@
 
 //#if WEB
 
-	class JavaScript_ {
+	class JavaScript {
 		static eval(s) { eval(null, null, s) }
 		
 		static eval(av, an, s) { JSON.fromString( eval_(null, av && JSON.toString(av), an && JSON.toString(an), s) ) }
@@ -12,5 +12,9 @@
 
 		foreign static eval_(promise, argValuesJSON, argNamesJSON, jsScript)
 	}
+
+//#else
+
+	var JavaScript = null
 
 //#endif

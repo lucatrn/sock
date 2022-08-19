@@ -104,10 +104,13 @@ function generateImpulse(duration) {
 let implulseChurch;
 
 export function initAudioModule() {
-	// Init audio graph
-	audioctx = sockJsGlobal.audio;
-	if (!(audioctx instanceof AudioContext)) throw Error("audio not initialized from HTML");
-	if (audioctx.state === "suspended") throw Error("audio suspended?");
+	// Init audio graph.
+	// Ideally the audiocontext is created from the HTML, but we have a fallback here as well.
+	audioctx = sockJsGlobal.audio ?? new AudioContext();
+
+	if (audioctx.state === "suspended") {
+		console.warn("AudioContext is suspended");
+	}
 	
 	masterGain = new GainNode(audioctx, {
 		gain: BASE_MASTER_GAIN,
