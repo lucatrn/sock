@@ -14,6 +14,11 @@ class Vec {
 		}
 	}
 
+	construct polar(a, n) {
+		_x = a.cos * n
+		_y = a.sin * n
+	}
+
 	static zero { new(0, 0) }
 
 	x { _x }

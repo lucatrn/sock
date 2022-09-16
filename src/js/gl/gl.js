@@ -15,6 +15,10 @@ export function resetGlBlending() {
 	gl.blendFuncSeparate(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA, gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
 }
 
+export function resetGlScissor() {
+	gl.disable(gl.SCISSOR_TEST);
+}
+
 gl.enable(gl.BLEND);
 resetGlBlending();
 

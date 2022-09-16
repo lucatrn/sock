@@ -650,6 +650,25 @@ extern "C" {
 		soloud.stop(voice->handle);
 	}
 
+	void wren_voice_time(WrenVM* vm) {
+		Voice* voice = (Voice*)wrenGetSlotForeign(vm, 0);
+
+		wrenSetSlotDouble(vm, 0, soloud.getStreamPosition(voice->handle));
+	}
+	
+	void wren_voice_time_set(WrenVM* vm) {
+		if (wrenGetSlotType(vm, 1) != WREN_TYPE_NUM) {
+			wrenAbort(vm, "volume and fade must be Nums");
+			return;
+		}
+
+		Voice* voice = (Voice*)wrenGetSlotForeign(vm, 0);
+		double time = wrenGetSlotDouble(vm, 1);
+		time = max(0, time);
+		
+		soloud.seek(voice->handle, time);
+	}
+
 	void wren_voice_volume(WrenVM* vm) {
 		Voice* voice = (Voice*)wrenGetSlotForeign(vm, 0);
 

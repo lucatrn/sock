@@ -13,8 +13,8 @@
 
 		foreign static width
 		foreign static height
-		static width=(w) { setSize_(w, height) }
-		static height=(h) { setSize_(width, h) }
+		static width=(w) { setSize(w, height) }
+		static height=(h) { setSize(width, h) }
 		foreign static setSize(w, h)
 
 		foreign static resizable

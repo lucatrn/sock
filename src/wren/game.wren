@@ -32,14 +32,12 @@ class Game {
 	}
 
 	static pixelPerfectScaling { __IS_PIXEL_PERFECT }
-
 	static pixelPerfectScaling=(pp) {
 		__IS_PIXEL_PERFECT = pp
 		layoutChanged_()
 	}
 
 	static maxScale { __SCALE_MAX }
-
 	static maxScale=(s) {
 		if (__SCALE_MAX != s) {
 			__SCALE_MAX = s
@@ -48,61 +46,56 @@ class Game {
 	}
 
 	foreign static fullscreen
-
 	static fullscreen=(v) {
 		var a = setFullscreen_(v)
 		if (a is List) update_(a[0], a[1])
 	}
-
 	foreign static setFullscreen_(value)
 
 	foreign static scaleFilter
-
 	foreign static scaleFilter=(value)
 
 	foreign static fps
-
 	foreign static fps=(fps)
 
 	static layoutChanged_() {
 		layoutChanged_(__w, __h, __SIZE_IS_FIXED, __IS_PIXEL_PERFECT, __SCALE_MAX)
 	}
-
 	foreign static layoutChanged_(x, y, fixed, pp, maxs)
 
 	foreign static cursor
-	
 	foreign static cursor=(s)
 
 	static print(s) {
 		__drawY = 16 + print_(s.toString, __drawX, __drawY)
 	}
-	
+	static print(s, c) {
+		printColor = c
+		print(s)
+	}
 	static print(s, x, y) {
 		__drawX = x
 		__drawY = 16 + print_(s.toString, x, y)
 	}
-
-	static printColor { __drawC }
-
-	static printColor=(c) {
-		setPrintColor_(c)
-		__drawC = c
+	static print(s, x, y, c) {
+		printColor = c
+		print(s, x, y)
 	}
-
 	foreign static print_(s, x, y)
 
-	foreign static setPrintColor_(d)
+	foreign static printColor
+	foreign static printColor=(c)
+
+	foreign static setClip(x, y, w, h)
+	foreign static clearClip()
 
 	static clear() { clear_(0, 0, 0) }
-
 	static clear(c) { clear_(c.red / 255, c.green / 255, c.blue / 255) }
-
 	foreign static clear_(r, g, b)
 
 	foreign static blendColor
-	static blendColor=(c) { setBlendingColor(c.red / 255, c.green / 255, c.blue / 255, c.alpha / 255) }
-	foreign static setBlendingColor(r, g, b, a)
+	static blendColor=(c) { setBlendColor(c.red / 255, c.green / 255, c.blue / 255, c.alpha / 255) }
+	foreign static setBlendColor(r, g, b, a)
 
 	static setBlendMode(func, src, dst) { setBlendMode(func, func, src, src, dst, dst) }
 	static setBlendMode(func, srcRGB, srcA, dstRGB, dstA) { setBlendMode(func, func, srcRGB, srcA, dstRGB, dstA) }
@@ -118,7 +111,6 @@ class Game {
 		__SIZE_IS_FIXED = false
 		__IS_PIXEL_PERFECT = false
 		__drawX = __drawY = 4
-		__drawC = #fff
 	}
 
 	static update_(w, h) {

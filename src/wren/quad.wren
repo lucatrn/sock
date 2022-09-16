@@ -14,7 +14,7 @@ class Quad {
 		} else {
 			x = (x / n) * w * 0.5
 			y = (y / n) * w * 0.5
-			draw(x1 + y - x, y1 - x - y, x1 - y - x, y1 + x - y, x2 + y + x, y2 - x + y, x2 - y + x, y2 + x + y, c)
+			draw(x1 + y - x, y1 - x - y, x1 - y - x, y1 + x - y, x2 - y + x, y2 + x + y, x2 + y + x, y2 - x + y, c)
 		}
 	}
 }

@@ -4,9 +4,9 @@ import { deviceIsMobile } from "../device.js";
 import { addClassForeignStaticMethods } from "../foreign.js";
 import { wrenGlBlendConstantStringToNumber, wrenGlBlendEquationStringToNumber, wrenGlFilterStringToNumber } from "../gl/api.js";
 import { mainFramebuffer } from "../gl/framebuffer.js";
-import { gl, resetGlBlending } from "../gl/gl.js";
+import { gl, resetGlBlending, resetGlScissor } from "../gl/gl.js";
 import { createElement } from "../html.js";
-import { layoutOptions, queueLayout, screenHeight, screenWidth } from "../layout.js";
+import { internalResolutionHeight, layoutOptions, queueLayout, screenHeight, screenWidth } from "../layout.js";
 import { systemFontDraw } from "../system-font.js";
 import { callHandle_init_2, callHandle_update_0, callHandle_update_2 } from "../vm-call-handles.js";
 import { getSlotBytes, wrenAbort, wrenCall, wrenEnsureSlots, wrenGetSlotBool, wrenGetSlotDouble, wrenGetSlotHandle, wrenGetSlotString, wrenGetSlotType, wrenGetVariable, wrenSetMapValue, wrenSetSlotBool, wrenSetSlotDouble, wrenSetSlotHandle, wrenSetSlotNewMap, wrenSetSlotNull, wrenSetSlotString } from "../vm.js";
@@ -234,7 +234,10 @@ addClassForeignStaticMethods("sock", "Game", {
 
 		wrenSetSlotDouble(0, resultY);
 	},
-	"setPrintColor_(_)"() {
+	"printColor"() {
+		wrenSetSlotDouble(0, printColor);
+	},
+	"printColor=(_)"() {
 		if (wrenGetSlotType(1) !== 1) {
 			wrenAbort("color must be a Num");
 			return;
@@ -257,12 +260,31 @@ addClassForeignStaticMethods("sock", "Game", {
 		gl.clearColor(r, g, b, 1);
 		gl.clear(gl.COLOR_BUFFER_BIT);
 	},
+	"setClip(_,_,_,_)"() {
+		for (let i = 1; i <= 4; i++) {
+			if (wrenGetSlotType(i) !== 1) {
+				wrenAbort("scissor rect must be all Nums");
+				return;
+			}
+		}
+
+		let x = Math.trunc(wrenGetSlotDouble(1));
+		let y = Math.trunc(wrenGetSlotDouble(2));
+		let w = Math.trunc(wrenGetSlotDouble(3));
+		let h = Math.trunc(wrenGetSlotDouble(4));
+
+		gl.enable(gl.SCISSOR_TEST);
+		gl.scissor(x, internalResolutionHeight - h - y, w, h);
+	},
+	"clearClip()"() {
+		resetGlScissor();
+	},
 	"blendColor"() {
 		let color = gl.getParameter(gl.BLEND_COLOR);
 
 		wrenSetSlotDouble(0, packFloatColor(color[0], color[1], color[2], color[3]));
 	},
-	"setBlendingColor(_,_,_,_)"() {
+	"setBlendColor(_,_,_,_)"() {
 		for (let i = 1; i <= 4; i++) {
 			if (wrenGetSlotType(i) !== 1) {
 				wrenAbort("colors must be numbers");

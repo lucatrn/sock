@@ -22,7 +22,7 @@ import { sockJsGlobal } from "./globals.js";
 import { updateRefreshRate } from "./api/screen.js";
 import { messagingEnabled, sendMessage, waitForMessage } from "./messaging.js";
 import { getAssetAsArrayBuffer, loadOptionalBundle } from "./asset-database.js";
-import { resetGlBlending } from "./gl/gl.js";
+import { resetGlBlending, resetGlScissor } from "./gl/gl.js";
 
 /** @type {number} */
 let prevTime = null;
@@ -271,6 +271,7 @@ function update() {
 function finalizeUpdateInner() {
 	// Finalize WebGL.
 	resetGlBlending();
+	resetGlScissor();
 	mainFramebuffer.draw();
 }
 

@@ -1096,6 +1096,7 @@ addForeignClass("sock", "Voice", [
 			return;
 		}
 		let time = wrenGetSlotDouble(1);
+		time = Math.max(0, time);
 
 		let voice = getVoice();
 		voice.pause();

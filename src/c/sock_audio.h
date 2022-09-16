@@ -36,6 +36,8 @@ void wren_voice_play(WrenVM* vm);
 void wren_voice_pause(WrenVM* vm);
 void wren_voice_isPaused(WrenVM* vm);
 void wren_voice_stop(WrenVM* vm);
+void wren_voice_time(WrenVM* vm);
+void wren_voice_time_set(WrenVM* vm);
 void wren_voice_volume(WrenVM* vm);
 void wren_voice_fadeVolume(WrenVM* vm);
 void wren_voice_rate(WrenVM* vm);

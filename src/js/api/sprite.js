@@ -184,10 +184,15 @@ addForeignClass("sock", "Sprite", [
 	},
 	"transform=(_)"() {
 		let spr = getSprite();
-		let ptr = /** @type {number} */( Module.ccall("sock_get_transform", "number", [ "number" ], [ 1 ]) );
-		if (ptr) {
-			spr.tfo = null;
-			spr.tf = Array.from(new Float32Array(HEAP(), ptr, 6));
+
+		if (wrenGetSlotType(1) === 5) {
+			spr.tf = spr.tfo = null;
+		} else {
+			let ptr = wren_sock_get_transform(1);
+			if (ptr) {
+				spr.tfo = null;
+				spr.tf = Array.from(new Float32Array(HEAP(), ptr, 6));
+			}
 		}
 	},
 	"setTransform(_,_,_)"() {
